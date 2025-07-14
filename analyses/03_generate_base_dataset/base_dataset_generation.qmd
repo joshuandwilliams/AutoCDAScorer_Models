@@ -1,0 +1,92 @@
+---
+title: "Base dataset generation"
+format:
+    html:
+        colab-fold: true
+jupyter: python3
+---
+
+Date: 13/07/2025
+
+## GOHREP
+**Goal:**
+
+Generate a base dataset for training, validation, ensemble, and test.
+
+**Hypothesis:**
+
+N/A
+
+**Rationale:**
+
+N/A
+
+**Experimental plan:**
+1. Load in all the CDA images and resize them to 64x64 pixels
+2. Split them into training, validation, ensemble, and test portions using stratified sampling
+3. Downsample with fixed seed to normalize class sizes
+4. Preprocess the images and labels into the correct input format for the DL models
+5. Save to .npy file
+6. Load in data and check integrity
+
+```{python}
+import sys
+from pathlib import Path
+
+import tensorflow as tf
+from collections import Counter
+
+repo_root = next(p for p in Path.cwd().parents if (p / '.git').exists())
+sys.path.append(str(repo_root / 'src'))
+import base_dataset
+```
+
+1. Load in all the CDA images and resize them to 64x64 pixels
+```{python}
+images, labels, filepaths = base_dataset.load_images_and_labels(data_dir = "/Users/jowillia/Documents/GitHub/AutoCDAScorer_Models/data/cropped_images", image_size = 64)
+```
+
+2. Split them into training, validation, ensemble, and test portions using stratified sampling
+```{python}
+split_dataset = base_dataset.split_dataset(images=images, labels=labels, filepaths=filepaths, train_ratio=0.6, val_ratio=0.15, ensemble_ratio=0.15, seed=42)
+```
+
+3. Downsample with fixed seed to normalize class sizes
+4. Preprocess the images and labels into the correct input format for the DL models
+```{python}
+processed_split_dataset = base_dataset.preprocess_split_dataset(dataset=split_dataset, seed=42)
+```
+
+```{python}
+def get_and_print_counts(tensor, name):
+    sparse_labels = tf.argmax(tensor, axis=1)
+    unique_elements, _, counts = tf.unique_with_counts(sparse_labels)
+    print(f"{name} Label Counts: {dict(zip(unique_elements.numpy(), counts.numpy()))}")
+
+get_and_print_counts(processed_split_dataset['train_labels'], 'Train')
+get_and_print_counts(processed_split_dataset['val_labels'], 'Validation')
+get_and_print_counts(processed_split_dataset['ensemble_labels'], 'Ensemble')
+get_and_print_counts(processed_split_dataset['test_labels'], 'Test')
+```
+
+5. Save to .npy file
+```{python}
+base_dataset.save_dataset(processed_split_dataset, "/Users/jowillia/Documents/GitHub/AutoCDAScorer_Models/data/npy_datasets/base_dataset.npy")
+```
+
+6. Load in data and check integrity
+```{python}
+loaded_dataset = base_dataset.load_dataset("/Users/jowillia/Documents/GitHub/AutoCDAScorer_Models/data/npy_datasets/base_dataset.npy")
+
+get_and_print_counts(loaded_dataset['train_labels'], 'Train')
+get_and_print_counts(loaded_dataset['val_labels'], 'Validation')
+get_and_print_counts(loaded_dataset['ensemble_labels'], 'Ensemble')
+get_and_print_counts(loaded_dataset['test_labels'], 'Test')
+```
+
+Train: 262 of each score (1834)
+Val: 65 of each score (455)
+Ensemble: 65 of each score (455)
+Test: 44 of each score (308)
+Total: 436 of each score (3052)
+Of dataset total 6364.

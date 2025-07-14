@@ -1,0 +1,63 @@
+---
+title: "Combine CDAScorer annotation datasets"
+format:
+  html:
+	code-fold: true
+jupyter: python3
+---
+ 
+Date: 19/06/2025
+
+## GOHREP
+**Goal:**
+
+Combine the CDAScorer annotation datasets into one table.
+
+**Hypothesis:**
+
+N/A
+
+**Rationale:**
+
+Having three scorers allows some confidence in the ground truth labels to be passed to the model.
+With a median score:
+1. If all three scorers give the same score, then that agreed score becomes ground truth
+2. If two scorers give one score, and another scorer gives a different score, then the majority score becomes ground truth
+3. If all scorers give different scores, the least extreme score becomes the ground truth
+
+**Experimental plan:**
+
+1. Load in all the CDAScorer data tables
+2. Create a new data table to contain the combined dataset, with Scorer1, Score1, X1_1, X2_1, Y1_1, Y2_1 etc.
+3. To this table add all of the unique combinations of File, Row, Col, Pos that appear across the datasets.
+4. Load in the randomised_info.csv data, which contains information about who scored each image. Use this to fill in Scorer1, Scorer2, and Scorer3 columns.
+5. For each row, loop through those scorers, access their CDAScorer data tables for the current CDA, and add their score and coordinates to the corresponding columns of the output table.
+6. Create an additional table which includes only File, Row, Col, Pos, Median_Score, and the means of the 4 coordinates.
+7. Output both tables.
+
+### Import required packages
+```{python}
+# Public packages
+import pandas as pd
+from pathlib import Path
+import sys
+
+# Custom functions
+repo_root = next(p for p in Path.cwd().parents if (p / '.git').exists())
+sys.path.append(str(repo_root / 'src'))
+import dataset_preparation
+```
+
+### Read in all the CDAScorer data tables
+```{python}
+cda_dataframes1 = dataset_preparation.read_CDAScorer_data(str(repo_root / "data/cdascorer/Set1"))
+cda_dataframes2 = dataset_preparation.read_CDAScorer_data(str(repo_root / "data/cdascorer/Set2"))
+```
+
+### Create new combined data table
+```{python}
+combined_CDA_data1 = dataset_preparation.combine_CDA_dataframes(cda_dataframes1, "../01_Allocation_info/randomised_info.csv")
+combined_CDA_data2 = dataset_preparation.combine_CDA_dataframes(cda_dataframes2, "../01_Allocation_info/randomised_info_2.csv")
+combined_CDA_data1.to_csv("combined_CDA_data_1.csv", index=False)
+combined_CDA_data2.to_csv("combined_CDA_data_2.csv", index=False)
+```

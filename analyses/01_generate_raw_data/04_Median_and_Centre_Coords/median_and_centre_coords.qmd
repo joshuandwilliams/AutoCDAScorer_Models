@@ -1,0 +1,90 @@
+---
+title: "Find median score and most central coordinates"
+format:
+  html:
+    code-fold: true
+jupyter: python3
+---
+ 
+Date: 19/06/2025
+
+## GOHREP
+**Goal:**
+
+Combine the checked dataframes and add new columns for median and central coordinates.
+
+**Hypothesis:**
+
+N/A
+
+**Rationale:**
+
+N/A
+
+**Experimental plan:**
+
+1. Load data
+2. Combine into a single dataframe
+3. Remove rows where either a) the number of annotations is <2 or b) there are only two disagreeing annotations
+4. Add median column
+5. Add 4 central coordinates columns (set of collected coords whose centre is closest to centre of overlaps between all coord sets)
+6. Save output
+
+### Required packages
+```{python}
+# Public packages
+import pandas as pd
+from pathlib import Path
+import sys
+
+# Custom functions
+repo_root = next(p for p in Path.cwd().parents if (p / '.git').exists())
+sys.path.append(str(repo_root / 'src'))
+import dataset_preparation
+```
+
+### Load and combine data
+```{python}
+data1 = pd.read_csv(str(repo_root / "analyses/01_Generating_Dataset/03_Checking_Collected_Coords/combined_CDA_data_checked_1.csv"))
+data2 = pd.read_csv(str(repo_root / "analyses/01_Generating_Dataset/03_Checking_Collected_Coords/combined_CDA_data_checked_2.csv"))
+data_combined = pd.concat([data1, data2]).reset_index(drop=True)
+```
+
+
+### Clean the coordinate and score data
+```{python}
+cleaned_coords = data_combined.apply(dataset_preparation.clean_coordinates, axis=1)
+cleaned_data = dataset_preparation.clean_scores(cleaned_coords)
+print(f"Original Data Length: {len(data_combined)}")
+print(f"Cleaned Data Length: {len(cleaned_data)}")
+```
+
+### Some rows had incorrect "Status" values
+```{python}
+print(f"Incorrect N label count: {len(cleaned_data[cleaned_data['Status'] == 'N'])}")
+cleaned_data = cleaned_data.drop(columns=["Status"])
+```
+
+### Add median column
+```{python}
+cleaned_data = dataset_preparation.add_median_column(cleaned_data)
+print(f"Class Sizes:\n{cleaned_data['Median_Score'].value_counts().sort_index()}")
+```
+
+Class Sizes:
+Median_Sore
+0.0 2,711
+1.0 437
+2.0 436
+3.0 704
+4.0 847
+5.0 699
+6.0 530
+Total: 6,364
+
+### Add central coordinate columns
+```{python}
+cleaned_data["Centre_Coords"] = cleaned_data.apply(dataset_preparation.get_central_scorer, axis=1)
+print(f"Missing Centre_Coords values: {cleaned_data['Centre_Coords'].isna().sum()}")
+cleaned_data.to_csv("combined_CDA_data_median.csv", index=False)
+```
