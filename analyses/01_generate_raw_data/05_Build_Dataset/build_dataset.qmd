@@ -1,0 +1,61 @@
+---
+title: "Save cropped CDA images"
+format:
+  html:
+    code-fold: true
+jupyter: python3
+---
+ 
+Date: 19/06/2025
+
+## GOHREP
+**Goal:**
+
+Save cropped CDA images
+
+**Hypothesis:**
+
+N/A
+
+**Rationale:**
+
+N/A
+
+**Experimental plan:**
+
+1. Load data
+2. Create folders to store images of different score classes
+3. Load raw agro images and save cropped versions to the correct median score folder
+
+### Required packages
+```{python}
+# Public packages
+import pandas as pd
+from pathlib import Path
+import sys
+
+# Custom functions
+repo_root = next(p for p in Path.cwd().parents if (p / '.git').exists())
+sys.path.append(str(repo_root / 'src'))
+import dataset_preparation
+```
+
+### Load data
+```{python}
+data = pd.read_csv(str(repo_root / "analyses/01_Generating_Dataset/04_Median_and_Centre_Coords/combined_CDA_data_median.csv"))
+```
+
+### Create folders
+```{python}
+out_folder = str(repo_root / "data/cropped_images")
+
+os.makedirs(out_folder, exist_ok=True)
+for score in range(7):
+    os.makedirs(os.path.join(out_folder, str(score)), exist_ok=True)
+```
+
+### Save cropped images
+NOTE: Must be connected to NBI shared drive where the original agroinfiltration images are stored
+```{python}
+dataset_preparation.save_cropped_images(data, out_folder)
+```
