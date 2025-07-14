@@ -1,0 +1,179 @@
+---
+title: "Human performance metrics"
+format:
+	html:
+		code-fold: true
+jupyter: python3
+---
+ 
+Date: 29/06/2025
+
+## GOHREP
+**Goal:**
+
+Calculate metrics of human scoring agreement to be used as model benchmarks.
+
+**Hypothesis:**
+
+Human scorers will not always agree.
+
+**Rationale:**
+
+Scoring is subjective, particularly given the scoring key's simple nature.
+
+**Experimental plan:**
+Calculate two metrics across 1,000 class-normalized samples of the scoring data. Plot their distributions and calculate means, confidence intervals, and standard deviations.
+- Metric 1: Percentage agreement of each individual score to median score of same CDA.
+- Metric 2: Percentage agreement of individual scores to each other.
+
+
+```{python}
+# Public packages
+import sys
+import pandas as pd
+import numpy as np
+from pathlib import Path
+from sklearn.metrics import confusion_matrix
+import matplotlib.pyplot as plt
+import scipy.stats as st
+
+# Custom functions
+repo_root = next(p for p in Path.cwd().parents if (p / '.git').exists())
+sys.path.append(str(repo_root / 'src'))
+import human_performance
+```
+
+Load scorer data
+```{python}
+data = pd.read_csv(str(repo_root / "analyses/01_Generating_Dataset/04_Median_and_Centre_Coords/combined_CDA_data_median.csv"))
+```
+
+Anonymise the scorers
+```{python}
+anon_key = human_performance.generate_scorer_key(data)
+data_anon = human_performance.anonymise_scorers(data, anon_key)
+```
+
+Methods loop:
+
+When a CDA has received 3 different scores, metric 1 gives 33% agreement, whilst metric 2 gives 0% agreement.
+
+```{python}
+num_iterations = 1000
+agreement_dist, agreement_nearmiss, pairwise_dist, pairwise_nearmiss = [], [], [], []
+
+for i in range(1, num_iterations + 1):
+	print(f"Iteration (seed): {i} / {num_iterations}")
+
+	# Downsample score classes
+	data_normclass = human_performance.downsample_score_classes_csv(data_anon, seed=i)
+
+	# Data long format
+	data_long = pd.wide_to_long(data_normclass, stubnames=['Scorer', 'Score'], i=['Basename', 'Row', 'Col', 'Pos'], j='num').reset_index()
+	data_long_noNA = data_long.dropna(subset=['Score'])
+
+	# Metric 1: Agreement with the median
+	full_cm = confusion_matrix(data_long_noNA['Median_Score'], data_long_noNA['Score'])
+	unique_labels = np.sort(data_long_noNA['Score'].unique())
+	
+	accuracies = human_performance.cm_accuracies(full_cm, unique_labels)
+	
+	agreement_dist.append(accuracies['exact_accuracy'])
+	agreement_nearmiss.append(accuracies['within_one_accuracy'])
+
+	# Generate an example confusion matrix for Metric 1
+	if i == 42:
+		human_performance.plot_confusion_matrix(full_cm, unique_labels, ["Individual Score", "Median Score"], "metric1_cm.png")
+
+		scorer_cms = human_performance.generate_scorer_cms(data_long_noNA)
+		for scorer_name, cm in scorer_cms.items():
+			scorer_accuracies = human_performance.cm_accuracies(cm, unique_labels, print_results=True)
+
+	# Metric 2: Agreement between score pairs
+	metric2_exact = data_normclass.apply(human_performance.find_pairwise_agreement, axis=1, precision=0).mean()
+	pairwise_dist.append(metric2_exact)
+
+	metric2_nearmiss = data_normclass.apply(human_performance.find_pairwise_agreement, axis=1, precision=1).mean()
+	pairwise_nearmiss.append(metric2_nearmiss)
+
+	# Generate example confusion matrix for Metric 2
+	if i == 42:
+		score_pairs_df = human_performance.extract_score_pairs(data_normclass)
+		cm = confusion_matrix(score_pairs_df["ScoreA"], score_pairs_df["ScoreB"])
+		human_performance.plot_confusion_matrix(cm, unique_labels, ["Individual Score A", "Individual Score B"], "metric2_cm.png")
+		break
+```
+
+Distribution statistics:
+- Mean +-95% CI
+- SD
+```{python}
+def get_dist_stats(dist, name):
+	mean_agreement = np.mean(dist)
+	std_agreement = np.std(dist)
+	sem_agreement = st.sem(dist)
+	ci_agreement = st.t.interval(confidence=0.95, df=len(dist)-1, loc=mean_agreement, scale=sem_agreement)
+	ci_lower, ci_upper = ci_agreement
+	ci_diff = (ci_upper - ci_lower) / 2
+	print(name)
+	print(f"Mean: {mean_agreement:.4f}")
+	print(f"95% CI: {ci_diff}, ({ci_agreement[0]:.5f}, {ci_agreement[1]:.5f})")
+	print(f"SD: {std_agreement:.4f}\n")
+
+get_dist_stats(agreement_dist, "Exact agreement with median")
+get_dist_stats(agreement_nearmiss, "Near-miss agreement with median")
+get_dist_stats(pairwise_dist, "Exact pairwise agreement")
+get_dist_stats(pairwise_nearmiss, "Near-miss pairwise agreement")
+```
+
+Exact agreement with median
+Mean: 0.7365
+95% CI: 0.00011580908514785548, (0.73642, 0.73666)
+SD: 0.0019
+
+Near-miss agreement with median
+Mean: 0.9680
+95% CI: 5.338195615733898e-05, (0.96797, 0.96808)
+SD: 0.0009
+
+Exact pairwise agreement
+Mean: 0.5174
+95% CI: 0.0001902703267429029, (0.51725, 0.51763)
+SD: 0.0031
+
+Near-miss pairwise agreement
+Mean: 0.9038
+95% CI: 0.0001186831432825608, (0.90366, 0.90390)
+SD: 0.0019
+
+Plot distributions with their means
+```{python}
+def plot_distribution(dist, name, x_label):
+	mean_agreement = np.mean(dist)
+
+	plt.figure(figsize=(10, 6))
+	plt.hist(dist, bins='auto', alpha=0.75, color='green', edgecolor='black')
+	plt.axvline(mean_agreement, color='red', linestyle='--', linewidth=2, label=f'Mean: {mean_agreement:.4f}')
+	plt.xlabel(x_label)
+	plt.ylabel('Frequency')
+	plt.legend()
+	plt.grid(axis='y', linestyle='--', alpha=0.7)
+	plt.savefig(name)
+	plt.show()
+
+plot_distribution(agreement_dist, "metric1_exact.png", "Exact agreement with median")
+plot_distribution(agreement_nearmiss, "metric1_nearmiss.png", "Near-miss agreement with median")
+plot_distribution(pairwise_dist, "metric2_exact.png", "Exact pairwise agreement")
+plot_distribution(pairwise_nearmiss, "metric2_nearmiss.png", "Near-miss pairwise agreement")
+```
+
+Save results
+```{python}
+result_df = pd.DataFrame({
+    "agreement_dist": agreement_dist,
+    "agreement_nearmiss": agreement_nearmiss,
+    "pairwise_dist": pairwise_dist,
+    "pairwise_nearmiss": pairwise_nearmiss
+})
+result_df.to_csv("human_performance_results.csv")
+```

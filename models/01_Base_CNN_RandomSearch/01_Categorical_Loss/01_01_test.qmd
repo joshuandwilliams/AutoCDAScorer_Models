@@ -1,0 +1,101 @@
+---
+title: "Base CNN Random Search Categorical Loss"
+format:
+  html:
+    code-fold: true
+jupyter: python3
+---
+
+19/06/2025
+
+Train a test model:
+- Model type: CNN
+- Hyperparameter tuning: Random/Grid Search
+- Loss: Categorical
+- Dataset: Base
+
+```{python}
+# Public packages
+import os
+import sys
+import tensorflow as tf
+import argparse
+from sklearn.model_selection import ParameterGrid
+from collections import Counter
+from pathlib import Path
+
+# Custom functions
+repo_root = next(p for p in Path.cwd().parents if (p / '.git').exists())
+sys.path.append(str(repo_root / 'src'))
+import cnn_base
+```
+
+```{python}
+# parser = argparse.ArgumentParser(add_help=True, formatter_class=argparse.RawDescriptionHelpFormatter, description="001_001")
+# parser.add_argument("-a", "--slurm_array", help="slurm array number", type=int, default=None)
+# parser.add_argument("-p", "--per_array", help="models per array", type=int, default=None)
+# parser.add_argument("-n", "--model_number", help="model ID number", type=str, default=None)
+# args = parser.parse_args()
+# slurm_array, per_array, model_number = args.slurm_array, args.per_array, args.model_number
+
+slurm_array = 1
+per_array = 1
+model_number = "001_001"
+```
+
+```{python}
+# Load cropped image dataset
+images, labels, filepaths = cnn_base.load_images_and_labels(str(repo_root / 'data/cropped_images'))
+```
+
+```{python}
+# Split into train/val/test
+train_images, train_labels, train_filepaths, val_images, val_labels, val_filepaths, test_images, test_labels, test_filepaths = cnn_base.train_val_test(images, labels, filepaths, train_ratio = 0.8, val_ratio = 0.1)
+```
+
+```{python}
+# Normalise class sizes
+train_images, train_labels, train_filepaths = cnn_base.downsample_oversized_classes(train_images, train_labels, train_filepaths)
+
+print(Counter(train_labels))
+print(Counter(val_labels))
+print(Counter(test_labels))
+```
+
+```{python}
+# Format images and labels for CNN
+train_images = cnn_base.preprocess_images(train_images)
+train_labels = cnn_base.preprocess_labels(train_labels)
+```
+
+```{python}
+# Define model training parameters
+params = {
+    'num_filters': [8, 16, 32, 64, 128],
+    'filter_size': [3],
+    'learning_rate': [0.01, 0.001],
+    'epochs': [50],
+    'k': [5],
+    'num_layers': [2, 3, 4],
+    'pooling_size': [2],
+    'activation_function': ['relu'],
+    'batch_size': [64],
+    'reg': [None, "L1", "L2"],
+    'opt': ["Adam", "Momentum", "RMSProp"],
+    'dropout': [0]
+}
+param_grid = list(ParameterGrid(params))
+
+# Define parameter sets for current slurm_array
+start_index = (slurm_array-1) * per_array
+end_index = slurm_array * per_array
+selected_param_sets = param_grid[start_index:end_index]
+
+# Train models
+for index, selected_params in enumerate(selected_param_sets):
+    cnn_base.train_model(slurm_array, index, selected_params, train_images, train_labels)
+```
+
+```{python}
+cnn_base.save_training_data(".", model_number, train_images, train_labels, train_filepaths, val_images, val_labels, val_filepaths, test_images, test_labels, test_filepaths)
+```

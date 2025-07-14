@@ -1,0 +1,193 @@
+---
+title: "View annotations for each raw agro image"
+format:
+  html:
+    code-fold: true
+jupyter: python3
+---
+
+Data: 31/08/2024
+
+## GOHREP
+**Goal:**
+
+Script to view all annotations collected for each raw agro image
+
+**Hypothesis:**
+
+Some mistakes will have been made throughout the scoring of the thousands of images which need to be fixed.
+
+**Rationale:**
+
+This can be used to identify mistakes which could reduce the performance of deep learning models.
+These can also be used as plots.
+
+**Experimental plan:**
+
+1. Load data.
+2. Create TKinter program to move forward/backward through each agroinfiltration image. Display the coordinate and score annotations.
+3. Manually record any errors in a second csv file (full_cda_data_fixed_1 .csvand full_cda_data_fixed_2.csv).
+4. Function to save current canvas with keypress.
+
+### Import required packages
+Note: The tkinter will go away when you close the interactive session. It is not a bug.
+```{python}
+import tkinter as tk
+from tkinter import messagebox
+import pandas as pd
+from PIL import Image, ImageTk, ImageGrab
+import os
+import numpy as np
+from typing import Union
+from pathlib import Path
+```
+
+```{python}
+def view_each_raw_img(data_path: Union[str, Path], raw_folder_path: Union[str, Path], starting_row: int = 0) -> None:
+    """
+    View the bounding boxes and scores collected for each CDA in turn
+
+    Parameters:
+    -----------
+    data_path : Union[str, Path]
+        The path to the CSV file containing the collected annotations
+    
+    raw_folder_path : Union[str, Path]
+        The path to the raw agro images folder
+    
+    starting_row : int, optional
+        The row index to start viewing the images from. Default is 0
+    """
+
+    data = pd.read_csv(data_path)
+
+    grouped = data.groupby('Basename')
+    unique_filenames = list(grouped.groups.keys())
+
+    if not (0 <= starting_row < len(unique_filenames)):
+        raise ValueError(f"The starting row index provided is outside the bounds of the CSV, which has length {len(unique_filenames)}.")
+
+    def show_image(direction):
+        nonlocal current_row, img_tk, filename
+
+        if direction == 1: # Next image
+            current_row += 1
+        elif direction == 0: # Previous image
+            current_row -= 1
+        
+        if current_row < 0:
+            messagebox.showinfo("Beginning of Data", "Cannot go back any further.")
+            curent_row = 0
+            return
+        elif current_row >= len(unique_filenames):
+            messagebox.showinfo("End of Data", "No more annotations to display.")
+            root.quit()
+            return
+
+        filename = unique_filenames[current_row]
+        rows = grouped.get_group(filename)
+        scorer = rows.iloc[0]['Scorer1']
+        raw_path = os.path.join(raw_folder_path, scorer, filename)
+
+        if not os.path.exists(raw_path):
+            messagebox.showwarning("File Not Found", f"File '{raw_path}' not found.")
+            show_image()
+            return
+
+        img = Image.open(raw_path)
+
+        window_width = root.winfo_screenwidth()
+        window_height = root.winfo_screenheight()
+        window_cover = 0.90
+
+        width_ratio = img.width / window_width
+        height_ratio = img.height / window_height
+        if width_ratio > height_ratio:
+            img_scale = (window_width / img.width) * window_cover
+        else:
+            img_scale = (window_height / img.height) * window_cover
+        
+        resized_width, resized_height = round(img.width*img_scale), round(img.height*img_scale)
+        resized_img = img.resize((resized_width, resized_height))
+        img_tk = ImageTk.PhotoImage(resized_img)
+
+        # Clear previous content
+        canvas.delete("all")
+
+        canvas.config(width=resized_width, height=resized_height)
+
+        canvas.create_image(0, 0, anchor=tk.NW, image=img_tk)
+        canvas.create_text(200, 20, text=f"Filename: {filename}", fill="red", font=('Helvetica', '30', 'bold'))
+
+        for index, row in rows.iterrows():
+            col, row_num, pos = row['Col'], row['Row'], row['Pos']
+            
+            text_positions = []
+            for i in range(1, 4):
+                if np.isnan(row[f'X1_{i}']):
+                    text_positions.append(None)
+                    continue
+
+                x1 = int(row[f'X1_{i}'] * img_scale)
+                y1 = int(row[f'Y1_{i}'] * img_scale)
+                x2 = int(row[f'X2_{i}'] * img_scale)
+                y2 = int(row[f'Y2_{i}'] * img_scale)
+
+                color = ["purple", "white", "blue"][i-1]
+                rectangle = canvas.create_rectangle(x1, y1, x2, y2, outline=color, tags=f"rectangle_{i}", width=3)
+                text_positions.append((x1, y1, x2, y2, i))
+
+            # Draw text for rectangles
+            for pos in text_positions:
+                if pos is None:
+                    continue
+
+                x1, y1, x2, y2, i = pos
+                score = row[f'Score{i}']
+                xpos = [x1 - 15, x1 - 15, x2 + 15][i-1]
+                ypos = [y1 - 15, y2 + 15, y1 - 15][i-1]
+                color = ["purple", "white", "blue"][i-1]
+                canvas.create_text(xpos, ypos, text=score, fill=color, font=('Helvetica', '30', 'bold'))
+
+    def next_image(event=None):
+        show_image(1)
+
+    def prev_image(event=None):
+        show_image(0)
+ 
+    def save_image(event=None, filename=None):
+        if img_tk is not None and filename is not None:
+            base_filename = os.path.splitext(filename)[0]
+            canvas.update()
+            canvas.postscript(file=f"{base_filename}_annotations.eps", colormode='color')
+            img = Image.open(f"{base_filename}_annotations.eps")
+            img.save(f"{base_filename}_annotations.jpg", "jpeg")
+            os.remove(f"{base_filename}_annotations.eps")
+            messagebox.showinfo("Image Saved", f"Image saved as '{base_filename}_annotations.jpg'.")
+
+    def on_closing():
+        if messagebox.askokcancel("Quit", "Do you want to quit?"):
+            root.destroy()
+    
+    root = tk.Tk()
+    root.title("CDA Image Viewer")
+    root.geometry("+100+100")
+
+    canvas = tk.Canvas(root, width=800, height=600)
+    canvas.pack()
+    img_tk = None
+    filename = None
+
+    root.bind("<Right>", next_image)
+    root.bind("<Left>", prev_image)
+    root.protocol("WM_DELETE_WINDOW", on_closing)
+    root.bind("<space>", lambda event: save_image(event, filename))
+
+    current_row = starting_row -1
+    show_image(1)
+    root.mainloop()
+
+# You need to be connected to nbi-ufiles
+view_each_raw_img("../02_Combining_CDAScorer_Outputs/combined_CDA_data_1.csv", "/Volumes/shared/Research-Groups/Mark-Banfield/Josh_Williams/Scoring_5May")
+#view_each_raw_img("../02_Combining_CDAScorer_Outputs/combined_CDA_data_2.csv", "/Volumes/shared/Research-Groups/Mark-Banfield/Josh_Williams/Scoring_20Oct")
+```
