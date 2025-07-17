@@ -12,6 +12,79 @@ from sklearn.utils import resample
 
 logger = logging.getLogger(__name__)
 
+def _check_valid_dataset(
+		dataset : Dict[str, Union[np.ndarray, tf.Tensor]]
+) -> None:
+	"""
+	Checks:
+	 - Dataset contains valid keys
+	 - The values are not None
+	 - The values are np.ndarray or tf.Tensor
+	 - Warn if a value has length 0
+	 - Each split has consistent length
+
+	Parameters:
+	- dataset : Dict[str, Union[np.ndarray, tf.Tensor]]
+		Dataset to be checked
+
+	Returns:
+	- None
+	"""
+
+	# Check if expected keys exist
+	expected_keys = {
+		'train_images', 'train_labels', 'train_filepaths',
+		'val_images', 'val_labels', 'val_filepaths',
+		'ensemble_images', 'ensemble_labels', 'ensemble_filepaths',
+		'test_images', 'test_labels', 'test_filepaths'
+	}
+	if not expected_keys.issubset(dataset.keys()):
+		missing_keys = expected_keys - dataset.keys()
+		raise ValueError(f"Missing keys in function input: {missing_keys}")
+
+	for key in expected_keys:
+		value = dataset[key]
+
+		# Check if value is None
+		if value is None:
+			raise ValueError(f"Value for key '{key}' is None.")
+
+		# Check if value is np.ndarray or tf.Tensor
+		if not isinstance(value, (np.ndarray, tf.Tensor)):
+			raise TypeError(f"Value for key '{key}' must be a np.ndarray or tf.Tensor, but got {type(value)}.")
+
+	# Check consistent lengths for each split
+	splits = ['train', 'val', 'ensemble', 'test']
+	for split in splits:
+		images_key = f"{split}_images"
+		labels_key = f"{split}_labels"
+		filepaths_key = f"{split}_filepaths"
+
+		images_val = dataset[images_key]
+		labels_val = dataset[labels_key]
+		filepaths_val = dataset[filepaths_key]
+
+		def _get_len(value):
+			if isinstance(value, np.ndarray):
+				return value.size if value.ndim == 0 else value.shape[0]
+			elif isinstance(value, tf.Tensor):
+				return tf.size(value).numpy() if value.shape.rank == 0 else tf.shape(value)[0].numpy()
+
+		images_len = _get_len(images_val)
+		labels_len = _get_len(labels_val)
+		filepaths_len = _get_len(filepaths_val)
+
+		# Allow all to be zero, otherwise they must match
+		if not (images_len == labels_len == filepaths_len):
+			raise ValueError(
+				f"Inconsistent lengths for '{split}' split: "
+				f"images_len={images_len}, labels_len={labels_len}, filepaths_len={filepaths_len}"
+			)
+		
+		for length_name, length_value in zip(['images_len', 'labels_len', 'filepaths_len'], [images_len, labels_len, filepaths_len]):
+			if length_value == 0:
+				logger.warning(f"'{length_name}' for '{split}' split has length zero.")
+
 def load_images_and_labels(
 		data_dir: Union[str, Path],
 		image_size: int = 64
@@ -86,38 +159,26 @@ def split_dataset(
 	- Dict[str, np.ndarray]
 		A dictionary containing the images, labels, and filepaths for the training, validation, ensemble, and test sets.
 	"""
-	print(Counter(labels))
-
-	if len(images) == 0 or len(labels) == 0 or len(filepaths) == 0:
-		raise ValueError("Input arrays must not be empty")
-	
-	if len(images) != len(labels) or len(images) != len(filepaths):
-		raise ValueError("Input arrays must have the same length")
-
-
-	if train_ratio + val_ratio + ensemble_ratio >= 1:
-		raise ValueError("Invalid ratios. The sum of train_ratio, val_ratio, and ensemble_ratio must be less than 1")
-	
-
 	test_ratio = 1 - train_ratio - val_ratio - ensemble_ratio
+
+	if test_ratio <= 0:
+		raise ValueError("Invalid ratios. The sum of train_ratio, val_ratio, and ensemble_ratio must be less than 1")
 
 	train_images, images_rem, train_labels, labels_rem, train_filepaths, filepaths_rem = train_test_split(
 		images, labels, filepaths, train_size=train_ratio, random_state=seed, shuffle=True, stratify=labels
 	)
 
 	val_vs_rest_ratio = val_ratio / (val_ratio + ensemble_ratio + test_ratio)
-
 	val_images, images_rem2, val_labels, labels_rem2, val_filepaths, filepaths_rem2 = train_test_split(
 		images_rem, labels_rem, filepaths_rem, train_size=val_vs_rest_ratio, random_state=seed, shuffle=True, stratify=labels_rem
 	)
 
 	ensemble_vs_test_ratio = ensemble_ratio / (ensemble_ratio + test_ratio)
-
 	ensemble_images, test_images, ensemble_labels, test_labels, ensemble_filepaths, test_filepaths = train_test_split(
 		images_rem2, labels_rem2, filepaths_rem2, train_size=ensemble_vs_test_ratio, random_state=seed, shuffle=True, stratify=labels_rem2
 	)
 
-	return {
+	dataset = {
 		'train_images' : np.array(train_images),
 		'train_labels' : np.array(train_labels),
 		'train_filepaths' : np.array(train_filepaths),
@@ -131,11 +192,15 @@ def split_dataset(
 		'test_labels' : np.array(test_labels),
 		'test_filepaths' : np.array(test_filepaths)
 		}
+	
+	_check_valid_dataset(dataset)
 
-def downsample_oversized_classes(
-		train_images: np.ndarray,
-		train_labels: np.ndarray,
-		train_filepaths: np.ndarray,
+	return dataset
+
+def _downsample_oversized_classes(
+		images: np.ndarray,
+		labels: np.ndarray,
+		filepaths: np.ndarray,
 		per_class_train_size: Optional[int] = None,
 		seed: int = 42
 	) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -143,11 +208,11 @@ def downsample_oversized_classes(
 	Downsamples classes in the dataset that exceed the specified number of samples per class.
 	
 	Parameters:
-	- train_images : np.ndarray
+	- images : np.ndarray
 		Array of training images.
-	- train_labels : np.ndarray
+	- labels : np.ndarray
 		Array of training labels.
-	- train_filepaths : np.ndarray
+	- filepaths : np.ndarray
 		Array of training filepaths.
 	- per_class_train_size : Optional[int]
 		The maximum number of samples per class. If None, the function downsamples to the size of the smallest class. Default is None.
@@ -162,14 +227,7 @@ def downsample_oversized_classes(
 	- undersampled_filepaths : np.ndarray
 		Array of undersampled filepaths.
 	"""
-
-	if len(train_images) == 0 or len(train_labels) == 0 or len(train_filepaths) == 0:
-		raise ValueError("Input arrays must not be empty")
-	
-	if len(train_images) != len(train_labels) or len(train_images) != len(train_filepaths):
-		raise ValueError("Input arrays must have the same length")
-
-	smallest_class_size = min(Counter(train_labels).values())
+	smallest_class_size = min(Counter(labels).values())
 
 	if per_class_train_size is None:
 		per_class_train_size = smallest_class_size
@@ -183,15 +241,15 @@ def downsample_oversized_classes(
 	undersampled_labels = []
 	undersampled_filepaths = []
 
-	for label in np.unique(train_labels):
-		samples_indices = np.where(train_labels == label)[0]
+	for label in np.unique(labels):
+		samples_indices = np.where(labels == label)[0]
 		
 		if len(samples_indices) > per_class_train_size:
 			samples_indices = resample(samples_indices, replace=False, n_samples=per_class_train_size, random_state=seed)
 
-		undersampled_images.extend(train_images[samples_indices].tolist()) # Need to be lists for extend()
-		undersampled_labels.extend(train_labels[samples_indices].tolist())
-		undersampled_filepaths.extend(np.array(train_filepaths)[samples_indices].tolist())
+		undersampled_images.extend(images[samples_indices].tolist()) # Need to be lists for extend()
+		undersampled_labels.extend(labels[samples_indices].tolist())
+		undersampled_filepaths.extend(np.array(filepaths)[samples_indices].tolist())
 
 	undersampled_images = np.array(undersampled_images)
 	undersampled_labels = np.array(undersampled_labels)
@@ -205,7 +263,7 @@ def downsample_oversized_classes(
 
 	return undersampled_images, undersampled_labels, undersampled_filepaths
 
-def preprocess_images(
+def _preprocess_images(
 		images: np.ndarray
 ) -> tf.Tensor:
 	"""
@@ -219,17 +277,16 @@ def preprocess_images(
 	- tf_images : tf.Tensor
 		A tf.Tensor of normalized images
 	"""
-
 	if len(images) == 0:
-		raise ValueError("Image array must not be empty")
-
+		logger.warning("'images' is empty")
+		return images
 
 	images = images / 256.0
 	tf_images = tf.convert_to_tensor(images)
 
 	return  tf_images
 
-def preprocess_labels(
+def _preprocess_labels(
 		labels: np.ndarray
 ) -> tf.Tensor:
 	"""
@@ -243,9 +300,9 @@ def preprocess_labels(
 	- tf_labels : tf.Tensor
 		A tf.Tensor of one-hot encoded labels
 	"""
-
 	if len(labels) == 0:
-		raise ValueError("Labels array must not be empty")
+		logger.warning(f"'labels' is empty")
+		return labels
 
 	num_classes = len(np.unique(labels))
 	tf_labels = tf.keras.utils.to_categorical(labels, num_classes)
@@ -268,32 +325,27 @@ def preprocess_split_dataset(
 		Dataset processed with preprocess_images() and preprocess_labels().
 	"""
 
-	expected_keys = {
-		'train_images', 'train_labels', 'train_filepaths',
-		'val_images', 'val_labels', 'val_filepaths',
-		'ensemble_images', 'ensemble_labels', 'ensemble_filepaths',
-		'test_images', 'test_labels', 'test_filepaths'
-	}
+	_check_valid_dataset(dataset)
 
-	if not expected_keys.issubset(dataset.keys()):
-		missing_keys = expected_keys - dataset.keys()
-		raise ValueError(f"Missing keys in function input: {missing_keys}")
+	# Train
+	train_images, train_labels, train_filepaths = _downsample_oversized_classes(dataset['train_images'], dataset['train_labels'], dataset['train_filepaths'], seed=seed)
+	processed_train_images = _preprocess_images(train_images)
+	processed_train_labels = _preprocess_labels(train_labels)
 
-	train_images, train_labels, train_filepaths = downsample_oversized_classes(dataset['train_images'], dataset['train_labels'], dataset['train_filepaths'], seed=seed)
-	processed_train_images = preprocess_images(train_images)
-	processed_train_labels = preprocess_labels(train_labels)
+	# Val
+	val_images, val_labels, val_filepaths = _downsample_oversized_classes(dataset['val_images'], dataset['val_labels'], dataset['val_filepaths'], seed=seed)
+	processed_val_images = _preprocess_images(val_images)
+	processed_val_labels = _preprocess_labels(val_labels)
 
-	val_images, val_labels, val_filepaths = downsample_oversized_classes(dataset['val_images'], dataset['val_labels'], dataset['val_filepaths'], seed=seed)
-	processed_val_images = preprocess_images(val_images)
-	processed_val_labels = preprocess_labels(val_labels)
+	# Ensemble
+	ensemble_images, ensemble_labels, ensemble_filepaths = _downsample_oversized_classes(dataset['ensemble_images'], dataset['ensemble_labels'], dataset['ensemble_filepaths'], seed=seed)
+	processed_ensemble_images = _preprocess_images(ensemble_images)
+	processed_ensemble_labels = _preprocess_labels(ensemble_labels)
 
-	ensemble_images, ensemble_labels, ensemble_filepaths = downsample_oversized_classes(dataset['ensemble_images'], dataset['ensemble_labels'], dataset['ensemble_filepaths'], seed=seed)
-	processed_ensemble_images = preprocess_images(ensemble_images)
-	processed_ensemble_labels = preprocess_labels(ensemble_labels)
-
-	test_images, test_labels, test_filepaths = downsample_oversized_classes(dataset['test_images'], dataset['test_labels'], dataset['test_filepaths'], seed=seed)
-	processed_test_images = preprocess_images(test_images)
-	processed_test_labels = preprocess_labels(test_labels)
+	# Test
+	test_images, test_labels, test_filepaths = _downsample_oversized_classes(dataset['test_images'], dataset['test_labels'], dataset['test_filepaths'], seed=seed)
+	processed_test_images = _preprocess_images(test_images)
+	processed_test_labels = _preprocess_labels(test_labels)
 
 	return {
         'train_images': processed_train_images,
@@ -311,14 +363,14 @@ def preprocess_split_dataset(
     }
 
 def save_dataset(
-		processed_dataset : Dict[str, Union[np.ndarray, tf.Tensor]],
+		dataset : Dict[str, Union[np.ndarray, tf.Tensor]],
 		out_path : str
 ) -> None:
 	"""
-	Saves processed dataset to out_path as a numpy object.
+	Saves dataset to out_path as a numpy object.
 
 	Parameters:
-	- processed_dataset : Dict[str, Union[np.ndarray, tf.Tensor]]
+	- dataset : Dict[str, Union[np.ndarray, tf.Tensor]]
 		The dictionary dataset containing the preprocessed images, labels, and filepaths for the different data splits.
 	- out_path : str
 		The save location for the dataset.
@@ -326,11 +378,8 @@ def save_dataset(
 	Returns:
 	- None
 	"""
-
-	if os.path.isfile(out_path):
-		raise FileExistsError(f"A file already exists at {out_path}")
-	
-	np.save(out_path, processed_dataset, allow_pickle=True)
+	_check_valid_dataset(dataset)
+	np.save(out_path, dataset, allow_pickle=True)
 
 def load_dataset(
 		path : str
@@ -342,5 +391,11 @@ def load_dataset(
 	- path : str
 		The filepath of the npy dataset.
 	"""
+	if not os.path.isfile(path):
+		raise FileNotFoundError(f"Dataset file not found at: {path}.")
+
 	data = np.load(path, allow_pickle=True)
-	return data.item()
+	dataset = data.item()
+	_check_valid_dataset(dataset)
+
+	return dataset
