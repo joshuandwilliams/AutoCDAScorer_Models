@@ -1,329 +1,391 @@
+import logging
 import os
+import re
+from collections import Counter
 from pathlib import Path
 
-import logging
 import numpy as np
 import pytest
-import re
 import tensorflow as tf
-from collections import Counter
 
-from base_dataset import load_images_and_labels, _check_valid_dataset, split_dataset, _downsample_oversized_classes, _preprocess_images, _preprocess_labels, preprocess_split_dataset, save_dataset, load_dataset
+from base_dataset import (
+    _check_valid_dataset,
+    _downsample_oversized_classes,
+    _preprocess_images,
+    _preprocess_labels,
+    combine_train_val,
+    load_dataset,
+    load_images_and_labels,
+    preprocess_split_dataset,
+    save_dataset,
+    split_dataset,
+)
+
 
 @pytest.fixture
 def mock_dataset():
-	return {
-		'train_images': np.random.rand(100, 64, 64, 3),
-		'train_labels': np.random.randint(0, 5, 100),
-		'train_filepaths': np.array([f"image_train_{i}.jpg" for i in range(100)]),
+    return {
+        "train_images": np.random.rand(100, 64, 64, 3),
+        "train_labels": np.random.randint(0, 5, 100),
+        "train_filepaths": np.array([f"image_train_{i}.jpg" for i in range(100)]),
+        "val_images": np.random.rand(100, 64, 64, 3),
+        "val_labels": np.random.randint(0, 5, 100),
+        "val_filepaths": np.array([f"image_val_{i}.jpg" for i in range(100)]),
+        "ensemble_images": np.random.rand(100, 64, 64, 3),
+        "ensemble_labels": np.random.randint(0, 5, 100),
+        "ensemble_filepaths": np.array([f"image_ensemble_{i}.jpg" for i in range(100)]),
+        "test_images": np.random.rand(100, 64, 64, 3),
+        "test_labels": np.random.randint(0, 5, 100),
+        "test_filepaths": np.array([f"image_test_{i}.jpg" for i in range(100)]),
+    }
 
-		'val_images': np.random.rand(100, 64, 64, 3),
-		'val_labels': np.random.randint(0, 5, 100),
-		'val_filepaths': np.array([f"image_val_{i}.jpg" for i in range(100)]),
-
-		'ensemble_images': np.random.rand(100, 64, 64, 3),
-		'ensemble_labels': np.random.randint(0, 5, 100),
-		'ensemble_filepaths': np.array([f"image_ensemble_{i}.jpg" for i in range(100)]),
-
-		'test_images': np.random.rand(100, 64, 64, 3),
-		'test_labels': np.random.randint(0, 5, 100),
-		'test_filepaths': np.array([f"image_test_{i}.jpg" for i in range(100)])
-	}
 
 @pytest.fixture
 def mock_images_labels_filepaths():
-	num_samples = 100
-	num_classes = 5
+    num_samples = 100
+    num_classes = 5
 
-	images = np.random.rand(num_samples, 64, 64, 3)
-	labels = np.array([i % num_classes for i in range(num_samples)])
-	filepaths = np.array([f"image_{i}.jpg" for i in range(num_samples)])
+    images = np.random.rand(num_samples, 64, 64, 3)
+    labels = np.array([i % num_classes for i in range(num_samples)])
+    filepaths = np.array([f"image_{i}.jpg" for i in range(num_samples)])
 
-	return images, labels, filepaths
+    return images, labels, filepaths
+
 
 class TestCheckValidDataset:
 
-	def test_valid_dataset(self, mock_dataset):
-		_check_valid_dataset(mock_dataset)
+    def test_valid_dataset(self, mock_dataset):
+        _check_valid_dataset(mock_dataset)
 
-	def test_missing_key(self, mock_dataset):
-		del mock_dataset['train_labels']
+    def test_valid_dataset_with_tensors(self, mock_dataset):
+        tensor_dataset = {key: tf.convert_to_tensor(value) for key, value in mock_dataset.items()}
+        _check_valid_dataset(tensor_dataset)
 
-		expected_error = re.escape("Missing keys in function input: {'train_labels'}")
-		with pytest.raises(ValueError, match=expected_error):
-			_check_valid_dataset(mock_dataset)
+    def test_missing_key(self, mock_dataset):
+        del mock_dataset["train_labels"]
 
-	def test_key_empty(self, mock_dataset):
-		mock_dataset['train_labels'] = None
+        expected_error = re.escape("Missing keys in function input: {'train_labels'}")
+        with pytest.raises(ValueError, match=expected_error):
+            _check_valid_dataset(mock_dataset)
 
-		expected_error = re.escape("Value for key 'train_labels' is None.")
-		with pytest.raises(ValueError, match=expected_error):
-			_check_valid_dataset(mock_dataset)
+    def test_key_empty(self, mock_dataset):
+        mock_dataset["train_labels"] = None
 
-	def test_key_wrong_type(self, mock_dataset):
-		mock_dataset['train_labels'] = "Hello"
+        expected_error = re.escape("Value for key 'train_labels' is None.")
+        with pytest.raises(ValueError, match=expected_error):
+            _check_valid_dataset(mock_dataset)
 
-		expected_error = re.escape("Value for key 'train_labels' must be a np.ndarray or tf.Tensor, but got <class 'str'>.")
-		with pytest.raises(TypeError, match=expected_error):
-			_check_valid_dataset(mock_dataset)
+    def test_key_wrong_type(self, mock_dataset):
+        mock_dataset["train_labels"] = "Hello"
 
-	def test_length_mismatch(self, mock_dataset):
-		mock_dataset['train_labels'] = mock_dataset['train_labels'][:-1]
+        expected_error = re.escape(
+            "Value for key 'train_labels' must be a np.ndarray or tf.Tensor, but got <class 'str'>."
+        )
+        with pytest.raises(TypeError, match=expected_error):
+            _check_valid_dataset(mock_dataset)
 
-		expected_error = re.escape(
-			"Inconsistent lengths for 'train' split: "
-			"images_len=100, labels_len=99, filepaths_len=100"
-		)
-		with pytest.raises(ValueError, match=expected_error):
-			_check_valid_dataset(mock_dataset)
+    def test_length_mismatch(self, mock_dataset):
+        mock_dataset["train_labels"] = mock_dataset["train_labels"][:-1]
 
-	def test_split_empty(self, mock_dataset, caplog):
-		mock_dataset['train_images'] = np.array([])
-		mock_dataset['train_labels'] = np.array([])
-		mock_dataset['train_filepaths'] = np.array([])
+        expected_error = re.escape(
+            "Inconsistent lengths for 'train' split: "
+            "images_len=100, labels_len=99, filepaths_len=100"
+        )
+        with pytest.raises(ValueError, match=expected_error):
+            _check_valid_dataset(mock_dataset)
 
-		caplog.set_level(logging.WARNING)
-		_check_valid_dataset(mock_dataset)
+    def test_split_empty(self, mock_dataset, caplog):
+        mock_dataset["train_images"] = np.array([])
+        mock_dataset["train_labels"] = np.array([])
+        mock_dataset["train_filepaths"] = np.array([])
 
-		assert len(caplog.records) == 3
+        caplog.set_level(logging.WARNING)
+        _check_valid_dataset(mock_dataset)
 
-		expected_messages = [
-			"'images_len' for 'train' split has length zero.",
-			"'labels_len' for 'train' split has length zero.",
-			"'filepaths_len' for 'train' split has length zero."
-		]
+        assert len(caplog.records) == 3
 
-		actual_messages = [record.message for record in caplog.records]
+        expected_messages = [
+            "'images_len' for 'train' split has length zero.",
+            "'labels_len' for 'train' split has length zero.",
+            "'filepaths_len' for 'train' split has length zero.",
+        ]
 
-		for msg in expected_messages:
-			assert msg in actual_messages
-		
-		for record in caplog.records:
-			assert record.levelname == "WARNING"
+        actual_messages = [record.message for record in caplog.records]
+
+        for msg in expected_messages:
+            assert msg in actual_messages
+
+        for record in caplog.records:
+            assert record.levelname == "WARNING"
 
 
 class TestLoadImagesAndLabels:
 
-	@pytest.fixture
-	def setup_fake_fs(self, fs):
-		fs.create_file("/data/0/image0_1.tif")
-		fs.create_file("/data/1/image1_1.tif")
-		fs.create_file("/data/1/image1_2.tiff")
-		fs.create_dir("/data/empty_dir")
-		fs.create_file("/data/0/some_file.txt")
-		return Path("/data")
-	
-	def test_valid_image_loading(self, setup_fake_fs, mocker):
-		data_path = setup_fake_fs
+    @pytest.fixture
+    def setup_fake_fs(self, fs):
+        fs.create_file("/data/0/image0_1.tif")
+        fs.create_file("/data/1/image1_1.tif")
+        fs.create_file("/data/1/image1_2.tiff")
+        fs.create_dir("/data/empty_dir")
+        fs.create_file("/data/0/some_file.txt")
+        return Path("/data")
 
-		mock_imread = mocker.patch('cv2.imread')
-		mock_resize = mocker.patch('cv2.resize')
-		mock_image_array = np.zeros((64, 64, 3), dtype=np.uint8)
-		mock_imread.return_value = mock_image_array
-		mock_resize.return_value = mock_image_array
+    def test_valid_image_loading(self, setup_fake_fs, mocker):
+        data_path = setup_fake_fs
 
-		images, labels, filepaths = load_images_and_labels(data_path, image_size=64)
+        mock_imread = mocker.patch("cv2.imread")
+        mock_resize = mocker.patch("cv2.resize")
+        mock_image_array = np.zeros((64, 64, 3), dtype=np.uint8)
+        mock_imread.return_value = mock_image_array
+        mock_resize.return_value = mock_image_array
 
-		assert len(images == 3)
-		sorted_results = sorted(zip(labels, filepaths))
-		sorted_labels = [label for label, path in sorted_results]
-		assert sorted_labels == [0, 1, 1]
-		sorted_filepaths = [path for label, path in sorted_results]
-		assert sorted_filepaths == ['image0_1.tif', 'image1_1.tif', 'image1_2.tiff']
+        images, labels, filepaths = load_images_and_labels(data_path, image_size=64)
 
-		assert mock_imread.call_count == 3
-		assert mock_resize.call_count == 3
+        assert len(images == 3)
+        sorted_results = sorted(zip(labels, filepaths, strict=False))
+        sorted_labels = [label for label, path in sorted_results]
+        assert sorted_labels == [0, 1, 1]
+        sorted_filepaths = [path for label, path in sorted_results]
+        assert sorted_filepaths == ["image0_1.tif", "image1_1.tif", "image1_2.tiff"]
 
-	def test_empty_directory(self, setup_fake_fs):
-		empty_dir_path = setup_fake_fs / "empty_dir"
+        assert mock_imread.call_count == 3
+        assert mock_resize.call_count == 3
 
-		images, labels, filepaths = load_images_and_labels(empty_dir_path)
+    def test_empty_directory(self, setup_fake_fs):
+        empty_dir_path = setup_fake_fs / "empty_dir"
 
-		assert len(images) == 0
-		assert len(labels) == 0
-		assert len(filepaths) == 0
+        images, labels, filepaths = load_images_and_labels(empty_dir_path)
 
-	def test_unreadable_image(self, setup_fake_fs, mocker):
-		data_path = setup_fake_fs
-		
-		mocker.patch('cv2.imread', return_value=None)
+        assert len(images) == 0
+        assert len(labels) == 0
+        assert len(filepaths) == 0
 
-		mock_log_warning = mocker.patch('base_dataset.logger.warning')
+    def test_unreadable_image(self, setup_fake_fs, mocker):
+        data_path = setup_fake_fs
 
-		images, labels, filepaths = load_images_and_labels(data_path)
+        mocker.patch("cv2.imread", return_value=None)
 
-		assert len(images) == 0
-		assert len(labels) == 0
-		assert len(filepaths) == 0
+        mock_log_warning = mocker.patch("base_dataset.logger.warning")
 
-		assert mock_log_warning.call_count == 6 # 3 "failed to load", 3 "no tif images"
-		mock_log_warning.assert_any_call("Failed to load image /data/0/image0_1.tif")
+        images, labels, filepaths = load_images_and_labels(data_path)
+
+        assert len(images) == 0
+        assert len(labels) == 0
+        assert len(filepaths) == 0
+
+        assert mock_log_warning.call_count == 6  # 3 "failed to load", 3 "no tif images"
+        mock_log_warning.assert_any_call("Failed to load image /data/0/image0_1.tif")
+
 
 class TestSplitDataset:
 
-	def test_valid_data_splitting(self, mock_images_labels_filepaths):
+    def test_valid_data_splitting(self, mock_images_labels_filepaths):
 
-		images, labels, filepaths = mock_images_labels_filepaths
-		original_count = len(images)
+        images, labels, filepaths = mock_images_labels_filepaths
+        original_count = len(images)
 
-		result = split_dataset(images, labels, filepaths)
+        result = split_dataset(images, labels, filepaths)
 
-		assert len(result) == 12
+        assert len(result) == 12
 
-		train_count = len(result['train_images'])
-		val_count = len(result['val_images'])
-		ensemble_count = len(result['ensemble_images'])
-		test_count = len(result['test_images'])
+        train_count = len(result["train_images"])
+        val_count = len(result["val_images"])
+        ensemble_count = len(result["ensemble_images"])
+        test_count = len(result["test_images"])
 
-		assert (train_count + val_count + ensemble_count + test_count) == original_count
+        assert (train_count + val_count + ensemble_count + test_count) == original_count
 
-		assert len(result['train_labels']) == train_count
-		assert len(result['val_filepaths']) == val_count
+        assert len(result["train_labels"]) == train_count
+        assert len(result["val_filepaths"]) == val_count
 
-	def test_invalid_ratios(self, mock_images_labels_filepaths):
-		images, labels, filepaths = mock_images_labels_filepaths
-		with pytest.raises(ValueError, match="Invalid ratios"):
-			split_dataset(
-				images,
-				labels,
-				filepaths,
-				train_ratio=0.7,
-				val_ratio=0.2,
-				ensemble_ratio=0.15
-				)
+    def test_invalid_ratios(self, mock_images_labels_filepaths):
+        images, labels, filepaths = mock_images_labels_filepaths
+        with pytest.raises(ValueError, match="Invalid ratios"):
+            split_dataset(
+                images, labels, filepaths, train_ratio=0.7, val_ratio=0.2, ensemble_ratio=0.15
+            )
+
 
 class TestDownsampleOversizedClasses:
-	
-	def test_valid_input(self, mock_images_labels_filepaths):
 
-		images, labels, filepaths = mock_images_labels_filepaths
-		smallest_size = min(Counter(labels).values())
+    def test_valid_input(self, mock_images_labels_filepaths):
 
-		# per_class_train_size = None
-		expected_total_size = smallest_size * len(np.unique(labels))
-		u_images, u_labels, u_filepaths = _downsample_oversized_classes(images, labels, filepaths)
+        images, labels, filepaths = mock_images_labels_filepaths
+        smallest_size = min(Counter(labels).values())
 
-		assert len(u_images) == expected_total_size
-		assert len(u_labels) == expected_total_size
-		assert len(u_filepaths) == expected_total_size
+        # per_class_train_size = None
+        expected_total_size = smallest_size * len(np.unique(labels))
+        u_images, u_labels, u_filepaths = _downsample_oversized_classes(images, labels, filepaths)
 
-		# per_class_train_size = integer
-		integer_size = 2
-		expected_total_size = integer_size * len(np.unique(labels))
-		u_images, u_labels, u_filepaths = _downsample_oversized_classes(images, labels, filepaths, integer_size)
+        assert len(u_images) == expected_total_size
+        assert len(u_labels) == expected_total_size
+        assert len(u_filepaths) == expected_total_size
 
-		assert len(u_images) == expected_total_size
-		assert len(u_labels) == expected_total_size
-		assert len(u_filepaths) == expected_total_size
+        # per_class_train_size = integer
+        integer_size = 2
+        expected_total_size = integer_size * len(np.unique(labels))
+        u_images, u_labels, u_filepaths = _downsample_oversized_classes(
+            images, labels, filepaths, integer_size
+        )
 
-	def test_output_shuffled_order(self, mock_images_labels_filepaths):
-		images, labels, filepaths = mock_images_labels_filepaths
-		u_images, u_labels, u_filepaths = _downsample_oversized_classes(images, labels, filepaths)
+        assert len(u_images) == expected_total_size
+        assert len(u_labels) == expected_total_size
+        assert len(u_filepaths) == expected_total_size
 
-		assert not np.array_equal(u_labels, np.sort(u_labels))
+    def test_output_shuffled_order(self, mock_images_labels_filepaths):
+        images, labels, filepaths = mock_images_labels_filepaths
+        u_images, u_labels, u_filepaths = _downsample_oversized_classes(images, labels, filepaths)
 
-	@pytest.mark.parametrize(
-		"invalid_size, expected_exception, error_match",
-		[
-			("test", TypeError, "per_class_train_size must be an integer or None"),
-			(1000, ValueError, r"per_class_train_size must be greater than zero and less than or equal to the smallest class size \(20\)"),
-			(-1, ValueError, r"per_class_train_size must be greater than zero and less than or equal to the smallest class size \(20\)"),
-			(0, ValueError, r"per_class_train_size must be greater than zero and less than or equal to the smallest class size \(20\)"),
-			(3.5, TypeError, "per_class_train_size must be an integer or None")
-		]
-	)
-	def test_invalid_class_size(self, mock_images_labels_filepaths, invalid_size, expected_exception, error_match):
-		images, labels, filepaths = mock_images_labels_filepaths
+        assert not np.array_equal(u_labels, np.sort(u_labels))
 
-		with pytest.raises(expected_exception, match=error_match):
-			_downsample_oversized_classes(images, labels, filepaths, per_class_train_size=invalid_size)
+    @pytest.mark.parametrize(
+        "invalid_size, expected_exception, error_match",
+        [
+            ("test", TypeError, "per_class_train_size must be an integer or None"),
+            (
+                1000,
+                ValueError,
+                r"per_class_train_size must be greater than zero and less than or equal to the smallest class size \(20\)",
+            ),
+            (
+                -1,
+                ValueError,
+                r"per_class_train_size must be greater than zero and less than or equal to the smallest class size \(20\)",
+            ),
+            (
+                0,
+                ValueError,
+                r"per_class_train_size must be greater than zero and less than or equal to the smallest class size \(20\)",
+            ),
+            (3.5, TypeError, "per_class_train_size must be an integer or None"),
+        ],
+    )
+    def test_invalid_class_size(
+        self, mock_images_labels_filepaths, invalid_size, expected_exception, error_match
+    ):
+        images, labels, filepaths = mock_images_labels_filepaths
+
+        with pytest.raises(expected_exception, match=error_match):
+            _downsample_oversized_classes(
+                images, labels, filepaths, per_class_train_size=invalid_size
+            )
+
 
 class TestPreprocessImages:
 
-	def test_valid_input(self):
-		images = np.random.rand(5, 64, 64, 3)
-		processed_images = _preprocess_images(images)
+    def test_valid_input(self):
+        images = np.random.rand(5, 64, 64, 3)
+        processed_images = _preprocess_images(images)
 
-		assert isinstance(processed_images, tf.Tensor)
-		assert processed_images.shape[0] == 5
+        assert isinstance(processed_images, tf.Tensor)
+        assert processed_images.shape[0] == 5
 
-	def test_empty_input(self, caplog):
-		images = np.array([])
-		
-		caplog.set_level(logging.WARNING)
-		
-		_preprocess_images(images)
+    def test_empty_input(self, caplog):
+        images = np.array([])
 
-		assert len(caplog.records) == 1
-		record = caplog.records[0]
-		assert record.levelname == "WARNING"
-		assert record.message == "'images' is empty"
+        caplog.set_level(logging.WARNING)
+
+        _preprocess_images(images)
+
+        assert len(caplog.records) == 1
+        record = caplog.records[0]
+        assert record.levelname == "WARNING"
+        assert record.message == "'images' is empty"
+
 
 class TestPreprocessLabels:
 
-	def test_valid_input(self):
-		labels = np.array([0, 0, 0, 1, 1, 1, 1, 1])
-		processed_labels = _preprocess_labels(labels)
+    def test_valid_input(self):
+        labels = np.array([0, 0, 0, 1, 1, 1, 1, 1])
+        processed_labels = _preprocess_labels(labels)
 
-		assert isinstance(processed_labels, tf.Tensor)
-		assert processed_labels.shape[0] == 8
+        assert isinstance(processed_labels, tf.Tensor)
+        assert processed_labels.shape[0] == 8
 
-	def test_empty_input(self, caplog):
-		labels = np.array([])
+    def test_empty_input(self, caplog):
+        labels = np.array([])
 
-		caplog.set_level(logging.WARNING)
-		
-		_preprocess_labels(labels)
+        caplog.set_level(logging.WARNING)
 
-		assert len(caplog.records) == 1
-		record = caplog.records[0]
-		assert record.levelname == "WARNING"
-		assert record.message == "'labels' is empty"
+        _preprocess_labels(labels)
+
+        assert len(caplog.records) == 1
+        record = caplog.records[0]
+        assert record.levelname == "WARNING"
+        assert record.message == "'labels' is empty"
+
 
 class TestPreprocessSplitDataset:
-	
-	def test_valid_input(self, mock_dataset):
-		data = mock_dataset
 
-		num_classes = np.max(mock_dataset['val_labels']) + 1
+    def test_valid_input(self, mock_dataset):
+        data = mock_dataset
+        num_classes = np.max(mock_dataset["val_labels"]) + 1
+        val_labels = mock_dataset["val_labels"]
+        final_val_size = num_classes * min(Counter(val_labels).values())
 
-		train_labels = mock_dataset['train_labels']
-		final_train_size = num_classes * min(Counter(train_labels).values())
+        processed_data = preprocess_split_dataset(dataset=data, seed=42, onehot=True)
 
-		val_labels = mock_dataset['val_labels']
-		final_val_size = num_classes * min(Counter(val_labels).values())
+        assert processed_data["val_labels"].shape == (final_val_size, num_classes)
+        assert processed_data["val_labels"].dtype == tf.float32
 
-		processed_data = preprocess_split_dataset(dataset=data, seed=42)
+    def test_onehot_false(self, mock_dataset):
+        data = mock_dataset
+        val_labels = mock_dataset["val_labels"]
+        final_val_size = (np.max(val_labels) + 1) * min(Counter(val_labels).values())
 
-		_check_valid_dataset(processed_data)
+        processed_data = preprocess_split_dataset(dataset=data, seed=42, onehot=False)
 
-		assert isinstance(processed_data['train_images'], tf.Tensor)
-		assert processed_data['train_images'].shape == (final_train_size, 64, 64, 3)
+        assert isinstance(processed_data["val_labels"], np.ndarray)
+        assert processed_data["val_labels"].shape == (final_val_size,)
 
-		assert isinstance(processed_data['val_images'], tf.Tensor)
-		assert processed_data['val_labels'].shape == (final_val_size, num_classes)
-		assert processed_data['val_labels'].dtype == tf.float32
+    def test_onehot_invalid_type(self, mock_dataset):
+        with pytest.raises(TypeError):
+            preprocess_split_dataset(dataset=mock_dataset, seed=42, onehot="test")
+
 
 class TestSaveDataset:
-	
-	def test_valid_input(self, mock_dataset, fs):
-		out_path = "/test_dataset.npy"
-		save_dataset(mock_dataset, out_path) # fs should automatically catch the saved file
-		assert os.path.exists(out_path)
+    def test_valid_input(self, mock_dataset, fs):
+        base_path = "/test_dataset"
+        save_dataset(mock_dataset, base_path)
+
+        assert os.path.exists(f"{base_path}.npy")
+        assert os.path.exists(f"{base_path}.csv")
+
 
 class TestLoadDataset:
 
-	def test_valid_input(self, mock_dataset, fs):
-		test_path = "/valid_dataset.npy"
-		save_dataset(mock_dataset, test_path)
-		
-		loaded_dataset = load_dataset(test_path)
+    def test_valid_input(self, mock_dataset, fs):
+        base_path = "/valid_dataset"
+        save_dataset(mock_dataset, base_path)
 
-		_check_valid_dataset(loaded_dataset)
+        loaded_dataset = load_dataset(f"{base_path}.npy")
 
-	def test_invalid_path(self):
-		path = "/non_existent.npy"
+        _check_valid_dataset(loaded_dataset)
 
-		expected_error = re.escape(f"Dataset file not found at: {path}.")
-		with pytest.raises(FileNotFoundError, match=expected_error):
-			load_dataset(path)
+        for key in ["train_images", "train_labels"]:
+            assert isinstance(loaded_dataset[key], tf.Tensor)
+
+    def test_invalid_path(self):
+        path = "/non_existent.npy"
+
+        expected_error = re.escape(f"Dataset file not found at: {path}.")
+        with pytest.raises(FileNotFoundError, match=expected_error):
+            load_dataset(path)
+
+
+class TestCombineTrainVal:
+    def test_concatenation(self, mock_dataset):
+        """
+        Tests that the train and val sets are combined correctly.
+        """
+        train_size = len(mock_dataset["train_labels"])
+        val_size = len(mock_dataset["val_labels"])
+        expected_total_size = train_size + val_size
+
+        combined_data = combine_train_val(mock_dataset)
+
+        assert list(combined_data.keys()) == ["images", "labels", "filepaths"]
+
+        assert combined_data["images"].shape == (expected_total_size, 64, 64, 3)
+        assert combined_data["labels"].shape == (expected_total_size,)
+        assert combined_data["filepaths"].shape == (expected_total_size,)

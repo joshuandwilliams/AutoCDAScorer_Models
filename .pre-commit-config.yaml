@@ -1,0 +1,31 @@
+# Linting/formatting is scoped to the src/ library. The models/ experiment
+# scripts are being rebuilt and analyses/tmp/ is parked derived code, so both
+# are excluded for now.
+exclude: ^(models/|analyses/tmp/|htmlcov/|data/)
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.21
+    hooks:
+      - id: ruff
+        args: [--fix]
+
+  - repo: https://github.com/psf/black-pre-commit-mirror
+    rev: 26.5.1
+    hooks:
+      - id: black
+
+  # R hooks are ready for future R visualisations. They run only on .R/.Rmd
+  # files (the repo's .qmd files are Python/Quarto, so are left untouched).
+  - repo: local
+    hooks:
+      - id: style-files
+        name: style-files (styler)
+        entry: Rscript .pre-commit-hooks/style_files.R
+        language: system
+        files: '\.([rR]|[rR]md)$'
+      - id: lintr
+        name: lintr
+        entry: Rscript .pre-commit-hooks/lint_check.R
+        language: system
+        files: '\.([rR]|[rR]md)$'

@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "autocdascorer-models"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy",
+    "pandas",
+    "opencv-python",
+    "matplotlib",
+    "scikit-learn",
+    "tensorflow",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-cov",
+    "pytest-mock",
+    "pyfakefs",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+py-modules = ["base_dataset", "cnn_base", "post_training"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+# Line length is managed by black; E501 would only flag lines black cannot split
+# (long strings, comments, docstrings).
+ignore = ["E501"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["*_test.py"]
