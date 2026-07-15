@@ -33,6 +33,10 @@ Include: yum
     export PATH=/usr/local/bin:$PATH
 
 %post
+# Fail fast: abort the build on any error instead of continuing with an empty
+# variable and cascading into an unbounded command.
+set -eo pipefail
+
 # Update yum and install build toolchain + headers needed to compile Python
 yum update -y
 yum install -y openssl-devel bzip2-devel libffi-devel zlib-devel xz-devel \
@@ -59,13 +63,25 @@ pip --version
 # Install TensorFlow with the bundled CUDA GPU packages
 pip install --no-cache-dir tensorflow[and-cuda]==2.21.0
 
-# Expose the CUDA shared libs shipped as nvidia-* wheels to TensorFlow, and put
-# ptxas on PATH (same workaround as TensorFlowGPU_2_16_1.def).
-pushd $(dirname $(python -c 'print(__import__("tensorflow").__file__)'))
-ln -svf ../nvidia/*/lib/*.so* .
-popd
-
-ln -sf $(find $(dirname $(dirname $(python -c "import nvidia.cuda_nvcc; print(nvidia.cuda_nvcc.__file__)"))/*/bin/) -name ptxas -print -quit) /usr/local/bin/ptxas
+# Expose the CUDA shared libs shipped as the nvidia-* wheels to TensorFlow and
+# put ptxas on PATH. Both paths are derived from this container's own
+# site-packages, and every `find` below is rooted strictly inside the installed
+# nvidia/ package directory. If that directory cannot be located the whole step
+# is skipped, so the search can NEVER fall back to "/" or reach the host
+# filesystem (the bug in the earlier draft of this file).
+TF_DIR=$(python -c 'import os, tensorflow; print(os.path.dirname(tensorflow.__file__))')
+NVIDIA_DIR=$(python -c 'import os, nvidia; print(os.path.dirname(nvidia.__file__))' 2>/dev/null || true)
+if [ -n "${NVIDIA_DIR}" ] && [ -d "${NVIDIA_DIR}" ]; then
+    # Symlink the bundled CUDA .so files next to the tensorflow package.
+    find "${NVIDIA_DIR}" -maxdepth 3 -type f -name '*.so*' -exec ln -sf {} "${TF_DIR}/" \;
+    # Locate ptxas strictly within the nvidia package and put it on PATH.
+    PTXAS=$(find "${NVIDIA_DIR}" -type f -name ptxas -print -quit 2>/dev/null || true)
+    if [ -n "${PTXAS}" ]; then
+        ln -sf "${PTXAS}" /usr/local/bin/ptxas
+    fi
+else
+    echo "WARNING: nvidia CUDA wheels not found; skipping CUDA lib/ptxas linking."
+fi
 
 python -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"
 
@@ -91,4 +107,4 @@ python3.12 -c "import keras, numpy, pandas, scipy, sklearn, matplotlib, cv2, sko
 
 # Check GLIBCXX versions in libstdc++
 echo "Checking for GLIBCXX versions in libstdc++..."
-strings /usr/lib64/libstdc++.so.6 | grep GLIBCXX
+strings /usr/lib64/libstdc++.so.6 | grep GLIBCXX || true
