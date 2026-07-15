@@ -12,7 +12,11 @@ dependencies = [
     "opencv-python",
     "matplotlib",
     "scikit-learn",
-    "tensorflow",
+    # Linux (HPC container + CI) uses the version pinned in
+    # containers/TensorFlowGPU_2_21_0.def. macOS wheels only go up to 2.16.2;
+    # both are Keras 3, so the code runs on either.
+    "tensorflow==2.21.0 ; sys_platform == 'linux'",
+    "tensorflow ; sys_platform != 'linux'",
 ]
 
 [project.optional-dependencies]

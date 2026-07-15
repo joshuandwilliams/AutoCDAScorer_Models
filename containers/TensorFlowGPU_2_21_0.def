@@ -1,0 +1,94 @@
+BootStrap: yum
+OSVersion: 9
+MirrorURL: http://yum-repos.hpccluster/AlmaLinux/9/os/$basearch/
+Include: yum
+
+# =============================================================================
+# TensorFlowGPU_2_21_0.img
+#
+# GPU-enabled TensorFlow container for training AutoCDAScorer models on the
+# NBI slurm cluster. Built on AlmaLinux 9 via the yum bootstrap, following the
+# same convention as the other ~/singularity/*.def files. Successor to
+# TensorFlowGPU_2_16_1.def, with every package bumped to the latest version.
+#
+# Contents:
+#   - Python 3.12.13            (compiled from source; AlmaLinux 9 ships 3.9)
+#   - tensorflow[and-cuda]==2.21.0   (bundles Keras 3.x and the CUDA libs as
+#                                     nvidia-* wheels)
+#   - numpy, pandas, scipy, scikit-learn, matplotlib   (latest compatible)
+#   - opencv-python-headless    (no GUI/X libs on the cluster)
+#   - scikit-optimize           (Bayesian hyperparameter search)
+#
+# Build (on an HPC software node with sudo / Apptainer):
+#   sudo singularity build TensorFlowGPU_2_21_0.img TensorFlowGPU_2_21_0.def
+#
+# Run (‑‑nv exposes the GPUs):
+#   singularity exec --nv TensorFlowGPU_2_21_0.img python3.12 <script>.py
+# =============================================================================
+
+%files
+
+%environment
+    export LC_ALL=C
+    export PATH=/usr/local/bin:$PATH
+
+%post
+# Update yum and install build toolchain + headers needed to compile Python
+yum update -y
+yum install -y openssl-devel bzip2-devel libffi-devel zlib-devel xz-devel \
+    sqlite-devel readline-devel epel-release binutils wget
+yum groupinstall -y "Development Tools"
+
+# Build Python 3.12 from source
+PYTHON_VERSION=3.12.13
+wget https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz
+tar -xzf Python-${PYTHON_VERSION}.tgz
+cd Python-${PYTHON_VERSION}
+./configure --enable-optimizations
+make altinstall
+cd ..
+
+rm -f /usr/bin/python
+ln -sf /usr/local/bin/python3.12 /usr/bin/python
+ln -sf /usr/local/bin/pip3.12 /usr/bin/pip
+
+python -V
+pip install --upgrade pip setuptools wheel
+pip --version
+
+# Install TensorFlow with the bundled CUDA GPU packages
+pip install --no-cache-dir tensorflow[and-cuda]==2.21.0
+
+# Expose the CUDA shared libs shipped as nvidia-* wheels to TensorFlow, and put
+# ptxas on PATH (same workaround as TensorFlowGPU_2_16_1.def).
+pushd $(dirname $(python -c 'print(__import__("tensorflow").__file__)'))
+ln -svf ../nvidia/*/lib/*.so* .
+popd
+
+ln -sf $(find $(dirname $(dirname $(python -c "import nvidia.cuda_nvcc; print(nvidia.cuda_nvcc.__file__)"))/*/bin/) -name ptxas -print -quit) /usr/local/bin/ptxas
+
+python -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"
+
+# Confirm the interpreters/pip resolve as expected
+which python python3 python3.12 pip pip3 pip3.12
+python3.12 -m site
+
+# Install the additional Python packages (latest compatible versions)
+pip install --no-cache-dir --upgrade \
+    numpy pandas scipy scikit-learn matplotlib \
+    opencv-python-headless scikit-optimize
+
+# Permissions so the site-packages are importable at runtime
+chmod 755 /usr/local/lib/python3.12
+chmod 755 /usr/local/lib/python3.12/site-packages
+cd /usr/local/lib/python3.12/site-packages/
+find . -mount -type d -exec chmod 755 {} \;
+find . -mount -type f -exec chmod 775 {} \;
+
+# Verify installed versions
+python3.12 -c "import tensorflow as tf; print('TensorFlow version:', tf.__version__)"
+python3.12 -c "import keras, numpy, pandas, scipy, sklearn, matplotlib, cv2, skopt; print('keras', keras.__version__, '| numpy', numpy.__version__, '| pandas', pandas.__version__, '| scipy', scipy.__version__, '| sklearn', sklearn.__version__, '| matplotlib', matplotlib.__version__, '| cv2', cv2.__version__, '| skopt', skopt.__version__)"
+
+# Check GLIBCXX versions in libstdc++
+echo "Checking for GLIBCXX versions in libstdc++..."
+strings /usr/lib64/libstdc++.so.6 | grep GLIBCXX

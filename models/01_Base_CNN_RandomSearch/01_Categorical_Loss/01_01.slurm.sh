@@ -9,10 +9,10 @@
 #SBATCH --mail-user=jowillia@nbi.ac.uk
 
 
-img="$HOME/singularity/TensorFlowGPU_2_16_1/TensorFlowGPU_2_16_1.img"
+img="$HOME/singularity/TensorFlowGPU_2_21_0/TensorFlowGPU_2_21_0.img"
 per_array=6
 
-singularity exec ${img} python3.10 CGAN_CNN_1.py --slurm_array $SLURM_ARRAY_TASK_ID --per_array ${per_array}
+singularity exec --nv ${img} python3.12 CGAN_CNN_1.py --slurm_array $SLURM_ARRAY_TASK_ID --per_array ${per_array}
 
 mv slurm.base_CNN_${SLURM_ARRAY_TASK_ID}.err array_task${SLURM_ARRAY_TASK_ID}/
 mv slurm.base_CNN_${SLURM_ARRAY_TASK_ID}.out array_task${SLURM_ARRAY_TASK_ID}/
