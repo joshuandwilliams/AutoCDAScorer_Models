@@ -1,0 +1,34 @@
+# Conda environment mirroring the HPC container
+# (containers/TensorFlowGPU_2_21_0.def) for local development and testing.
+#
+# Conda supplies the Python interpreter; the scientific stack is installed via
+# pip so the versions match the container exactly (and to avoid conda/pip numpy
+# ABI clashes with TensorFlow). The container adds tensorflow[and-cuda] for GPU;
+# this env uses the CPU build, which is all that's needed off-cluster.
+#
+#   conda env create -f environment.yml
+#   conda activate agroinfiltration_scoring
+name: agroinfiltration_scoring
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      # TensorFlow (bundles Keras 3). Linux pins the container version; macOS
+      # wheels cap at 2.16.2. Both are Keras 3, so the code runs on either.
+      - "tensorflow==2.21.0 ; sys_platform == 'linux'"
+      - "tensorflow ; sys_platform != 'linux'"
+      # Core scientific stack (latest, as installed by the container)
+      - numpy
+      - pandas
+      - scipy
+      - scikit-learn
+      - matplotlib
+      - opencv-python-headless
+      - scikit-optimize
+      # Test tooling (mirrors the [test] extra in pyproject.toml)
+      - pytest
+      - pytest-cov
+      - pytest-mock
+      - pyfakefs
