@@ -1,0 +1,69 @@
+---
+title: "Base 64 Dataset"
+format:
+    html:
+        colab-fold: true
+jupyter: python3
+---
+
+Date: 15/01/2025
+
+## Goal
+
+Generate a base dataset with side length 64 pixels for training, validation, ensemble, and test.
+
+## Experimental Plan
+1. Load raw cropped CDA images.
+2. Resize loaded CDA images to 64x64 pixels.
+3. Split dataset into training, validation, ensemble, and test sets using stratified sampling.
+4. Balance class sizes by downsampling with a fixed seed.
+5. Normalise images to float range (0-1) and convert to Tensor. One-hot encode labels and convert to Tensor.
+6. Save processed dataset to .npy file, and filenames to .csv.
+7. Load saved base_64 dataset and check integrity
+
+### Required Libraries
+```{python}
+import sys
+from pathlib import Path
+
+import tensorflow as tf
+from collections import Counter
+import pandas as pd
+
+repo_root = next(p for p in Path.cwd().parents if (p / '.git').exists())
+sys.path.append(str(repo_root / 'src'))
+import base_dataset
+```
+
+### Load raw cropped CDA images. Resize loaded CDA images to 64x64 pixels.
+```{python}
+images, labels, filepaths = base_dataset.load_images_and_labels(data_dir = "/Users/jowillia/Documents/GitHub/AutoCDAScorer_Models/data/cropped_images", image_size = 64)
+```
+
+### Split dataset into training, validation, ensemble, and test sets using stratified sampling.
+```{python}
+split_dataset = base_dataset.split_dataset(images=images, labels=labels, filepaths=filepaths, train_ratio=0.6, val_ratio=0.15, ensemble_ratio=0.15, seed=42)
+```
+
+### Balance class sizes by downsampling with a fixed seed. Normalise images to float range (0-1) and convert to Tensor. One-hot encode labels and convert to Tensor.
+```{python}
+processed_split_dataset = base_dataset.preprocess_split_dataset(dataset=split_dataset, seed=42, onehot=False)
+
+for name, labels in processed_split_dataset.items():
+    if name.endswith("labels"):
+        print(f"{name} image count: {len(labels)}")
+```
+
+### Save processed dataset to .npy file, and filenames to .csv.
+```{python}
+base_dataset.save_dataset(processed_split_dataset, "/Users/jowillia/Documents/GitHub/AutoCDAScorer_Models/data/datasets/base_64/base_64")
+```
+
+### Load saved base_64 dataset and check integrity
+```{python}
+loaded_dataset = base_dataset.load_dataset("/Users/jowillia/Documents/GitHub/AutoCDAScorer_Models/data/datasets/base_64/base_64.npy")
+
+for name, labels in loaded_dataset.items():
+    if name.endswith("labels"):
+        print(f"{name} image count: {len(labels)}")
+```

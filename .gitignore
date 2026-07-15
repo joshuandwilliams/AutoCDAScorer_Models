@@ -1,7 +1,18 @@
 *DS_Store*
-data/
+
+# Raw and derived images / datasets (large, regenerable) - keep locally only.
+# The curated data/combined_cda_data_median.csv is tracked.
+data/raw_images_rotated/
+data/cropped_images/
+data/datasets/
+
+# Miscellaneous model artifacts (large models / notes) - keep locally only
+models/00_Miscellaneous/
+
 containers/
 .vscode/
 *.pytest_cache/*
 *__pycache__*
 *.coverage*
+htmlcov/
+*.egg-info/
