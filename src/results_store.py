@@ -122,6 +122,40 @@ class TopNStore:
             _release_lock(self.lock_dir)
 
 
+class JobCounter:
+    """Shared 'next unclaimed job index' for self-scheduling array tasks.
+
+    Each task repeatedly calls :meth:`claim` to atomically take the next 0-based index
+    until the counter reaches ``total``. This gives dynamic load balancing -- fast
+    tasks claim more, slow ones fewer -- with no fixed slices to get unlucky with. The
+    counter file persists, so a re-submitted job simply resumes where it left off.
+    """
+
+    def __init__(self, root: str, total: int):
+        self.total = total
+        self.counter_file = os.path.join(root, "next.txt")
+        self.lock_dir = os.path.join(root, ".counter_lock")
+
+    def claim(self):
+        """Atomically return the next index, or None once the grid is exhausted."""
+        _acquire_lock(self.lock_dir)
+        try:
+            try:
+                with open(self.counter_file) as fh:
+                    i = int(fh.read().strip())
+            except (OSError, ValueError):
+                i = 0
+            if i >= self.total:
+                return None
+            tmp = f"{self.counter_file}.{os.getpid()}.tmp"
+            with open(tmp, "w") as fh:
+                fh.write(str(i + 1))
+            os.replace(tmp, self.counter_file)
+            return i
+        finally:
+            _release_lock(self.lock_dir)
+
+
 def append_rows_to_csv(root: str, rows_df: pd.DataFrame, filename: str = RESULTS_CSV) -> None:
     """Merge a task's rows into the single shared, avg_vaf-sorted results CSV (locked)."""
     lock_dir = os.path.join(root, ".csv_lock")
