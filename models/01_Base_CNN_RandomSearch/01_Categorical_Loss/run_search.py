@@ -50,6 +50,9 @@ def main():
     )
     parser.add_argument("-k", "--folds", type=int, default=5, help="k for k-fold cross-validation")
     parser.add_argument(
+        "-t", "--top_n", type=int, default=100, help="keep plots/models for the top N by avg_vaf"
+    )
+    parser.add_argument(
         "-d", "--dataset", type=str, default=str(DEFAULT_DATASET), help="path to base_64 .npy"
     )
     args = parser.parse_args()
@@ -68,6 +71,7 @@ def main():
         test_labels=dataset["test_labels"],
         n_models=args.n_models,
         output_dir=f"./array_task{args.slurm_array}",
+        top_n=args.top_n,
     )
 
 

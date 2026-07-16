@@ -1,3 +1,5 @@
+import os
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -46,11 +48,44 @@ def test_run_returns_ranked_leaderboard(tiny_data, tiny_space, tmp_path, monkeyp
     assert len(leaderboard) == 2
     # Ranked by mean CV accuracy, descending.
     assert list(leaderboard["avg_vaf"]) == sorted(leaderboard["avg_vaf"], reverse=True)
-    # The new ordinal metric is reported alongside near-miss.
+    # The new ordinal metric and the training-time column are reported.
     assert "avg_val_qwk" in leaderboard.columns
     assert "avg_val_nearmiss" in leaderboard.columns
-    # Leaderboard file was written.
+    assert "train_seconds" in leaderboard.columns
+    assert (leaderboard["train_seconds"] >= 0).all()
+    # Single streamed results file; no per-model results CSVs anywhere.
     assert (tmp_path / "random_search_results.csv").exists()
+    assert not list(tmp_path.glob("model*/results_*.csv"))
+
+
+def test_top_n_keeps_only_best_artifacts(tiny_data, tmp_path, monkeypatch):
+    monkeypatch.setattr(plt, "show", lambda: None)
+    images, labels = tiny_data
+    space = {
+        "num_filters": [4, 8, 16],  # 3 valid configs
+        "filter_size": [3],
+        "learning_rate": [0.001],
+        "epochs": [1],
+        "num_layers": [1],
+        "pooling_size": [2],
+        "activation_function": ["relu"],
+        "batch_size": [8],
+        "reg": [None],
+        "reg_strength": [0.001],
+        "opt": ["Adam"],
+        "dropout": [0.0],
+    }
+    search = RandomSearch(CNNModelBuilder(), space, k=2, seed=1)
+    leaderboard = search.run(images, labels, n_models=3, output_dir=str(tmp_path), top_n=1)
+
+    # All 3 models are in the results table...
+    assert len(leaderboard) == 3
+    # ...but only the single best model's artefact folder is kept on disk.
+    model_dirs = [d for d in os.listdir(tmp_path) if d.startswith("model")]
+    assert len(model_dirs) == 1
+    # The kept folder corresponds to the top-ranked model.
+    best_id = int(leaderboard.iloc[0]["model_id"])
+    assert any(f"model_{best_id}.keras" in os.listdir(tmp_path / d) for d in model_dirs)
 
 
 def test_sampler_returns_only_valid_configs():
