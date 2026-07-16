@@ -27,17 +27,17 @@ DEFAULT_DATASET = REPO_ROOT / "data" / "datasets" / "base_64" / "base_64.npy"
 # Hyperparameter space sampled by the random search. `k` (CV folds) is a search
 # setting, not a model hyperparameter, so it lives on RandomSearch, not here.
 PARAM_SPACE = {
-    "num_filters": [4, 8, 16, 32, 64, 128],
-    "filter_size": [3, 5, 7],
-    "learning_rate": [0.01, 0.005, 0.001, 0.0005, 0.0001],
+    "num_filters": [8, 16, 32, 64],
+    "filter_size": [3, 5],
+    "learning_rate": [0.01, 0.001, 0.0001],
     "epochs": [50],
-    "num_layers": [1, 2, 3, 4],
+    "num_layers": [2, 3, 4],
     "pooling_size": [2],
-    "activation_function": ["relu", "elu", "gelu", "tanh"],
-    "batch_size": [32, 64, 128],
+    "activation_function": ["relu", "elu"],
+    "batch_size": [64],
     "reg": [None, "L1", "L2"],
     "reg_strength": [0.0001, 0.001, 0.01],
-    "opt": ["Adam", "SGD", "Momentum", "RMSProp", "Nadam", "Adamax"],
+    "opt": ["Adam", "Momentum"],
     "dropout": [0.0, 0.2, 0.3, 0.5],
 }
 
