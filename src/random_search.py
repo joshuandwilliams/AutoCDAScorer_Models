@@ -44,7 +44,11 @@ class RandomSearch:
     k : int
         Number of stratified CV folds (a search setting, not a model hyperparameter).
     seed : int
-        Controls both the sampling and the fold shuffling for reproducibility.
+        Seeds the config *sampling* only -- vary it per task (e.g. the SLURM array
+        index) so different tasks explore different configs.
+    cv_seed : int
+        Seeds the *CV fold split*. Keep it the SAME across all tasks so every model in
+        the whole search is scored on the identical folds -- a fair global ranking.
     run_id : str
         Identifier for this task (e.g. the SLURM array index). Prefixes model ids so
         they stay globally unique when many tasks share one output folder.
@@ -56,13 +60,21 @@ class RandomSearch:
         param_space: dict,
         k: int = 5,
         seed: int = 42,
+        cv_seed: int = 42,
         run_id: str = "0",
     ):
         self.model_builder = model_builder
         self.param_space = param_space
         self.k = k
         self.seed = seed
+        self.cv_seed = cv_seed
         self.run_id = str(run_id)
+
+    def _folds(self, images: np.ndarray, labels: np.ndarray) -> list:
+        """Stratified k-fold split. Uses ``cv_seed`` (shared across tasks), not the
+        per-task sampling ``seed``, so all models are compared on the same folds."""
+        skf = StratifiedKFold(n_splits=self.k, shuffle=True, random_state=self.cv_seed)
+        return list(skf.split(images, labels))
 
     def _cross_validate(self, params: dict, images: np.ndarray, labels: np.ndarray, class_labels):
         """Run stratified k-fold CV for a single config and collect per-fold results."""
@@ -71,15 +83,13 @@ class RandomSearch:
         epochs = params["epochs"]
         batch_size = params["batch_size"]
 
-        skf = StratifiedKFold(n_splits=self.k, shuffle=True, random_state=self.seed)
-
         val_acc_fold, train_acc_fold = [], []
         val_nearmiss_fold, val_qwk_fold = [], []
         val_acc_epoch, train_acc_epoch = [], []
         confusion_matrices = []
         best_model, best_val_acc, best_epoch = None, -1.0, None
 
-        for fold, (train_idx, val_idx) in enumerate(skf.split(images, labels)):
+        for fold, (train_idx, val_idx) in enumerate(self._folds(images, labels)):
             print(f"  Fold {fold + 1}/{self.k}")
             x_train, x_val = images[train_idx], images[val_idx]
             y_train, y_val = labels[train_idx], labels[val_idx]
@@ -246,6 +256,7 @@ class RandomSearch:
                     "avg_val_qwk": float(np.mean(cv["val_qwk_fold"])),
                     "best_epoch": cv["best_epoch"],
                     "train_seconds": round(train_seconds, 1),
+                    "cv_seed": self.cv_seed,
                 }
             )
             if test_images is not None and test_labels is not None and cv["best_model"] is not None:
