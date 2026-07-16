@@ -9,9 +9,11 @@ data/datasets/
 # Miscellaneous model artifacts (large models / notes) - keep locally only
 models/00_Miscellaneous/
 
-# containers/: track the .def build recipes, ignore built images and other artifacts
+# containers/: track the .def build recipes and helper scripts, ignore built
+# images and other artifacts
 containers/*
 !containers/*.def
+!containers/*.slurm.sh
 .vscode/
 *.pytest_cache/*
 *__pycache__*
