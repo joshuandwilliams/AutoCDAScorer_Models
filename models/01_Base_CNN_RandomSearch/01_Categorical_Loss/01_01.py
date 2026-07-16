@@ -1,78 +1,73 @@
-"""Base CNN grid search (categorical loss), sharded across a SLURM array.
+"""Base CNN random search (categorical loss), sharded across a SLURM array.
 
-Trains a slice of the hyperparameter grid per array task using the current
-engine in src/cnn_base.py + src/base_dataset.py. Each trained model writes its
-outputs to ./array_task{slurm_array}/model{index}_{avg_val_acc}/.
+Modular by design: the search harness is decoupled from
+  (a) the dataset      -> --dataset points at any base_dataset .npy,
+  (b) the params table -> PARAM_SPACE below,
+  (c) the model        -> the ModelBuilder passed to RandomSearch.
+Swap CNNModelBuilder for a ViT builder, or the base dataset for a GAN one, without
+changing the search itself.
 """
 
 import argparse
 import sys
 from pathlib import Path
 
-from sklearn.model_selection import ParameterGrid
-
-# Make the repo's src/ importable. Uses the script location (works locally and
-# on the HPC, where the rsync'd tree has no .git to search for).
+# Make the repo's src/ importable (works locally and on the HPC, no .git needed).
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.append(str(REPO_ROOT / "src"))
 
 import base_dataset  # noqa: E402
-import cnn_base  # noqa: E402
+from model_builders import CNNModelBuilder  # noqa: E402
+from random_search import RandomSearch  # noqa: E402
 
 DEFAULT_DATASET = Path.home() / "data" / "datasets" / "base_64" / "base_64.npy"
 
-parser = argparse.ArgumentParser(description="Base CNN grid search (categorical loss)")
-parser.add_argument(
-    "-a", "--slurm_array", type=int, required=True, help="SLURM array task number (1-based)"
-)
-parser.add_argument(
-    "-p", "--per_array", type=int, required=True, help="number of models trained per array task"
-)
-parser.add_argument(
-    "-d",
-    "--dataset",
-    type=str,
-    default=str(DEFAULT_DATASET),
-    help="path to the prebuilt base_64 .npy dataset",
-)
-args = parser.parse_args()
-slurm_array, per_array = args.slurm_array, args.per_array
-
-# Load the prebuilt base dataset. Pool train+val for k-fold CV; the test split
-# is held out and passed through so train_model reports test metrics too.
-dataset = base_dataset.load_dataset(args.dataset)
-combined_training_dataset = base_dataset.combine_train_val(dataset)
-print(f"Combined train+val size: {len(combined_training_dataset['labels'])}")
-
-# Hyperparameter grid (5 * 2 * 3 * 3 * 3 = 270 combinations).
-params = {
-    "num_filters": [8, 16, 32, 64, 128],
-    "filter_size": [3],
-    "learning_rate": [0.01, 0.001],
+# Hyperparameter space sampled by the random search. `k` (CV folds) is a search
+# setting, not a model hyperparameter, so it lives on RandomSearch, not here.
+PARAM_SPACE = {
+    "num_filters": [4, 8, 16, 32, 64, 128],
+    "filter_size": [3, 5, 7],
+    "learning_rate": [0.01, 0.005, 0.001, 0.0005, 0.0001],
     "epochs": [50],
-    "k": [5],
-    "num_layers": [2, 3, 4],
+    "num_layers": [1, 2, 3, 4],
     "pooling_size": [2],
-    "activation_function": ["relu"],
-    "batch_size": [64],
+    "activation_function": ["relu", "elu", "gelu", "tanh"],
+    "batch_size": [32, 64, 128],
     "reg": [None, "L1", "L2"],
-    "opt": ["Adam", "Momentum", "RMSProp"],
-    "dropout": [0],
+    "reg_strength": [0.0001, 0.001, 0.01],
+    "opt": ["Adam", "SGD", "Momentum", "RMSProp", "Nadam", "Adamax"],
+    "dropout": [0.0, 0.2, 0.3, 0.5],
 }
-param_grid = list(ParameterGrid(params))
 
-# Shard the grid across the SLURM array (with per_array=6, array 1-45 covers all 270).
-start_index = (slurm_array - 1) * per_array
-end_index = slurm_array * per_array
-selected_param_sets = param_grid[start_index:end_index]
 
-for index, selected_params in enumerate(selected_param_sets):
-    cnn_base.train_model(
-        slurm_array,
-        index,
-        selected_params,
-        combined_training_dataset["images"],
-        combined_training_dataset["labels"],
-        dataset["test_images"],
-        dataset["test_labels"],
+def main():
+    parser = argparse.ArgumentParser(description="Base CNN random search (categorical loss)")
+    parser.add_argument("-a", "--slurm_array", type=int, default=1, help="SLURM array task number")
+    parser.add_argument(
+        "-n", "--n_models", type=int, default=4, help="number of models to sample this task"
     )
+    parser.add_argument("-k", "--folds", type=int, default=5, help="k for k-fold cross-validation")
+    parser.add_argument(
+        "-d", "--dataset", type=str, default=str(DEFAULT_DATASET), help="path to base_64 .npy"
+    )
+    args = parser.parse_args()
+
+    # Load the prebuilt base dataset; pool train+val for CV, hold out the test split.
+    dataset = base_dataset.load_dataset(args.dataset)
+    combined = base_dataset.combine_train_val(dataset)
+    print(f"Combined train+val size: {len(combined['labels'])}")
+
+    # Seed by array task so each task explores a different random slice of the space.
+    search = RandomSearch(CNNModelBuilder(), PARAM_SPACE, k=args.folds, seed=args.slurm_array)
+    search.run(
+        combined["images"],
+        combined["labels"],
+        test_images=dataset["test_images"],
+        test_labels=dataset["test_labels"],
+        n_models=args.n_models,
+        output_dir=f"./array_task{args.slurm_array}",
+    )
+
+
+if __name__ == "__main__":
+    main()
