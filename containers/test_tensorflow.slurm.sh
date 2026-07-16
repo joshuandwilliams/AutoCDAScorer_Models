@@ -13,11 +13,13 @@
 # Smoke test for TensorFlowGPU_2_21_0.img: confirms TensorFlow is installed and
 # can see + use a GPU on the jic-gpu queue.
 #
-# Submit from the directory that contains the built .img (same convention as
-# the old container's test.slurm.sh), or export IMG=/path/to/the.img:
+# Requires the built image on SHARED storage that the compute nodes can read,
+# i.e. under your home -- NOT in /tmp on the software node (that is node-local
+# and invisible to jic-gpu nodes). Default location matches 01_01.slurm.sh;
+# override with IMG=/path/to/the.img:
 #   sbatch test_tensorflow.slurm.sh
 
-img="${IMG:-TensorFlowGPU_2_21_0.img}"
+img="${IMG:-$HOME/singularity/TensorFlowGPU_2_21_0/TensorFlowGPU_2_21_0.img}"
 
 # 1. Show the GPU(s) the driver exposes on the allocated node.
 singularity exec --nv "${img}" nvidia-smi
