@@ -16,13 +16,11 @@
 #
 # What is pushed:
 #   Repo code and config (src/, models/ training scripts + SLURM jobs,
-#   analyses/, pyproject.toml, etc.) and the small curated
-#   data/combined_cda_data_median.csv.
+#   analyses/, pyproject.toml, etc.) and the full data/ tree (images, cropped
+#   images and the built datasets) so a run is self-contained on the HPC. The
+#   first sync of data/ is large (~10 GB); rsync only transfers the delta after.
 #
 # What is NOT pushed:
-#   - Large training data (data/raw_images_rotated/, data/cropped_images/,
-#     data/datasets/). These live at $HOME/data on the HPC and are managed
-#     separately -- never mirrored from the Mac.
 #   - Local-only artefacts: models/00_Miscellaneous/, analyses/tmp/,
 #     caches, egg-info, htmlcov, venvs, macOS/Word metadata.
 #   - HPC-generated run artefacts (array_task*/, *.out, *.err). These are
@@ -64,9 +62,6 @@ rsync -av --delete $DRY_RUN -e ssh \
     --exclude='.venv/' \
     --exclude='venv/' \
     --exclude='~$*' \
-    --exclude='data/raw_images_rotated/' \
-    --exclude='data/cropped_images/' \
-    --exclude='data/datasets/' \
     --exclude='models/00_Miscellaneous/' \
     --exclude='analyses/tmp/' \
     --exclude='array_task*/' \
