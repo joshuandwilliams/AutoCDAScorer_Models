@@ -46,7 +46,14 @@ def main():
     parser = argparse.ArgumentParser(description="Base CNN random search (categorical loss)")
     parser.add_argument("-a", "--slurm_array", type=int, default=1, help="SLURM array task number")
     parser.add_argument(
-        "-n", "--n_models", type=int, default=4, help="number of models to sample this task"
+        "-m",
+        "--mode",
+        choices=["grid", "random"],
+        default="grid",
+        help="grid = self-scheduled full grid search (default); random = sample n_models",
+    )
+    parser.add_argument(
+        "-n", "--n_models", type=int, default=4, help="models to sample per task (random mode only)"
     )
     parser.add_argument("-k", "--folds", type=int, default=5, help="k for k-fold cross-validation")
     parser.add_argument(
@@ -79,15 +86,18 @@ def main():
         cv_seed=args.cv_seed,
         run_id=args.slurm_array,
     )
-    search.run(
-        combined["images"],
-        combined["labels"],
+    common = dict(
+        train_images=combined["images"],
+        train_labels=combined["labels"],
         test_images=dataset["test_images"],
         test_labels=dataset["test_labels"],
-        n_models=args.n_models,
         global_dir=".",
         top_n=args.top_n,
     )
+    if args.mode == "grid":
+        search.run_grid(**common)
+    else:
+        search.run(n_models=args.n_models, **common)
 
 
 if __name__ == "__main__":

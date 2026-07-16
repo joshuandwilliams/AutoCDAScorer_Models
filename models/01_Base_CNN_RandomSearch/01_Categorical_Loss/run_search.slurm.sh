@@ -2,11 +2,11 @@
 #SBATCH -p jic-compute
 #SBATCH --cpus-per-task=4
 #SBATCH --mem 8000
-#SBATCH --time=0-04:00:00
+#SBATCH --time=1-00:00:00
 #SBATCH --job-name="base_cnn_search"
 #SBATCH -o slurm.run_search_%a.out
 #SBATCH -e slurm.run_search_%a.err
-#SBATCH --array=1-100
+#SBATCH --array=1-150
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=jowillia@nbi.ac.uk
 
@@ -14,16 +14,16 @@
 # pend for a long time. The GPU-built container runs fine on CPU -- TensorFlow just
 # logs a harmless "no GPU found" note and falls back to CPU (no --nv / --gres here).
 #
-# TEST RUN: 100 array tasks (seeds 1-100), 2 models each = 200 models, all contributing
-# to ONE shared global top-10 (results/, threshold.txt, random_search_results.csv).
-# Concurrency is left to SLURM (no % throttle). 4 CPUs is the benchmark efficiency
-# sweet spot; peak RSS ~3-4 GB so 8 GB is ample. For a real sweep raise n_models
-# (~60-80/task) and top_n (~100).
+# FULL GRID SEARCH via self-scheduling: 150 worker tasks each pull the next unclaimed
+# config from a shared counter (next.txt) until the whole valid grid (8,640 configs) is
+# done, all contributing to ONE shared global top-100 (results/, threshold.txt,
+# random_search_results.csv). Load-balances automatically (no unlucky slices); a
+# re-submit resumes from the counter. 4 CPUs is the benchmark efficiency sweet spot;
+# peak RSS ~3-4 GB so 8 GB is ample. --time is 24h -- ample at typical concurrency.
 img="$HOME/singularity/TensorFlow/TensorFlowGPU_2_21_0.img"
-n_models=2
-top_n=10
+top_n=100
 
-singularity exec ${img} python3.12 run_search.py --slurm_array $SLURM_ARRAY_TASK_ID --n_models ${n_models} --top_n ${top_n}
+singularity exec ${img} python3.12 run_search.py --slurm_array $SLURM_ARRAY_TASK_ID --top_n ${top_n}
 
 # Move this task's SLURM logs into the shared logs/ folder.
 mkdir -p logs

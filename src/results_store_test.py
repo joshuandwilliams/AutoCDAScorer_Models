@@ -2,7 +2,7 @@ import os
 
 import pandas as pd
 
-from results_store import TopNStore, append_rows_to_csv
+from results_store import JobCounter, TopNStore, append_rows_to_csv
 
 
 def _saver(name):
@@ -42,6 +42,20 @@ class TestTopNStore:
         assert store._read_threshold() == float("-inf")  # not full yet
         store.offer("b", 0.7, _saver("b"))
         assert store._read_threshold() == 0.5  # full -> min kept score
+
+
+class TestJobCounter:
+    def test_claims_increment_then_exhaust(self, tmp_path):
+        c = JobCounter(str(tmp_path), total=3)
+        assert [c.claim() for _ in range(5)] == [0, 1, 2, None, None]
+
+    def test_resumes_from_persisted_counter(self, tmp_path):
+        JobCounter(str(tmp_path), 5).claim()  # -> 0, file now holds 1
+        assert JobCounter(str(tmp_path), 5).claim() == 1  # a fresh counter resumes
+
+    def test_two_workers_get_disjoint_indices(self, tmp_path):
+        a, b = JobCounter(str(tmp_path), 4), JobCounter(str(tmp_path), 4)
+        assert [a.claim(), b.claim(), a.claim(), b.claim(), a.claim()] == [0, 1, 2, 3, None]
 
 
 class TestAppendRowsToCsv:
