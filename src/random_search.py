@@ -13,7 +13,6 @@ GAN) without touching this file.
 
 import os
 import random
-import shutil
 import time
 
 import numpy as np
@@ -30,6 +29,7 @@ from cnn_base import (
 )
 from metrics import near_miss_accuracy, quadratic_weighted_kappa
 from model_builders import ModelBuilder
+from results_store import TopNStore, append_rows_to_csv
 
 
 class RandomSearch:
@@ -45,13 +45,24 @@ class RandomSearch:
         Number of stratified CV folds (a search setting, not a model hyperparameter).
     seed : int
         Controls both the sampling and the fold shuffling for reproducibility.
+    run_id : str
+        Identifier for this task (e.g. the SLURM array index). Prefixes model ids so
+        they stay globally unique when many tasks share one output folder.
     """
 
-    def __init__(self, model_builder: ModelBuilder, param_space: dict, k: int = 5, seed: int = 42):
+    def __init__(
+        self,
+        model_builder: ModelBuilder,
+        param_space: dict,
+        k: int = 5,
+        seed: int = 42,
+        run_id: str = "0",
+    ):
         self.model_builder = model_builder
         self.param_space = param_space
         self.k = k
         self.seed = seed
+        self.run_id = str(run_id)
 
     def _cross_validate(self, params: dict, images: np.ndarray, labels: np.ndarray, class_labels):
         """Run stratified k-fold CV for a single config and collect per-fold results."""
@@ -130,7 +141,7 @@ class RandomSearch:
             "test_qwk": quadratic_weighted_kappa(test_labels, test_preds, labels=class_labels),
         }
 
-    def _save_artifacts(self, folder, cv, class_labels, index) -> None:
+    def _save_artifacts(self, folder, cv, class_labels) -> None:
         """Write the plots and the best-fold Keras model for one config into ``folder``."""
         os.makedirs(folder, exist_ok=True)
         prefix = folder + os.sep
@@ -144,24 +155,7 @@ class RandomSearch:
             os.path.join(folder, "confusion_matrix.png"),
         )
         if cv["best_model"] is not None:
-            cv["best_model"].save(os.path.join(folder, f"model_{index}.keras"))
-
-    def _update_top_n(self, saved: list, top_n: int, avg_vaf, index, cv, class_labels, output_dir):
-        """Keep artefacts only for the current top ``top_n`` models by avg_vaf.
-
-        Saves this model's plots+model iff it qualifies, evicting and deleting the
-        worst-kept model's folder when full. Peak disk usage is ``top_n`` folders --
-        nothing is created then cropped afterwards.
-        """
-        if len(saved) >= top_n:
-            worst = min(saved, key=lambda s: s["avg_vaf"])
-            if avg_vaf <= worst["avg_vaf"]:
-                return  # not good enough to keep -> never write its artefacts
-            shutil.rmtree(worst["folder"], ignore_errors=True)
-            saved.remove(worst)
-        folder = os.path.join(output_dir, f"model{index}_{avg_vaf * 100:.2f}")
-        self._save_artifacts(folder, cv, class_labels, index)
-        saved.append({"avg_vaf": avg_vaf, "folder": folder})
+            cv["best_model"].save(os.path.join(folder, "model.keras"))
 
     def _sample_valid_configs(self, n_models: int, input_shape: tuple) -> list:
         """Draw ``n_models`` distinct configs the model builder can actually build.
@@ -200,41 +194,42 @@ class RandomSearch:
         test_images: np.ndarray = None,
         test_labels: np.ndarray = None,
         n_models: int = 4,
-        output_dir: str = ".",
+        global_dir: str = ".",
         top_n: int = 100,
     ) -> pd.DataFrame:
-        """Sample ``n_models`` valid configs, cross-validate each, and rank by mean CV accuracy.
+        """Search ``n_models`` configs, contributing to a shared global top-``top_n``.
 
-        Storage-efficient by design (for large searches on little disk):
-          - EVERY model's metrics (incl. training time) stream into a single
-            ``random_search_results.csv`` as they finish -- one row per model, no
-            per-model CSVs.
-          - Plots and the Keras model are kept only for the current top ``top_n``
-            models by ``avg_vaf``. This is tracked incrementally: a model's artefacts
-            are written only if it qualifies, and the worst-kept model's folder is
-            deleted when a better one arrives -- so at most ``top_n`` folders ever exist
-            (nothing is created then cropped afterwards).
+        Designed to run as one of many concurrent SLURM array tasks writing into the
+        same ``global_dir`` (see :mod:`results_store`):
+          - each model's metrics (incl. training time) stream to a per-task part file,
+            then merge once into the single, sorted ``random_search_results.csv``;
+          - plots + the Keras model are written ONLY for models that beat the shared,
+            rising threshold -- so across all tasks only the global top-``top_n`` are
+            ever kept on disk, with no per-task pile-up.
 
-        Returns the leaderboard DataFrame (sorted by ``avg_vaf`` descending).
+        Returns this task's rows as a DataFrame (sorted by ``avg_vaf`` descending).
         """
         train_labels = np.asarray(train_labels).astype(int)
         class_labels = sorted(np.unique(train_labels).tolist())
 
         sampled = self._sample_valid_configs(n_models, train_images.shape[1:])
-        os.makedirs(output_dir, exist_ok=True)
-        results_path = os.path.join(output_dir, "random_search_results.csv")
-        if os.path.exists(results_path):
-            os.remove(results_path)  # start a fresh streamed results file
-        print(f"Sampled {len(sampled)} valid configs; keeping artefacts for the top {top_n}")
+        parts_dir = os.path.join(global_dir, "parts")
+        os.makedirs(parts_dir, exist_ok=True)
+        part_csv = os.path.join(parts_dir, f"{self.run_id}.csv")
+        if os.path.exists(part_csv):
+            os.remove(part_csv)
+        store = TopNStore(global_dir, top_n)
+        print(f"Run {self.run_id}: {len(sampled)} configs -> global top-{top_n} at {global_dir}")
 
-        rows, saved, header_written = [], [], False
+        rows, header_written = [], False
         for index, params in enumerate(sampled):
-            print(f"\n=== Model {index + 1}/{len(sampled)} ===\n{params}")
+            model_id = f"{self.run_id}-{index}"
+            print(f"\n=== Model {model_id} ({index + 1}/{len(sampled)}) ===\n{params}")
             start = time.perf_counter()
             try:
                 cv = self._cross_validate(params, train_images, train_labels, class_labels)
             except Exception as exc:  # defensive: a runtime failure shouldn't abort the sweep
-                print(f"Model {index} failed to build/train ({exc}); skipping.")
+                print(f"Model {model_id} failed to build/train ({exc}); skipping.")
                 continue
             train_seconds = time.perf_counter() - start
 
@@ -243,7 +238,7 @@ class RandomSearch:
             row = dict(params)
             row.update(
                 {
-                    "model_id": index,
+                    "model_id": model_id,
                     "avg_vaf": avg_vaf,
                     "avg_taf": avg_taf,
                     "avg_divergence": avg_taf - avg_vaf,
@@ -259,22 +254,27 @@ class RandomSearch:
                 )
             rows.append(row)
 
-            # Stream this row to disk immediately (crash-safe, constant memory).
-            pd.DataFrame([row]).to_csv(
-                results_path, mode="a", header=not header_written, index=False
-            )
+            # Stream to a per-task part file (crash-safe), then offer to the global store.
+            pd.DataFrame([row]).to_csv(part_csv, mode="a", header=not header_written, index=False)
             header_written = True
 
-            # Save plots + model only while this config is in the top-N.
-            self._update_top_n(saved, top_n, avg_vaf, index, cv, class_labels, output_dir)
+            def _save(folder, cv=cv):
+                self._save_artifacts(folder, cv, class_labels)
+
+            store.offer(model_id, avg_vaf, _save)
 
         if not rows:
             raise RuntimeError("No configs completed successfully.")
 
-        # Rewrite the results file once at the end, sorted by mean CV accuracy.
-        leaderboard = (
-            pd.DataFrame(rows).sort_values("avg_vaf", ascending=False).reset_index(drop=True)
+        # Merge this task's rows into the single shared, sorted results CSV, then drop the part.
+        task_df = pd.DataFrame(rows)
+        append_rows_to_csv(global_dir, task_df)
+        os.remove(part_csv)
+        try:
+            os.rmdir(parts_dir)  # succeeds only for the last task to finish (empty dir)
+        except OSError:
+            pass
+        print(
+            f"\nRun {self.run_id}: merged {len(rows)} models into {global_dir}/random_search_results.csv"
         )
-        leaderboard.to_csv(results_path, index=False)
-        print(f"\n{len(rows)} models -> {results_path}; artefacts kept for top {len(saved)}.")
-        return leaderboard
+        return task_df.sort_values("avg_vaf", ascending=False).reset_index(drop=True)

@@ -62,15 +62,18 @@ def main():
     combined = base_dataset.combine_train_val(dataset)
     print(f"Combined train+val size: {len(combined['labels'])}")
 
-    # Seed by array task so each task explores a different random slice of the space.
-    search = RandomSearch(CNNModelBuilder(), PARAM_SPACE, k=args.folds, seed=args.slurm_array)
+    # Seed and id by array task: each task explores a different slice and contributes
+    # to one shared global top-N in the current dir (01_Categorical_Loss).
+    search = RandomSearch(
+        CNNModelBuilder(), PARAM_SPACE, k=args.folds, seed=args.slurm_array, run_id=args.slurm_array
+    )
     search.run(
         combined["images"],
         combined["labels"],
         test_images=dataset["test_images"],
         test_labels=dataset["test_labels"],
         n_models=args.n_models,
-        output_dir=f"./array_task{args.slurm_array}",
+        global_dir=".",
         top_n=args.top_n,
     )
 

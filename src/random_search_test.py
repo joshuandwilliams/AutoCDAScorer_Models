@@ -1,5 +1,3 @@
-import os
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -20,9 +18,8 @@ def tiny_data():
 
 @pytest.fixture
 def tiny_space():
-    # >= 2 grid points so ParameterSampler(n_iter=2) can sample without replacement.
     return {
-        "num_filters": [4, 8],
+        "num_filters": [4, 8],  # 2 valid configs
         "filter_size": [3],
         "learning_rate": [0.001],
         "epochs": [1],
@@ -37,59 +34,84 @@ def tiny_space():
     }
 
 
-def test_run_returns_ranked_leaderboard(tiny_data, tiny_space, tmp_path, monkeypatch):
+def _result_folders(root):
+    results = root / "results"
+    return [d for d in results.iterdir() if d.is_dir()] if results.is_dir() else []
+
+
+def test_run_returns_ranked_rows_and_shared_outputs(tiny_data, tiny_space, tmp_path, monkeypatch):
     monkeypatch.setattr(plt, "show", lambda: None)
     images, labels = tiny_data
 
-    search = RandomSearch(CNNModelBuilder(), tiny_space, k=2, seed=1)
-    leaderboard = search.run(images, labels, n_models=2, output_dir=str(tmp_path))
+    search = RandomSearch(CNNModelBuilder(), tiny_space, k=2, seed=1, run_id="1")
+    df = search.run(images, labels, n_models=2, global_dir=str(tmp_path))
 
-    assert isinstance(leaderboard, pd.DataFrame)
-    assert len(leaderboard) == 2
-    # Ranked by mean CV accuracy, descending.
-    assert list(leaderboard["avg_vaf"]) == sorted(leaderboard["avg_vaf"], reverse=True)
-    # The new ordinal metric and the training-time column are reported.
-    assert "avg_val_qwk" in leaderboard.columns
-    assert "avg_val_nearmiss" in leaderboard.columns
-    assert "train_seconds" in leaderboard.columns
-    assert (leaderboard["train_seconds"] >= 0).all()
-    # Single streamed results file; no per-model results CSVs anywhere.
-    assert (tmp_path / "random_search_results.csv").exists()
-    assert not list(tmp_path.glob("model*/results_*.csv"))
+    assert isinstance(df, pd.DataFrame)
+    assert len(df) == 2
+    assert list(df["avg_vaf"]) == sorted(df["avg_vaf"], reverse=True)
+    for col in ("avg_val_qwk", "avg_val_nearmiss", "train_seconds"):
+        assert col in df.columns
+    assert (df["train_seconds"] >= 0).all()
+
+    # A single shared, sorted results CSV with run-id-prefixed model ids.
+    combined = pd.read_csv(tmp_path / "random_search_results.csv")
+    assert len(combined) == 2
+    assert all(str(mid).startswith("1-") for mid in combined["model_id"])
+
+    # results/ holds the kept models (each with a Keras model); no per-model CSVs.
+    folders = _result_folders(tmp_path)
+    assert 1 <= len(folders) <= 2
+    assert all((d / "model.keras").exists() for d in folders)
+    assert not list(tmp_path.glob("**/results_*.csv"))
 
 
-def test_top_n_keeps_only_best_artifacts(tiny_data, tmp_path, monkeypatch):
+def test_global_top_n_keeps_only_the_best(tiny_data, tmp_path, monkeypatch):
     monkeypatch.setattr(plt, "show", lambda: None)
     images, labels = tiny_data
-    space = {
-        "num_filters": [4, 8, 16],  # 3 valid configs
-        "filter_size": [3],
-        "learning_rate": [0.001],
-        "epochs": [1],
-        "num_layers": [1],
-        "pooling_size": [2],
-        "activation_function": ["relu"],
-        "batch_size": [8],
-        "reg": [None],
-        "reg_strength": [0.001],
-        "opt": ["Adam"],
-        "dropout": [0.0],
-    }
-    search = RandomSearch(CNNModelBuilder(), space, k=2, seed=1)
-    leaderboard = search.run(images, labels, n_models=3, output_dir=str(tmp_path), top_n=1)
+    search = RandomSearch(CNNModelBuilder(), _three_config_space(), k=2, seed=1, run_id="1")
+    df = search.run(images, labels, n_models=3, global_dir=str(tmp_path), top_n=1)
 
-    # All 3 models are in the results table...
-    assert len(leaderboard) == 3
-    # ...but only the single best model's artefact folder is kept on disk.
-    model_dirs = [d for d in os.listdir(tmp_path) if d.startswith("model")]
-    assert len(model_dirs) == 1
-    # The kept folder corresponds to the top-ranked model.
-    best_id = int(leaderboard.iloc[0]["model_id"])
-    assert any(f"model_{best_id}.keras" in os.listdir(tmp_path / d) for d in model_dirs)
+    assert len(df) == 3  # every model is in the results table...
+    folders = _result_folders(tmp_path)
+    assert len(folders) == 1  # ...but only the single global best keeps artefacts
+    kept_score = float(folders[0].name.split("_", 1)[0])
+    assert abs(kept_score - df.iloc[0]["avg_vaf"]) < 1e-5
+    assert (folders[0] / "model.keras").exists()
+
+
+def test_two_runs_share_one_global_store(tiny_data, tiny_space, tmp_path, monkeypatch):
+    monkeypatch.setattr(plt, "show", lambda: None)
+    images, labels = tiny_data
+    for rid in ("1", "2"):
+        RandomSearch(CNNModelBuilder(), tiny_space, k=2, seed=int(rid), run_id=rid).run(
+            images, labels, n_models=2, global_dir=str(tmp_path), top_n=2
+        )
+
+    combined = pd.read_csv(tmp_path / "random_search_results.csv")
+    assert len(combined) == 4  # 2 runs x 2 models, all in one CSV
+    ids = {str(i) for i in combined["model_id"]}
+    assert any(i.startswith("1-") for i in ids) and any(i.startswith("2-") for i in ids)
+
+    # Exactly the global top-2 keep artefacts.
+    folders = _result_folders(tmp_path)
+    assert len(folders) == 2
+    kept = sorted(float(d.name.split("_", 1)[0]) for d in folders)
+    top2 = sorted(combined["avg_vaf"].nlargest(2))
+    assert all(abs(a - b) < 1e-5 for a, b in zip(kept, top2, strict=True))
+
+
+def test_run_reports_test_metrics_when_test_set_given(tiny_data, tiny_space, tmp_path, monkeypatch):
+    monkeypatch.setattr(plt, "show", lambda: None)
+    images, labels = tiny_data
+    search = RandomSearch(CNNModelBuilder(), tiny_space, k=2, seed=1, run_id="1")
+    df = search.run(
+        images, labels, test_images=images, test_labels=labels, n_models=1, global_dir=str(tmp_path)
+    )
+    for col in ("test_acc", "test_nearmiss", "test_qwk"):
+        assert col in df.columns
 
 
 def test_sampler_returns_only_valid_configs():
-    # filter_size 7 x num_layers 4 is invalid on 64x64; the sampler must exclude it.
     space = {
         "num_filters": [8],
         "filter_size": [3, 7],
@@ -105,21 +127,25 @@ def test_sampler_returns_only_valid_configs():
         "dropout": [0.0],
     }
     builder = CNNModelBuilder()
-    search = RandomSearch(builder, space, k=2, seed=1)
+    search = RandomSearch(builder, space, k=2, seed=1, run_id="1")
     configs = search._sample_valid_configs(n_models=4, input_shape=(64, 64, 3))
-    assert len(configs) >= 1
     assert all(builder.is_valid(c, (64, 64, 3)) for c in configs)
-    # (3,7) x (1,4) has 4 combos, one of which -- (7, 4) -- is invalid, so 3 remain.
+    # (3,7) x (1,4) has 4 combos; (7,4) is invalid, so 3 remain.
     assert len(configs) == 3
 
 
-def test_run_reports_test_metrics_when_test_set_given(tiny_data, tiny_space, tmp_path, monkeypatch):
-    monkeypatch.setattr(plt, "show", lambda: None)
-    images, labels = tiny_data
-
-    search = RandomSearch(CNNModelBuilder(), tiny_space, k=2, seed=1)
-    leaderboard = search.run(
-        images, labels, test_images=images, test_labels=labels, n_models=1, output_dir=str(tmp_path)
-    )
-    for col in ("test_acc", "test_nearmiss", "test_qwk"):
-        assert col in leaderboard.columns
+def _three_config_space():
+    return {
+        "num_filters": [4, 8, 16],  # 3 valid configs
+        "filter_size": [3],
+        "learning_rate": [0.001],
+        "epochs": [1],
+        "num_layers": [1],
+        "pooling_size": [2],
+        "activation_function": ["relu"],
+        "batch_size": [8],
+        "reg": [None],
+        "reg_strength": [0.001],
+        "opt": ["Adam"],
+        "dropout": [0.0],
+    }
