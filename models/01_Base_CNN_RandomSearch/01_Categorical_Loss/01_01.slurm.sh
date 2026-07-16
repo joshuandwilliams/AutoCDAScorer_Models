@@ -9,7 +9,7 @@
 #SBATCH --mail-user=jowillia@nbi.ac.uk
 
 
-img="$HOME/singularity/TensorFlowGPU_2_21_0/TensorFlowGPU_2_21_0.img"
+img="$HOME/singularity/TensorFlow/TensorFlowGPU_2_21_0.img"
 per_array=6
 
 singularity exec --nv ${img} python3.12 01_01.py --slurm_array $SLURM_ARRAY_TASK_ID --per_array ${per_array}
