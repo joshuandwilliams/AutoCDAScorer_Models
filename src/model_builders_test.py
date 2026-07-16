@@ -41,6 +41,22 @@ class TestCNNModelBuilder:
         assert not any(isinstance(layer, tf.keras.layers.Dropout) for layer in model.layers)
 
 
+class TestIsValid:
+    def test_shallow_small_kernel_is_valid(self):
+        assert CNNModelBuilder().is_valid(_params(filter_size=3, num_layers=2), (64, 64, 3)) is True
+
+    def test_deep_large_kernel_collapses_and_is_invalid(self):
+        # filter_size 7 x num_layers 4 shrinks a 64x64 map below the kernel (the case
+        # that was skipped at runtime before).
+        assert (
+            CNNModelBuilder().is_valid(_params(filter_size=7, num_layers=4), (64, 64, 3)) is False
+        )
+
+    def test_an_invalid_config_would_raise_if_built(self):
+        with pytest.raises(ValueError):
+            CNNModelBuilder().build(_params(filter_size=7, num_layers=4), (64, 64, 3), 7)
+
+
 class TestMakeOptimizer:
     @pytest.mark.parametrize("opt", ["Adam", "SGD", "Momentum", "RMSProp", "Nadam", "Adamax"])
     def test_known_optimizers(self, opt):

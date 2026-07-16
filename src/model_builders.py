@@ -43,6 +43,15 @@ class ModelBuilder(ABC):
         """Return a compiled model for ``params`` given the input shape and class count."""
         raise NotImplementedError
 
+    def is_valid(self, params: dict, input_shape: tuple) -> bool:
+        """Whether ``params`` yields a constructible model for ``input_shape``.
+
+        Override when some hyperparameter combinations cannot be built (the default
+        assumes every combination is valid). ``RandomSearch`` samples only configs for
+        which this returns True, so the requested number of models always run.
+        """
+        return True
+
 
 class CNNModelBuilder(ModelBuilder):
     """The baseline sequential CNN: stacked Conv2D + MaxPool blocks -> Flatten -> softmax.
@@ -52,6 +61,25 @@ class CNNModelBuilder(ModelBuilder):
     studies. The regularisation *strength* is exposed as a hyperparameter
     (``reg_strength``) rather than hard-coded.
     """
+
+    def is_valid(self, params: dict, input_shape: tuple) -> bool:
+        """False if the stacked ``valid``-padding conv/pool blocks would shrink the
+        feature map below the kernel size (Keras cannot build such a model).
+
+        Mirrors the layer sequence in :meth:`build`: each block does a valid conv
+        (``h -> h - filter_size + 1``) then a max-pool (``h -> h // pooling_size``).
+        """
+        h, w = input_shape[0], input_shape[1]
+        filter_size = params["filter_size"]
+        pooling_size = params["pooling_size"]
+        for _ in range(params["num_layers"]):
+            h, w = h - filter_size + 1, w - filter_size + 1
+            if h < 1 or w < 1:
+                return False
+            h, w = h // pooling_size, w // pooling_size
+            if h < 1 or w < 1:
+                return False
+        return True
 
     def build(self, params: dict, input_shape: tuple, num_classes: int) -> tf.keras.Model:
         reg_type = params.get("reg")

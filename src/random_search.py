@@ -12,11 +12,12 @@ GAN) without touching this file.
 """
 
 import os
+import random
 
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from sklearn.model_selection import ParameterSampler, StratifiedKFold
+from sklearn.model_selection import StratifiedKFold
 
 from cnn_base import (
     _CustomEarlyStoppingAndSave,
@@ -143,6 +144,36 @@ class RandomSearch:
         if cv["best_model"] is not None:
             cv["best_model"].save(os.path.join(folder, f"model_{index}.keras"))
 
+    def _sample_valid_configs(self, n_models: int, input_shape: tuple) -> list:
+        """Draw ``n_models`` distinct configs the model builder can actually build.
+
+        Random search with rejection: sample a value per hyperparameter, skip duplicates
+        and any config the builder rejects (``model_builder.is_valid``), until ``n_models``
+        are collected. Reproducible for a given seed. If the valid space is smaller than
+        ``n_models`` it returns everything valid and warns.
+        """
+        rng = random.Random(self.seed)
+        keys = list(self.param_space)
+        configs, seen = [], set()
+        # Generous attempt cap so an impossible request terminates instead of looping.
+        max_attempts = max(n_models * 500, 10_000)
+        for _ in range(max_attempts):
+            if len(configs) >= n_models:
+                break
+            params = {key: rng.choice(self.param_space[key]) for key in keys}
+            signature = tuple(sorted(params.items()))
+            if signature in seen:
+                continue
+            seen.add(signature)
+            if self.model_builder.is_valid(params, input_shape):
+                configs.append(params)
+        if len(configs) < n_models:
+            print(
+                f"WARNING: only {len(configs)} valid unique configs found "
+                f"(requested {n_models}); the valid parameter space may be small."
+            )
+        return configs
+
     def run(
         self,
         train_images: np.ndarray,
@@ -152,7 +183,7 @@ class RandomSearch:
         n_models: int = 4,
         output_dir: str = ".",
     ) -> pd.DataFrame:
-        """Sample ``n_models`` configs, cross-validate each, and rank them by mean CV accuracy.
+        """Sample ``n_models`` valid configs, cross-validate each, and rank by mean CV accuracy.
 
         Returns the leaderboard DataFrame (sorted by ``avg_vaf`` descending) and also
         writes it to ``output_dir/random_search_results.csv``.
@@ -160,8 +191,8 @@ class RandomSearch:
         train_labels = np.asarray(train_labels).astype(int)
         class_labels = sorted(np.unique(train_labels).tolist())
 
-        sampled = list(ParameterSampler(self.param_space, n_iter=n_models, random_state=self.seed))
-        print(f"Sampled {len(sampled)} configs from the parameter space")
+        sampled = self._sample_valid_configs(n_models, train_images.shape[1:])
+        print(f"Sampled {len(sampled)} valid configs from the parameter space")
 
         rows = []
         for index, params in enumerate(sampled):
