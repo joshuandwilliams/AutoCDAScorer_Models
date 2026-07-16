@@ -1,12 +1,12 @@
 #!/bin/bash
 #SBATCH -p jic-compute
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=4
 #SBATCH --mem 8000
 #SBATCH --time=0-04:00:00
 #SBATCH --job-name="base_cnn_search"
 #SBATCH -o slurm.run_search_%a.out
 #SBATCH -e slurm.run_search_%a.err
-#SBATCH --array=1-10
+#SBATCH --array=1-100%10
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=jowillia@nbi.ac.uk
 
@@ -14,10 +14,11 @@
 # pend for a long time. The GPU-built container runs fine on CPU -- TensorFlow just
 # logs a harmless "no GPU found" note and falls back to CPU (no --nv / --gres here).
 #
-# CONCURRENCY CHECK: 10 array tasks (seeds 1-10), 2 models each, all contributing to
-# ONE shared global top-10 (results/, threshold.txt, random_search_results.csv) -- a
-# stress test of the concurrent shared store. Observed peak RSS is ~3-4 GB, so 8 GB is
-# ample. For a real sweep raise --array and n_models (~60-80/task) and top_n (~100).
+# TEST RUN: 100 array tasks (seeds 1-100), max 10 running at once (%10), 2 models each
+# = 200 models, all contributing to ONE shared global top-10 (results/, threshold.txt,
+# random_search_results.csv). 4 CPUs is the benchmark efficiency sweet spot; peak RSS
+# ~3-4 GB so 8 GB is ample. For a real sweep raise n_models (~60-80/task) and top_n
+# (~100), and drop the %10 throttle if the queue allows.
 img="$HOME/singularity/TensorFlow/TensorFlowGPU_2_21_0.img"
 n_models=2
 top_n=10
