@@ -19,7 +19,7 @@
 # override with IMG=/path/to/the.img:
 #   sbatch test_tensorflow.slurm.sh
 
-img="${IMG:-$HOME/singularity/TensorFlowGPU_2_21_0/TensorFlowGPU_2_21_0.img}"
+img="${IMG:-$HOME/singularity/TensorFlow/TensorFlowGPU_2_21_0.img}"
 
 # 1. Show the GPU(s) the driver exposes on the allocated node.
 singularity exec --nv "${img}" nvidia-smi
