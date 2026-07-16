@@ -111,6 +111,25 @@ def test_run_reports_test_metrics_when_test_set_given(tiny_data, tiny_space, tmp
         assert col in df.columns
 
 
+def test_cv_folds_depend_on_cv_seed_not_sampling_seed(tiny_data):
+    images, labels = tiny_data
+    a = RandomSearch(CNNModelBuilder(), {}, k=2, seed=1, cv_seed=42)
+    b = RandomSearch(
+        CNNModelBuilder(), {}, k=2, seed=999, cv_seed=42
+    )  # diff sampling, same cv_seed
+    c = RandomSearch(CNNModelBuilder(), {}, k=2, seed=1, cv_seed=7)  # same sampling, diff cv_seed
+
+    fa, fb, fc = a._folds(images, labels), b._folds(images, labels), c._folds(images, labels)
+
+    # Same cv_seed -> identical folds regardless of the sampling seed.
+    assert all(
+        np.array_equal(x[0], y[0]) and np.array_equal(x[1], y[1])
+        for x, y in zip(fa, fb, strict=True)
+    )
+    # Different cv_seed -> different folds.
+    assert any(not np.array_equal(x[1], y[1]) for x, y in zip(fa, fc, strict=True))
+
+
 def test_sampler_returns_only_valid_configs():
     space = {
         "num_filters": [8],
