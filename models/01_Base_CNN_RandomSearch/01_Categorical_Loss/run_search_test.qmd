@@ -1,0 +1,68 @@
+---
+title: "Base CNN Random Search Categorical Loss"
+format:
+  html:
+    code-fold: true
+jupyter: python3
+---
+
+## How well can a Sequential CNN model learn to predict human agroinfiltration scores?
+- Model type: CNN
+- Hyperparameter tuning: Grid Search
+- Loss: Categorical
+- Dataset: Base
+
+## Required Libraries
+```{python}
+import sys
+from pathlib import Path
+from sklearn.model_selection import ParameterGrid
+import random
+import time
+
+repo_root = next(p for p in Path.cwd().parents if (p / '.git').exists())
+sys.path.append(str(repo_root / 'src'))
+import base_dataset
+import cnn_base
+```
+
+## Load and Prepare Training Dataset
+```{python}
+dataset = base_dataset.load_dataset("/Users/jowillia/Documents/GitHub/AutoCDAScorer_Models/data/datasets/base_64/base_64.npy")
+
+combined_training_dataset = base_dataset.combine_train_val(dataset)
+
+print(f"Combined Training and Validation Dataset Size: {len(combined_training_dataset['labels'])}")
+```
+
+## Parameter Grid
+```{python}
+params = {
+    'num_filters': [8, 16, 32, 64, 128],
+    'filter_size': [3],
+    'learning_rate': [0.01, 0.001],
+    'epochs': [50],
+    'k': [5],
+    'num_layers': [2, 3, 4],
+    'pooling_size': [2],
+    'activation_function': ['relu'],
+    'batch_size': [64],
+    'reg': [None, "L1", "L2"],
+    'opt': ["Adam", "Momentum", "RMSProp"],
+    'dropout': [0]
+}
+param_grid = list(ParameterGrid(params))
+```
+
+## Run Single Model
+```{python}
+start_time = time.time()
+
+random.seed(42)
+slurm_array, index, selected_params = 1, 1, random.choice(param_grid)
+cnn_base.train_model(slurm_array, index, selected_params, combined_training_dataset["images"], combined_training_dataset["labels"], dataset["test_images"], dataset["test_labels"])
+
+end_time = time.time()
+duration = end_time - start_time
+print(f"Execution time: {duration:.2f} seconds")
+```

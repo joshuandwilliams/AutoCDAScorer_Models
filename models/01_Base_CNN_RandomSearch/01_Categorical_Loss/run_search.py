@@ -20,7 +20,9 @@ import base_dataset  # noqa: E402
 from model_builders import CNNModelBuilder  # noqa: E402
 from random_search import RandomSearch  # noqa: E402
 
-DEFAULT_DATASET = Path.home() / "data" / "datasets" / "base_64" / "base_64.npy"
+# The base dataset travels with the repo (data/ is synced to the HPC), so default
+# to the repo-relative copy. Override with --dataset to point elsewhere.
+DEFAULT_DATASET = REPO_ROOT / "data" / "datasets" / "base_64" / "base_64.npy"
 
 # Hyperparameter space sampled by the random search. `k` (CV folds) is a search
 # setting, not a model hyperparameter, so it lives on RandomSearch, not here.
