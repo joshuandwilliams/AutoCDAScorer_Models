@@ -31,6 +31,10 @@ Include: yum
 %environment
     export LC_ALL=C
     export PATH=/usr/local/bin:$PATH
+    # Ensure TensorFlow can dlopen the CUDA libraries shipped in the nvidia-*
+    # wheels (belt-and-suspenders alongside the symlinks created in %post).
+    NVIDIA_LIBS=$(ls -d /usr/local/lib/python3.12/site-packages/nvidia/*/lib 2>/dev/null | tr '\n' ':')
+    export LD_LIBRARY_PATH="${NVIDIA_LIBS%:}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 %post
 # Fail fast: abort the build on any error instead of continuing with an empty
@@ -70,8 +74,11 @@ pip install --no-cache-dir tensorflow[and-cuda]==2.21.0
 # is skipped, so the search can NEVER fall back to "/" or reach the host
 # filesystem (the bug in the earlier draft of this file).
 TF_DIR=$(python -c 'import os, tensorflow; print(os.path.dirname(tensorflow.__file__))')
-NVIDIA_DIR=$(python -c 'import os, nvidia; print(os.path.dirname(nvidia.__file__))' 2>/dev/null || true)
-if [ -n "${NVIDIA_DIR}" ] && [ -d "${NVIDIA_DIR}" ]; then
+# `nvidia` is a PEP 420 namespace package, so nvidia.__file__ is None and cannot
+# be used to locate it. It installs as a sibling of tensorflow in site-packages,
+# so derive its directory from TF_DIR instead.
+NVIDIA_DIR="$(dirname "${TF_DIR}")/nvidia"
+if [ -d "${NVIDIA_DIR}" ]; then
     # Symlink the bundled CUDA .so files next to the tensorflow package.
     find "${NVIDIA_DIR}" -maxdepth 3 -type f -name '*.so*' -exec ln -sf {} "${TF_DIR}/" \;
     # Locate ptxas strictly within the nvidia package and put it on PATH.
