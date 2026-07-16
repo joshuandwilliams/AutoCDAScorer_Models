@@ -130,6 +130,53 @@ def test_cv_folds_depend_on_cv_seed_not_sampling_seed(tiny_data):
     assert any(not np.array_equal(x[1], y[1]) for x, y in zip(fa, fc, strict=True))
 
 
+def test_all_valid_configs_deterministic_and_valid():
+    space = {
+        "num_filters": [8],
+        "filter_size": [3, 7],
+        "learning_rate": [0.001],
+        "epochs": [1],
+        "num_layers": [1, 4],
+        "pooling_size": [2],
+        "activation_function": ["relu"],
+        "batch_size": [8],
+        "reg": [None],
+        "reg_strength": [0.001],
+        "opt": ["Adam"],
+        "dropout": [0.0],
+    }
+    b = CNNModelBuilder()
+    a1 = RandomSearch(b, space, k=2, run_id="1").all_valid_configs((64, 64, 3))
+    a2 = RandomSearch(b, space, k=2, run_id="2").all_valid_configs((64, 64, 3))
+    assert a1 == a2  # same order in every task
+    assert len(a1) == 3  # (7,4) filtered out
+    assert all(b.is_valid(p, (64, 64, 3)) for p in a1)
+
+
+def test_run_grid_covers_every_config_once(tiny_data, tmp_path, monkeypatch):
+    monkeypatch.setattr(plt, "show", lambda: None)
+    images, labels = tiny_data
+    search = RandomSearch(CNNModelBuilder(), _three_config_space(), k=2, run_id="1")
+    df = search.run_grid(images, labels, global_dir=str(tmp_path), top_n=2)
+
+    assert len(df) == 3  # this single worker did all 3 configs
+    combined = pd.read_csv(tmp_path / "random_search_results.csv", dtype={"model_id": str})
+    assert sorted(combined["model_id"]) == ["0", "1", "2"]
+    assert int(open(tmp_path / "next.txt").read()) == 3  # counter exhausted
+    assert len(_result_folders(tmp_path)) == 2  # global top-2 kept
+
+
+def test_two_grid_workers_cover_grid_exactly_once(tiny_data, tmp_path, monkeypatch):
+    monkeypatch.setattr(plt, "show", lambda: None)
+    images, labels = tiny_data
+    for rid in ("1", "2"):
+        RandomSearch(CNNModelBuilder(), _three_config_space(), k=2, run_id=rid).run_grid(
+            images, labels, global_dir=str(tmp_path), top_n=3
+        )
+    combined = pd.read_csv(tmp_path / "random_search_results.csv", dtype={"model_id": str})
+    assert sorted(combined["model_id"]) == ["0", "1", "2"]  # each config done exactly once
+
+
 def test_sampler_returns_only_valid_configs():
     space = {
         "num_filters": [8],
