@@ -50,6 +50,13 @@ def main():
     )
     parser.add_argument("-k", "--folds", type=int, default=5, help="k for k-fold cross-validation")
     parser.add_argument(
+        "-c",
+        "--cv_seed",
+        type=int,
+        default=42,
+        help="CV fold-split seed; keep the SAME across array tasks for a fair global ranking",
+    )
+    parser.add_argument(
         "-t", "--top_n", type=int, default=100, help="keep plots/models for the top N by avg_vaf"
     )
     parser.add_argument(
@@ -65,7 +72,12 @@ def main():
     # Seed and id by array task: each task explores a different slice and contributes
     # to one shared global top-N in the current dir (01_Categorical_Loss).
     search = RandomSearch(
-        CNNModelBuilder(), PARAM_SPACE, k=args.folds, seed=args.slurm_array, run_id=args.slurm_array
+        CNNModelBuilder(),
+        PARAM_SPACE,
+        k=args.folds,
+        seed=args.slurm_array,
+        cv_seed=args.cv_seed,
+        run_id=args.slurm_array,
     )
     search.run(
         combined["images"],
