@@ -53,6 +53,31 @@ def test_run_returns_ranked_leaderboard(tiny_data, tiny_space, tmp_path, monkeyp
     assert (tmp_path / "random_search_results.csv").exists()
 
 
+def test_sampler_returns_only_valid_configs():
+    # filter_size 7 x num_layers 4 is invalid on 64x64; the sampler must exclude it.
+    space = {
+        "num_filters": [8],
+        "filter_size": [3, 7],
+        "learning_rate": [0.001],
+        "epochs": [1],
+        "num_layers": [1, 4],
+        "pooling_size": [2],
+        "activation_function": ["relu"],
+        "batch_size": [8],
+        "reg": [None],
+        "reg_strength": [0.001],
+        "opt": ["Adam"],
+        "dropout": [0.0],
+    }
+    builder = CNNModelBuilder()
+    search = RandomSearch(builder, space, k=2, seed=1)
+    configs = search._sample_valid_configs(n_models=4, input_shape=(64, 64, 3))
+    assert len(configs) >= 1
+    assert all(builder.is_valid(c, (64, 64, 3)) for c in configs)
+    # (3,7) x (1,4) has 4 combos, one of which -- (7, 4) -- is invalid, so 3 remain.
+    assert len(configs) == 3
+
+
 def test_run_reports_test_metrics_when_test_set_given(tiny_data, tiny_space, tmp_path, monkeypatch):
     monkeypatch.setattr(plt, "show", lambda: None)
     images, labels = tiny_data
