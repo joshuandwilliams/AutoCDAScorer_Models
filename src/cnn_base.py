@@ -398,6 +398,7 @@ def _plot_confusion_matrix(
 
     plt.savefig(output)
     plt.show()
+    plt.close()
 
 
 def _sum_confusion_matrices(
@@ -447,6 +448,7 @@ def _plot_kfold_val_acc(model_name, training_cycles, val_final_acc):
     plt.legend()
     filename = model_name + "scatter_plot.png"
     plt.savefig(filename)
+    plt.close()
 
 
 def _plot_epoch_train_val_acc(
@@ -496,6 +498,7 @@ def _plot_epoch_train_val_acc(
     plt.legend()
     plt.savefig(filename)
     plt.show()
+    plt.close()
 
 
 def train_model(
