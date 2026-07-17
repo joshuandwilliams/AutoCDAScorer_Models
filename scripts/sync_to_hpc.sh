@@ -23,9 +23,11 @@
 # What is NOT pushed:
 #   - Local-only artefacts: models/00_Miscellaneous/, analyses/tmp/,
 #     caches, egg-info, htmlcov, venvs, macOS/Word metadata.
-#   - HPC-generated run artefacts (array_task*/, *.out, *.err). These are
-#     EXCLUDED, which also protects them from --delete so a push never wipes
-#     results produced on the HPC. Pull them back with sync_from_hpc.sh.
+#   - HPC-generated run artefacts. All of these are EXCLUDED, which also
+#     protects them from --delete so a push never wipes results produced on the
+#     HPC (even mid-run): array_task*/, *.out, *.err, and the search outputs
+#     results/, parts/, logs/, random_search_results.csv, threshold.txt,
+#     next.txt, and the .*_lock/ dirs.
 #
 # The sync uses --delete, so files removed from the local repo are also
 # removed on the HPC (excluded paths above are protected). Run with --dry
@@ -67,6 +69,15 @@ rsync -av --delete $DRY_RUN -e ssh \
     --exclude='array_task*/' \
     --exclude='*.out' \
     --exclude='*.err' \
+    --exclude='results/' \
+    --exclude='parts/' \
+    --exclude='logs/' \
+    --exclude='random_search_results.csv' \
+    --exclude='threshold.txt' \
+    --exclude='next.txt' \
+    --exclude='.topn_lock/' \
+    --exclude='.csv_lock/' \
+    --exclude='.counter_lock/' \
     --exclude='_freeze/' \
     --exclude='.quarto/' \
     --exclude='*_files/' \
