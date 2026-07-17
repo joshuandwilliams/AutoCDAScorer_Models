@@ -11,6 +11,7 @@ accuracy (``avg_vaf``). Swap the ModelBuilder (CNN -> ViT) or the dataset (base 
 GAN) without touching this file.
 """
 
+import gc
 import os
 import random
 import time
@@ -78,6 +79,11 @@ class RandomSearch:
 
     def _cross_validate(self, params: dict, images: np.ndarray, labels: np.ndarray, class_labels):
         """Run stratified k-fold CV for a single config and collect per-fold results."""
+        # Free the previous config's Keras graphs so memory stays flat across the many
+        # models a self-scheduling grid task trains (TF otherwise accumulates them -> OOM).
+        tf.keras.backend.clear_session()
+        gc.collect()
+
         num_classes = len(class_labels)
         input_shape = images.shape[1:]
         epochs = params["epochs"]
