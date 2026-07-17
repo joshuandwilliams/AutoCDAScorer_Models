@@ -3,8 +3,15 @@
 # Sync the local repo TO the HPC via SSH (uses ~/.ssh/config alias 'slurm').
 #
 # Usage:
-#   ./scripts/sync_to_hpc.sh           # real sync
-#   ./scripts/sync_to_hpc.sh --dry     # dry run, no changes
+#   ./scripts/sync_to_hpc.sh              # full real sync (code + the 10 GB data/ tree)
+#   ./scripts/sync_to_hpc.sh --code-only  # fast: skip data/, push only code/config/analyses
+#   ./scripts/sync_to_hpc.sh --dry        # dry run, no changes (can combine, any order)
+#
+# Most pushes only change code -- use --code-only. rsync decides what to send by
+# stat-ing every file on both ends, and data/ is ~10 GB across ~6.5k files sitting on a
+# slow HPC parallel filesystem, so scanning it dominates the runtime even when nothing
+# in it changed. --code-only (alias --no-data) skips that scan and makes a code push
+# near-instant; do a full sync only when data/ itself actually changes.
 #
 # Transport:
 #   rsync over SSH, using the 'slurm' host alias defined in ~/.ssh/config
@@ -40,17 +47,31 @@ HPC_USER_HOST="slurm"
 HPC_DEST="agroinfiltration_scoring/AutoCDAScorer_Models/"
 
 DRY_RUN=""
-if [ "${1:-}" = "--dry" ] || [ "${1:-}" = "--dry-run" ]; then
-    DRY_RUN="--dry-run"
-    echo "=== DRY RUN -- no files will be changed ==="
-fi
+DATA_EXCLUDE=""
+for arg in "$@"; do
+    case "$arg" in
+        --dry | --dry-run)
+            DRY_RUN="--dry-run"
+            echo "=== DRY RUN -- no files will be changed ==="
+            ;;
+        --code-only | --no-data)
+            DATA_EXCLUDE="--exclude=data/"
+            echo "=== CODE-ONLY -- skipping the ~10 GB data/ tree (run a full sync when data/ changes) ==="
+            ;;
+        *)
+            echo "Unknown option: $arg" >&2
+            echo "Usage: $0 [--code-only] [--dry]" >&2
+            exit 1
+            ;;
+    esac
+done
 
 cd "$REPO_ROOT"
 
 # Ensure the destination directory tree exists on the HPC.
 ssh -o BatchMode=yes "$HPC_USER_HOST" "mkdir -p ${HPC_DEST}"
 
-rsync -av --delete $DRY_RUN -e ssh \
+rsync -av --delete $DRY_RUN $DATA_EXCLUDE -e ssh \
     --exclude='.git/' \
     --exclude='__pycache__/' \
     --exclude='.pytest_cache/' \
