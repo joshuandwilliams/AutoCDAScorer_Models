@@ -11,7 +11,8 @@ out <- file.path(here, "thesis_plots")
 dir.create(out, showWarnings = FALSE, recursive = TRUE)
 
 crops <- system.file("extdata", "example_dataset", "cropped_images",
-                     package = "AutoCDAScorer", mustWork = TRUE)
+  package = "AutoCDAScorer", mustWork = TRUE
+)
 data <- load_images(crops)
 pca <- AutoCDAScorer:::load_result_pca("ensemble")
 feats <- AutoCDAScorer:::pca_transform(data, pca)

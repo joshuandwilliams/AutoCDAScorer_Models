@@ -29,8 +29,10 @@ s[s == 0] <- 1
 dtr <- data.frame(scale(Xtv, mu, s), y = factor(ytv, levels = 0:6, ordered = TRUE))
 fit <- suppressWarnings(MASS::polr(y ~ ., data = dtr, Hess = TRUE))
 
-ordinal <- list(features = all_features, mu = mu, s = s,
-                beta = coef(fit), zeta = fit$zeta)
+ordinal <- list(
+  features = all_features, mu = mu, s = s,
+  beta = coef(fit), zeta = fit$zeta
+)
 saveRDS(ordinal, file.path(here, "ordinal_regression.rds"))
 
 want <- read.csv(file.path(root, "analyses", "03_feature_classifiers", "model_cache", "nondl_heldout_predictions.csv"))
@@ -38,11 +40,15 @@ got <- d[match(want$image_id, d$image_id), ]
 stopifnot(all(got$score == want$true))
 p <- ordinal_probs(ordinal, as.matrix(got[, all_features]))
 cls <- max.col(p, ties.method = "first") - 1L
-cat(sprintf("%d crops | class mismatches %d | max prob diff %.2e\n",
-            nrow(want), sum(cls != want$ordinal_regression),
-            max(abs(p - as.matrix(want[, paste0("p", 0:6)])))))
+cat(sprintf(
+  "%d crops | class mismatches %d | max prob diff %.2e\n",
+  nrow(want), sum(cls != want$ordinal_regression),
+  max(abs(p - as.matrix(want[, paste0("p", 0:6)])))
+))
 for (sp in unique(want$split)) {
   i <- want$split == sp
-  cat(sprintf("  %-8s exact %.4f near %.4f\n", sp, mean(cls[i] == want$true[i]),
-              mean(abs(cls[i] - want$true[i]) <= 1)))
+  cat(sprintf(
+    "  %-8s exact %.4f near %.4f\n", sp, mean(cls[i] == want$true[i]),
+    mean(abs(cls[i] - want$true[i]) <= 1)
+  ))
 }

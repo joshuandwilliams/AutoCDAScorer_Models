@@ -28,8 +28,10 @@ otsu_sep <- function(x, nbins = 64) {
   w1 <- cumsum(p)
   m1 <- cumsum(p * mids)
   bcv <- (mu * w1 - m1)^2 / (w1 * (1 - w1) + 1e-12)
-  c(thr = br[which.max(bcv) + 1], sep = max(bcv) / (tot + 1e-12),
-    frac_hi = mean(x > br[which.max(bcv) + 1]))
+  c(
+    thr = br[which.max(bcv) + 1], sep = max(bcv) / (tot + 1e-12),
+    frac_hi = mean(x > br[which.max(bcv) + 1])
+  )
 }
 
 # Otsu on blurred greenness within the leaf, then median filter at a radius that scales
@@ -83,7 +85,8 @@ cda_features <- function(img) {
   gv_leaf <- gmat[leaf]
   both <- any(cda) && any(healthy)
 
-  c(ent_gap = if (both) region_entropy(img, cda) - region_entropy(img, healthy) else 0,
+  c(
+    ent_gap = if (both) region_entropy(img, cda) - region_entropy(img, healthy) else 0,
     green_gap = if (both) mean(gmat[cda]) - mean(gmat[healthy]) else 0,
     cda_green = mn(gmat[cda]),
     sep = unname(otsu_sep(gv_leaf)["sep"]),
@@ -95,7 +98,8 @@ cda_features <- function(img) {
     log_gr = log((sum(G[leaf] >= R[leaf]) + 1) / (sum(R[leaf] > G[leaf]) + 1)),
     leaf_bright = mn(bmat[leaf]) * 255,
     entropy_raw = shannon_entropy_vec(img),
-    frac_g_gt_r = sum(cda) / sum(leaf))
+    frac_g_gt_r = sum(cda) / sum(leaf)
+  )
 }
 
 # Proportional odds: P(Y <= k) = plogis(zeta_k - x'beta), from the coefficients and
@@ -119,8 +123,10 @@ if (sys.nframe() == 0L) {
     got <- readRDS(cache)
   } else {
     m <- t(vapply(files, function(f) cda_features(load_img(f)), numeric(13)))
-    got <- data.frame(image_id = tools::file_path_sans_ext(basename(files)), m,
-                      row.names = NULL)
+    got <- data.frame(
+      image_id = tools::file_path_sans_ext(basename(files)), m,
+      row.names = NULL
+    )
     saveRDS(got, cache)
   }
 

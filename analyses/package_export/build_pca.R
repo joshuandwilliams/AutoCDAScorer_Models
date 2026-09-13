@@ -32,13 +32,15 @@ geom = z["images"][np.sort(np.concatenate(keep))].astype("float64") / 256.0
 
 fit_pca <- function(x, n = 5L) {
   sk <- reticulate::import("sklearn.decomposition")
-  x <- x[, , , 3:1]                                   # BGR -> RGB
+  x <- x[, , , 3:1] # channels reversed from BGR into RGB
   flat <- matrix(aperm(x, c(1, 4, 3, 2)), nrow = dim(x)[1])
   p <- sk$PCA(n_components = n)$fit(flat)
-  list(features_pca = p$transform(flat),
-       explained_variance = p$explained_variance_ratio_,
-       principal_components = p$components_,
-       center = p$mean_)
+  list(
+    features_pca = p$transform(flat),
+    explained_variance = p$explained_variance_ratio_,
+    principal_components = p$components_,
+    center = p$mean_
+  )
 }
 
 for (nm in c("medoid", "geom")) {
@@ -46,6 +48,8 @@ for (nm in c("medoid", "geom")) {
   p <- fit_pca(x)
   out <- file.path(here, paste0(nm, "_pca.rds"))
   saveRDS(p, out)
-  cat(sprintf("%s: %d crops, variance explained %s -> %s\n", nm, dim(x)[1],
-              paste(sprintf("%.3f", p$explained_variance), collapse = " "), basename(out)))
+  cat(sprintf(
+    "%s: %d crops, variance explained %s -> %s\n", nm, dim(x)[1],
+    paste(sprintf("%.3f", p$explained_variance), collapse = " "), basename(out)
+  ))
 }
