@@ -1,0 +1,61 @@
+settings: top_n=100 max_configs=20 max_rss_mb=80000
+Dataset: /hpc-home/jowillia/agroinfiltration_scoring/AutoCDAScorer_Models/data/datasets/medoid_64/medoid_64.npy
+Combined train+val size: 2289
+Grid: 2592 valid configs; task 136 self-scheduling -> top-100
+
+=== Config 2533/2592 (task 136) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'learning_rate': 0.01, 'mlp_ratio': 4, 'num_heads': 8, 'num_transformer_layers': 2, 'opt': 'Adam', 'patch_size': 8, 'projection_dim': 128, 'reg': 'L2', 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  [rss] after 1 config(s): 3355 MB
+
+=== Config 2551/2592 (task 136) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'learning_rate': 0.01, 'mlp_ratio': 4, 'num_heads': 8, 'num_transformer_layers': 4, 'opt': 'Adam', 'patch_size': 4, 'projection_dim': 32, 'reg': 'L2', 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to divergence > 0.15
+  Fold 2/5
+Stopping training due to divergence > 0.15
+  Fold 3/5
+Stopping training due to divergence > 0.15
+  Fold 4/5
+Stopping training due to divergence > 0.15
+  Fold 5/5
+Stopping training due to divergence > 0.15
+  [rss] after 2 config(s): 5355 MB
+
+=== Config 2569/2592 (task 136) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'learning_rate': 0.01, 'mlp_ratio': 4, 'num_heads': 8, 'num_transformer_layers': 6, 'opt': 'Adam', 'patch_size': 4, 'projection_dim': 128, 'reg': 'L2', 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  [rss] after 3 config(s): 8122 MB
+
+=== Config 2590/2592 (task 136) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'learning_rate': 0.01, 'mlp_ratio': 4, 'num_heads': 8, 'num_transformer_layers': 6, 'opt': 'Adam', 'patch_size': 8, 'projection_dim': 64, 'reg': 'L2', 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to divergence > 0.15
+  Fold 2/5
+Stopping training due to divergence > 0.15
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  [rss] after 4 config(s): 10494 MB
+Task 136: trained 4 configs

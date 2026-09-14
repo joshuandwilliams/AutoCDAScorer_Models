@@ -1,0 +1,757 @@
+Combined train+val size: 2289
+Grid: 8640 valid configs; task 10 self-scheduling -> top-100
+
+=== Config 7/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.0, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.0001, 'num_filters': 16, 'num_layers': 2, 'opt': 'Adam', 'pooling_size': 2, 'reg': None, 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 155/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.0, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.0001, 'num_filters': 64, 'num_layers': 4, 'opt': 'Momentum', 'pooling_size': 2, 'reg': 'L1', 'reg_strength': 0.01}
+  Fold 1/5
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+  Fold 4/5
+  Fold 5/5
+
+=== Config 714/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.0, 'epochs': 50, 'filter_size': 5, 'learning_rate': 0.0001, 'num_filters': 32, 'num_layers': 3, 'opt': 'Momentum', 'pooling_size': 2, 'reg': 'L2', 'reg_strength': 0.0001}
+  Fold 1/5
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 923/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.0, 'epochs': 50, 'filter_size': 5, 'learning_rate': 0.001, 'num_filters': 8, 'num_layers': 3, 'opt': 'Adam', 'pooling_size': 2, 'reg': 'L2', 'reg_strength': 0.01}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 1003/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.0, 'epochs': 50, 'filter_size': 5, 'learning_rate': 0.01, 'num_filters': 32, 'num_layers': 3, 'opt': 'Momentum', 'pooling_size': 2, 'reg': 'L2', 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to divergence > 0.15
+  Fold 2/5
+Stopping training due to divergence > 0.15
+  Fold 3/5
+Stopping training due to divergence > 0.15
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to divergence > 0.15
+
+=== Config 1114/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.2, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.0001, 'num_filters': 16, 'num_layers': 3, 'opt': 'Momentum', 'pooling_size': 2, 'reg': None, 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+  Fold 3/5
+  Fold 4/5
+  Fold 5/5
+
+=== Config 1229/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.2, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.0001, 'num_filters': 64, 'num_layers': 4, 'opt': 'Adam', 'pooling_size': 2, 'reg': 'L2', 'reg_strength': 0.01}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 1501/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.2, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.001, 'num_filters': 8, 'num_layers': 4, 'opt': 'Adam', 'pooling_size': 2, 'reg': None, 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 1574/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.2, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.01, 'num_filters': 32, 'num_layers': 2, 'opt': 'Adam', 'pooling_size': 2, 'reg': None, 'reg_strength': 0.01}
+  Fold 1/5
+Stopping training due to divergence > 0.15
+  Fold 2/5
+Stopping training due to divergence > 0.15
+  Fold 3/5
+Stopping training due to divergence > 0.15
+  Fold 4/5
+Stopping training due to divergence > 0.15
+  Fold 5/5
+Stopping training due to divergence > 0.15
+
+=== Config 1676/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.2, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.01, 'num_filters': 8, 'num_layers': 2, 'opt': 'Adam', 'pooling_size': 2, 'reg': 'L1', 'reg_strength': 0.01}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 1746/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.2, 'epochs': 50, 'filter_size': 5, 'learning_rate': 0.0001, 'num_filters': 16, 'num_layers': 3, 'opt': 'Adam', 'pooling_size': 2, 'reg': 'L1', 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 1855/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.2, 'epochs': 50, 'filter_size': 5, 'learning_rate': 0.0001, 'num_filters': 8, 'num_layers': 3, 'opt': 'Adam', 'pooling_size': 2, 'reg': 'L1', 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 1946/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.2, 'epochs': 50, 'filter_size': 5, 'learning_rate': 0.001, 'num_filters': 64, 'num_layers': 2, 'opt': 'Adam', 'pooling_size': 2, 'reg': 'L1', 'reg_strength': 0.01}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 2205/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.0001, 'num_filters': 16, 'num_layers': 4, 'opt': 'Momentum', 'pooling_size': 2, 'reg': 'L1', 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+  Fold 3/5
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+
+=== Config 2326/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.0001, 'num_filters': 8, 'num_layers': 2, 'opt': 'Adam', 'pooling_size': 2, 'reg': 'L2', 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 2378/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.001, 'num_filters': 16, 'num_layers': 2, 'opt': 'Adam', 'pooling_size': 2, 'reg': 'L1', 'reg_strength': 0.01}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 2457/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.001, 'num_filters': 32, 'num_layers': 3, 'opt': 'Momentum', 'pooling_size': 2, 'reg': 'L1', 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 2598/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.01, 'num_filters': 16, 'num_layers': 2, 'opt': 'Adam', 'pooling_size': 2, 'reg': None, 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to divergence > 0.15
+  Fold 2/5
+Stopping training due to divergence > 0.15
+  Fold 3/5
+Stopping training due to divergence > 0.15
+  Fold 4/5
+Stopping training due to divergence > 0.15
+  Fold 5/5
+Stopping training due to divergence > 0.15
+
+=== Config 2652/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.01, 'num_filters': 32, 'num_layers': 2, 'opt': 'Adam', 'pooling_size': 2, 'reg': None, 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to divergence > 0.15
+  Fold 2/5
+Stopping training due to divergence > 0.15
+  Fold 3/5
+Stopping training due to divergence > 0.15
+  Fold 4/5
+Stopping training due to divergence > 0.15
+  Fold 5/5
+Stopping training due to divergence > 0.15
+
+=== Config 2752/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.01, 'num_filters': 64, 'num_layers': 4, 'opt': 'Momentum', 'pooling_size': 2, 'reg': None, 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 3004/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'filter_size': 5, 'learning_rate': 0.001, 'num_filters': 32, 'num_layers': 2, 'opt': 'Momentum', 'pooling_size': 2, 'reg': None, 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 3138/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'filter_size': 5, 'learning_rate': 0.01, 'num_filters': 32, 'num_layers': 2, 'opt': 'Adam', 'pooling_size': 2, 'reg': None, 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to divergence > 0.15
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 3256/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.5, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.0001, 'num_filters': 16, 'num_layers': 2, 'opt': 'Momentum', 'pooling_size': 2, 'reg': None, 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+  Fold 3/5
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+
+=== Config 3361/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.5, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.0001, 'num_filters': 64, 'num_layers': 2, 'opt': 'Momentum', 'pooling_size': 2, 'reg': 'L2', 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+
+=== Config 3795/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.5, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.01, 'num_filters': 64, 'num_layers': 2, 'opt': 'Momentum', 'pooling_size': 2, 'reg': None, 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to divergence > 0.15
+  Fold 2/5
+Stopping training due to divergence > 0.15
+  Fold 3/5
+Stopping training due to divergence > 0.15
+  Fold 4/5
+Stopping training due to divergence > 0.15
+  Fold 5/5
+Stopping training due to divergence > 0.15
+
+=== Config 3998/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.5, 'epochs': 50, 'filter_size': 5, 'learning_rate': 0.0001, 'num_filters': 8, 'num_layers': 2, 'opt': 'Adam', 'pooling_size': 2, 'reg': 'L1', 'reg_strength': 0.01}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 4081/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.5, 'epochs': 50, 'filter_size': 5, 'learning_rate': 0.001, 'num_filters': 32, 'num_layers': 2, 'opt': 'Momentum', 'pooling_size': 2, 'reg': 'L2', 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 4227/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.5, 'epochs': 50, 'filter_size': 5, 'learning_rate': 0.01, 'num_filters': 32, 'num_layers': 2, 'opt': 'Momentum', 'pooling_size': 2, 'reg': None, 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to divergence > 0.15
+  Fold 2/5
+Stopping training due to divergence > 0.15
+  Fold 3/5
+Stopping training due to divergence > 0.15
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to divergence > 0.15
+
+=== Config 4317/8640 (task 10) ===
+{'activation_function': 'elu', 'batch_size': 64, 'dropout': 0.5, 'epochs': 50, 'filter_size': 5, 'learning_rate': 0.01, 'num_filters': 8, 'num_layers': 3, 'opt': 'Momentum', 'pooling_size': 2, 'reg': None, 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to divergence > 0.15
+  Fold 3/5
+Stopping training due to divergence > 0.15
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 4393/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.0, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.0001, 'num_filters': 32, 'num_layers': 3, 'opt': 'Adam', 'pooling_size': 2, 'reg': 'L1', 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 4535/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.0, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.0001, 'num_filters': 8, 'num_layers': 4, 'opt': 'Momentum', 'pooling_size': 2, 'reg': None, 'reg_strength': 0.01}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 4599/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.0, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.001, 'num_filters': 32, 'num_layers': 2, 'opt': 'Momentum', 'pooling_size': 2, 'reg': 'L1', 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 4739/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.0, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.001, 'num_filters': 8, 'num_layers': 4, 'opt': 'Adam', 'pooling_size': 2, 'reg': 'L2', 'reg_strength': 0.01}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 4822/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.0, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.01, 'num_filters': 32, 'num_layers': 2, 'opt': 'Momentum', 'pooling_size': 2, 'reg': None, 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to divergence > 0.15
+  Fold 2/5
+Stopping training due to divergence > 0.15
+  Fold 3/5
+Stopping training due to divergence > 0.15
+  Fold 4/5
+Stopping training due to divergence > 0.15
+  Fold 5/5
+Stopping training due to divergence > 0.15
+
+=== Config 4925/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.0, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.01, 'num_filters': 8, 'num_layers': 2, 'opt': 'Momentum', 'pooling_size': 2, 'reg': 'L1', 'reg_strength': 0.01}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 4999/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.0, 'epochs': 50, 'filter_size': 5, 'learning_rate': 0.0001, 'num_filters': 16, 'num_layers': 3, 'opt': 'Momentum', 'pooling_size': 2, 'reg': 'L2', 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+
+=== Config 5125/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.0, 'epochs': 50, 'filter_size': 5, 'learning_rate': 0.001, 'num_filters': 16, 'num_layers': 2, 'opt': 'Momentum', 'pooling_size': 2, 'reg': 'L2', 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 5223/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.0, 'epochs': 50, 'filter_size': 5, 'learning_rate': 0.001, 'num_filters': 8, 'num_layers': 2, 'opt': 'Adam', 'pooling_size': 2, 'reg': 'L2', 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to divergence > 0.15
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 5272/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.0, 'epochs': 50, 'filter_size': 5, 'learning_rate': 0.01, 'num_filters': 16, 'num_layers': 2, 'opt': 'Momentum', 'pooling_size': 2, 'reg': None, 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to divergence > 0.15
+  Fold 2/5
+Stopping training due to divergence > 0.15
+  Fold 3/5
+Stopping training due to divergence > 0.15
+  Fold 4/5
+Stopping training due to divergence > 0.15
+  Fold 5/5
+Stopping training due to divergence > 0.15
+
+=== Config 5355/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.0, 'epochs': 50, 'filter_size': 5, 'learning_rate': 0.01, 'num_filters': 64, 'num_layers': 3, 'opt': 'Momentum', 'pooling_size': 2, 'reg': 'L1', 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 5711/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.2, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.001, 'num_filters': 32, 'num_layers': 4, 'opt': 'Adam', 'pooling_size': 2, 'reg': 'L2', 'reg_strength': 0.01}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 5856/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.2, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.01, 'num_filters': 16, 'num_layers': 3, 'opt': 'Adam', 'pooling_size': 2, 'reg': None, 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 5948/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.2, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.01, 'num_filters': 64, 'num_layers': 2, 'opt': 'Adam', 'pooling_size': 2, 'reg': None, 'reg_strength': 0.01}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to divergence > 0.15
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 6157/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.2, 'epochs': 50, 'filter_size': 5, 'learning_rate': 0.0001, 'num_filters': 8, 'num_layers': 2, 'opt': 'Adam', 'pooling_size': 2, 'reg': 'L1', 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 6245/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.2, 'epochs': 50, 'filter_size': 5, 'learning_rate': 0.001, 'num_filters': 32, 'num_layers': 2, 'opt': 'Momentum', 'pooling_size': 2, 'reg': None, 'reg_strength': 0.01}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 6372/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.2, 'epochs': 50, 'filter_size': 5, 'learning_rate': 0.01, 'num_filters': 32, 'num_layers': 2, 'opt': 'Adam', 'pooling_size': 2, 'reg': 'L1', 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 6472/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.2, 'epochs': 50, 'filter_size': 5, 'learning_rate': 0.01, 'num_filters': 8, 'num_layers': 3, 'opt': 'Momentum', 'pooling_size': 2, 'reg': 'L1', 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 6565/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.0001, 'num_filters': 32, 'num_layers': 3, 'opt': 'Momentum', 'pooling_size': 2, 'reg': 'L2', 'reg_strength': 0.001}
+  Fold 1/5
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 6687/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.0001, 'num_filters': 8, 'num_layers': 4, 'opt': 'Momentum', 'pooling_size': 2, 'reg': 'L1', 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 6759/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.001, 'num_filters': 32, 'num_layers': 2, 'opt': 'Momentum', 'pooling_size': 2, 'reg': 'L1', 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 6890/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.001, 'num_filters': 8, 'num_layers': 3, 'opt': 'Momentum', 'pooling_size': 2, 'reg': 'L2', 'reg_strength': 0.01}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 6987/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.01, 'num_filters': 32, 'num_layers': 3, 'opt': 'Adam', 'pooling_size': 2, 'reg': 'L2', 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to divergence > 0.15
+
+=== Config 7110/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.01, 'num_filters': 8, 'num_layers': 4, 'opt': 'Adam', 'pooling_size': 2, 'reg': 'L1', 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 7210/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'filter_size': 5, 'learning_rate': 0.0001, 'num_filters': 64, 'num_layers': 2, 'opt': 'Momentum', 'pooling_size': 2, 'reg': 'L1', 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+  Fold 3/5
+  Fold 4/5
+  Fold 5/5
+
+=== Config 7810/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.5, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.001, 'num_filters': 16, 'num_layers': 3, 'opt': 'Momentum', 'pooling_size': 2, 'reg': None, 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 7941/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.5, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.001, 'num_filters': 8, 'num_layers': 2, 'opt': 'Adam', 'pooling_size': 2, 'reg': 'L2', 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 8011/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.5, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.01, 'num_filters': 16, 'num_layers': 3, 'opt': 'Adam', 'pooling_size': 2, 'reg': 'L1', 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 8110/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.5, 'epochs': 50, 'filter_size': 3, 'learning_rate': 0.01, 'num_filters': 64, 'num_layers': 2, 'opt': 'Momentum', 'pooling_size': 2, 'reg': 'L1', 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 8350/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.5, 'epochs': 50, 'filter_size': 5, 'learning_rate': 0.0001, 'num_filters': 8, 'num_layers': 3, 'opt': 'Momentum', 'pooling_size': 2, 'reg': None, 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+
+=== Config 8424/8640 (task 10) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.5, 'epochs': 50, 'filter_size': 5, 'learning_rate': 0.001, 'num_filters': 64, 'num_layers': 2, 'opt': 'Adam', 'pooling_size': 2, 'reg': 'L1', 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to divergence > 0.15
+Task 10: trained 60 configs

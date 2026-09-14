@@ -1,0 +1,445 @@
+---
+title: "Random Forest Ensemble with SHAP Analysis"
+format:
+    html:
+        colab-fold: true
+jupyter: python3
+---
+
+Date: 12/01/2025
+
+## Questions:
+
+### Does a Random Forest ensemble of the 9 best-performing deep learning models improve upon the top-performing single model?
+
+$H_0$: The Random Forest ensemble will not have higher accuracy than the top-performing individual model. 
+
+Rationale: If the individual models share highly correlated error patterns, the ensemble may fail to provide additive value and could introduce noise, resulting in performance parity or degradation.
+
+$H_1$: The Random Forest ensemble will have higher accuracy than the top-performing individual model.
+
+Rationale: If the models make mistakes on different images (have independent error patterns), the ensemble can learn to favour the correct expert in a given instance, giving improved overall performance.
+
+### Within the ensemble, are some models more important for predicting high-severity cell death and others more important for predicting low-severity cell death?
+
+$H_0$: Individual model importance is consistent across all levels of cell death severity.
+
+Rationale: Models may be generalists that perform equally well or poorly across the entire 0-6 scale, meaning the ensemble relies on them to the same degree regardless of the cell death severity.
+
+$H_1$: Models will display varying levels of importance depending on the severity of the score.
+
+Rationale: Deep learning architectures may have different sensitivities to different features. Some may be optimised for the subtler textures of early-stage cell death, whilst others may better capture the high-contrast, large-scale cell death in severe cases.
+
+### Are model importances within the ensemble globally uniform? Are there some images for which the globally most important models have near-zero importance?
+
+$H_0$: Model importance is globally uniform, and the models ranked as most influential across the dataset are the primary drivers for every image.
+
+Rationale: The Random Forest may determine that a few models are consistently the most reliable, leading it to apply a uniform weighting strategy where the top models dominate every prediction.
+
+$H_1$: Model importance is not globally uniform - models that are highly ranked across the dataset may have near-zero importance for specific images.
+
+Rationale: The ensemble may use different models as local experts for specific pohenotypes. A model may be the most influential on average, but may contribute nothing to certain cases.
+
+## Experimental Plan
+
+### Data preparation and Random Forest Training
+
+- Load ranked_model_predictions.csv and balance the class sizes by downsampling.
+- Train a RandomForestRegressor using the 9 models as features and the ground truth as the target. Use bootstrapping to ensure each tree in the forest sees a slightly different subset of the images.
+
+### Question 1:
+
+- Calculate accuracy and near-miss accuracy for each of the individual models on the class-balanced training dataset, identifying the best individual model.
+- Compare the accuracy and near-miss accuracy of the ensemble.
+- Visualise a confusion matrix of ensemble vs best individual model.
+- Calculate the percentage of images where the ensemble and best individual model disagreed.
+
+### Question 2:
+
+- Implement SHAP on the trained Random Forest, using the interventional approach with a background set of roughly 100 (class-balanced) images to isolate the unique contribution of each model.
+- Visualise a SHAP beeswarm plot. For example, if a specific model has a long tail of red dots (high scores) on the far right, but its blue dots (low scores) are all grouped at zero, it is a high-severity specialist.
+- Visualise a SHAP dependence plot for the top 3 models. Look for non-linear jumps in SHAP values. For example, if Model A's impact is 0 until it predicts a 4, then jumps to +1.5, then it is only influential in high-severity detection.
+- Calcululate the mean absolute MSHAP values separately for images with Ground Truth 0-1 vs 5-6 to see if the model ranking reshuffles.
+
+### Question 3:
+
+- Visualise waterfall for images that have improved (gone from near-miss to exact) or degraded (gone from exact to near-miss) between the best individual model and the ensemble.
+- Visualise force plots to find instances where the model with the highest global importance has a low SHAP value but a globally lower-ranked model provides the primary push for that image.
+
+## Required Libraries
+```{python}
+import pandas as pd
+import numpy as np
+import shap
+import matplotlib.pyplot as plt
+from sklearn.utils import resample
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from PIL import Image
+from matplotlib import gridspec
+```
+
+## Data Preparation and Random Forest Training
+
+### Load data and balance class sizes
+
+```{python}
+df = pd.read_csv('ranked_model_predictions.csv')
+
+model_cols = [
+    '567_924_Tran_CGAN_A', '574_938_CNN_Confident', '600_933_CNN_CGAN_A', 
+    '611_974_Tran_Base', '617_961_CNN_Geom_700', '621_969_CNN_Base', 
+    '640_950_Tran_Composite_7000', '653_968_CNN_Composite_7000', '676_970_Tran_Geom_700'
+]
+target_col = 'human_score'
+
+min_class_size = df[target_col].value_counts().min()
+
+balanced_df = pd.concat([
+    resample(
+        df[df[target_col] == cls],
+        replace=False,
+        n_samples=min_class_size,
+        random_state=42
+    ) for cls in sorted(df[target_col].unique())
+])
+
+X = balanced_df[model_cols]
+y = balanced_df[target_col]
+print(f"Total Image Count in Class-balanced Dataset: {len(y)}")
+print(f"Image Count per class: {int(len(y)/7)}")
+```
+
+### Train Random Forest model with bootstrapping
+
+Choosing $n_estimators$ here is different from just training for accuracy. Previously, I trained models with $n_estimators$ varying from 2 to 200, and found the best performing model had 24 estimators, after which the accuracy plateaud.
+
+```{python}
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+rf_model = RandomForestRegressor(n_estimators=50, bootstrap=True, random_state=42)
+rf_model.fit(X_train, y_train)
+
+raw_preds = rf_model.predict(X_test)
+rounded_preds = np.rint(raw_preds).astype(int)
+```
+
+## Question 1: Does a Random Forest ensemble of the 9 best-performing deep learning models improve upon the top-performing single model?
+
+### Find the best-performing individual model on the balanced subset
+```{python}
+def get_metrics(true, pred):
+    acc = accuracy_score(true, pred)
+    near_miss = np.mean(np.abs(true - pred) <= 1)
+    return acc, near_miss
+
+individual_results = {col: get_metrics(y_test, X_test[col]) for col in model_cols}
+best_model_name = max(individual_results, key=lambda x: individual_results[x][0])
+best_model_idx = model_cols.index(best_model_name)
+```
+
+### Compare Performances
+```{python}
+best_model_acc, best_model_near = individual_results[best_model_name]
+ensemble_acc, ensemble_near = get_metrics(y_test, rounded_preds)
+
+print(f"--- Question 1: Global Performance Comparison ---")
+print(f"Best Single Model ({best_model_name}):")
+print(f"  Accuracy:  {best_model_acc:.4f}")
+print(f"  Near-Miss: {best_model_near:.4f}")
+print(f"\nRandom Forest Ensemble:")
+print(f"  Accuracy:  {ensemble_acc:.4f}")
+print(f"  Near-Miss: {ensemble_near:.4f}")
+
+# Optional: Calculate Improvement
+print(f"\nDelta (Ensemble - Best Individual):")
+print(f"  Accuracy:  {ensemble_acc - best_model_acc:+.4f}")
+print(f"  Near-Miss: {ensemble_near - best_model_near:+.4f}")
+```
+
+The differences in performance between the two models are negligible.
+
+### Visualise Confusion Matrix between ensemble and best individual model
+
+```{python}
+best_preds = X_test[best_model_name].astype(int)
+exact_agreement = accuracy_score(best_preds, rounded_preds)
+near_miss_agreement = np.mean(np.abs(best_preds - rounded_preds) <= 1)
+print(f"--- Model Agreement Analysis ---")
+print(f"Exact Agreement:     {exact_agreement:.4f}")
+print(f"Near-Miss Agreement: {near_miss_agreement:.4f}")
+```
+
+```{python}
+# 1. Ensemble vs Ground Truth
+fig1, ax1 = plt.subplots(figsize=(8, 6))
+cm_ensemble = confusion_matrix(y_test, rounded_preds)
+disp_ens = ConfusionMatrixDisplay(confusion_matrix=cm_ensemble, display_labels=sorted(y_test.unique()))
+disp_ens.plot(ax=ax1, cmap='Blues', colorbar=False)
+ax1.set_title(f"Ensemble vs Ground Truth\nAccuracy: {ensemble_acc:.4f}")
+plt.show()
+
+# 2. Best Individual vs Ground Truth
+fig2, ax2 = plt.subplots(figsize=(8, 6))
+cm_best = confusion_matrix(y_test, best_preds)
+disp_best = ConfusionMatrixDisplay(confusion_matrix=cm_best, display_labels=sorted(y_test.unique()))
+disp_best.plot(ax=ax2, cmap='Greens', colorbar=False)
+ax2.set_title(f"Best Model ({best_model_name}) vs Ground Truth\nAccuracy: {best_model_acc:.4f}")
+plt.show()
+
+# 3. Ensemble vs Best Individual Model (Agreement Matrix)
+fig3, ax3 = plt.subplots(figsize=(8, 6))
+cm_comparison = confusion_matrix(best_preds, rounded_preds)
+disp_comp = ConfusionMatrixDisplay(confusion_matrix=cm_comparison, display_labels=sorted(y_test.unique()))
+disp_comp.plot(ax=ax3, cmap='Purples', colorbar=False)
+ax3.set_title(f"Ensemble vs Best Individual Prediction\nExact Agreement: {exact_agreement:.4f}")
+ax3.set_xlabel('Ensemble Prediction')
+ax3.set_ylabel(f'Best Model ({best_model_name})')
+plt.show()
+```
+
+The ensemble agrees more often with the best individual model than either do with the ground truth.
+
+```{python}
+total_test = len(y_test)
+best_is_correct = (X_test[best_model_name].astype(int) == y_test.values)
+ensemble_is_correct = (rounded_preds == y_test.values)
+
+improved_mask = (~best_is_correct & ensemble_is_correct)
+degraded_mask = (best_is_correct & ~ensemble_is_correct)
+static_mask = ~(improved_mask | degraded_mask)
+
+n_improved = np.sum(improved_mask)
+n_degraded = np.sum(degraded_mask)
+n_static = np.sum(static_mask)
+
+print(f"--- Disagreement Analysis (N={total_test}) ---")
+print(f"Improved: {n_improved} images ({(n_improved/total_test)*100:.1f}%) - Ensemble corrected best model error.")
+print(f"Degraded: {n_degraded} images ({(n_degraded/total_test)*100:.1f}%) - Model interference/bias introduced.")
+print(f"Static:   {n_static} images ({(n_static/total_test)*100:.1f}%) - Outcome remained unchanged.")
+```
+
+## Question 2: Within the ensemble, are some models more important for predicting high-severity cell death and others more important for predicting low-severity cell death?
+
+### Implement SHAP
+```{python}
+# Create a class-balanced background set (14 samples per class for ~98 total)
+background_data = pd.concat([
+    resample(
+        X_train[y_train == cls],
+        replace=False,
+        n_samples=14,
+        random_state=42
+    ) for cls in np.sort(y_train.unique())
+])
+
+# Initialize TreeExplainer with interventional approach
+# This isolates the unique contribution of each model
+explainer = shap.TreeExplainer(rf_model, data=background_data, feature_perturbation="interventional")
+
+# Calculate SHAP values for the test set
+shap_values = explainer.shap_values(X_test)
+
+# Create the modern Explanation object for robust plotting
+# base_values is the average prediction of the background dataset (~3.0)
+shap_explanation = shap.Explanation(
+    values=shap_values,
+    base_values=explainer.expected_value,
+    data=X_test.values,
+    feature_names=model_cols
+)
+```
+
+### Visualise Beeswarm plot
+```{python}
+# Generate the Beeswarm Plot using the Explanation object
+# This visualizes the global importance and the direction of impact
+shap.plots.beeswarm(shap_explanation, max_display=len(model_cols))
+
+plt.show()
+```
+
+The Beeswarm plot shows that CNN_Composite_7000 is the most influential for both low (blue) and high (red) scores.
+
+By contrast, CNN_Confident does not have a large influence on the ensemble's predictions, and its effects tend to be in the opposite direction of the final ensemble prediction (red and blue flipped).
+
+The distribution of points for all models seem to be balanced on either side of the expected value (3), suggesting they are equally influential in low and high score predictions.
+
+### Dependence Plots for Top 3 Models
+```{python}
+# Identify the top 3 models by mean absolute SHAP value
+mean_abs_shap = np.abs(shap_values).mean(axis=0)
+top_3_indices = np.argsort(mean_abs_shap)[-3:][::-1]
+top_3_model_names = [model_cols[i] for i in top_3_indices]
+
+print(f"Top 3 Models by Global Importance: {top_3_model_names}")
+
+# Generate Dependence (Scatter) plots for the top 3 models
+for i, idx in enumerate(top_3_indices):
+    plt.figure(figsize=(10, 6))
+    shap.plots.scatter(
+        shap_explanation[:, idx],
+        color=y_test.values,
+        show=False
+    )
+    plt.title(f"Dependence Plot: {model_cols[idx]} (Rank #{i+1})")
+    plt.ylabel("SHAP Value (Impact on Prediction)")
+    plt.xlabel(f"Model Prediction: {model_cols[idx]}")
+    plt.show()
+```
+
+Interpreting:
+
+For CNN_Composite_7000, the SHAP Value is linearly related to the score. By contrast, for CNN_Geom_700, the SHAP values are larger nearer the extreme values, and the model is less influential in intermediate scores.
+
+The grey bars are the data density - some models predicted some scores more than others.
+
+### Mean SHAP (MSHAP) changes for low and high severity
+```{python}
+# MSHAP for Low Severity (Ground Truth 0-1)
+low_severity_mask = y_test.isin([0, 1]).values
+mshap_low = np.abs(shap_values[low_severity_mask]).mean(axis=0)
+
+# MSHAP for High Severity (Ground Truth 5-6)
+high_severity_mask = y_test.isin([5, 6]).values
+mshap_high = np.abs(shap_values[high_severity_mask]).mean(axis=0)
+
+# Construct Comparison DataFrame
+mshap_df = pd.DataFrame({
+    'Model': model_cols,
+    'MSHAP_Low_Severity': mshap_low,
+    'MSHAP_High_Severity': mshap_high
+})
+
+# Add a column to show the rank change
+mshap_df['Rank_Low'] = mshap_df['MSHAP_Low_Severity'].rank(ascending=False).astype(int)
+mshap_df['Rank_High'] = mshap_df['MSHAP_High_Severity'].rank(ascending=False).astype(int)
+mshap_df['Rank_Shift'] = mshap_df['Rank_Low'] - mshap_df['Rank_High']
+
+print("--- Model Importance Re-ranking by Severity ---")
+print(mshap_df.sort_values(by='MSHAP_High_Severity', ascending=False))
+```
+
+Almost no movement - models are all generalists.
+
+## Question 3: Are model importances within the ensemble globally uniform? Are there some images for which the globally most important models have near-zero importance?
+
+### Waterfall Plots of Improved and Degraded
+```{python}
+def display_explanation_with_image(idx, pos, title_prefix):
+    # Data Retrieval
+    score = int(df[target_col].loc[idx])
+    img_name = df['img_name'].loc[idx]
+    img_path = f"/Users/jowillia/Documents/GitHub/AutoCDAScorer_Models/data/cropped_images/{score}/{img_name}"
+    
+    raw_ensemble_pred = raw_preds[pos]
+    rounded_ensemble_pred = rounded_preds[pos]
+    best_model_val = X_test[best_model_name].iloc[pos]
+    
+    fig = plt.figure(figsize=(18, 14))
+    
+    # Outer grid: Top row for visual data, bottom row for SHAP
+    outer_gs = gridspec.GridSpec(2, 1, height_ratios=[1, 1.4], hspace=0.2)
+    
+    # Inner grid: width_ratios=[1, 2] ensures the text box starts sooner
+    # wspace=0.01 pulls the text box tight against the image box
+    inner_gs = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=outer_gs[0], width_ratios=[1, 2], wspace=0.01)
+    
+    # 1. Image (Upper Left)
+    ax_img = fig.add_subplot(inner_gs[0])
+    img = Image.open(img_path)
+    ax_img.imshow(img)
+    ax_img.set_anchor('W') 
+    ax_img.axis('off')
+    
+    # 2. Text (Upper Right - now sits closer to the image)
+    ax_txt = fig.add_subplot(inner_gs[1])
+    ax_txt.axis('off')
+    title_text = (
+        f"--- {title_prefix} ---\n\n"
+        f"File: {img_name}\n\n"
+        f"Ground Truth Score: {score}\n"
+        f"Best Single Predictor: {int(best_model_val)}\n\n"
+        f"Ensemble Prediction: {rounded_ensemble_pred}\n"
+        f"Ensemble Confidence: {raw_ensemble_pred:.3f}"
+    )
+    # x=0 places the text at the left edge of the second subplot
+    ax_txt.text(0, 0.5, title_text, fontsize=12, verticalalignment='center', family='monospace')
+    
+    # 3. Waterfall Plot (Bottom Row)
+    ax_shap = fig.add_subplot(outer_gs[1])
+    shap.plots.waterfall(shap.Explanation(
+        values=shap_values[pos],
+        base_values=explainer.expected_value,
+        data=X_test.iloc[pos],
+        feature_names=model_cols
+    ), show=False)
+    
+    plt.show()
+```
+
+```{python}
+# Use the masks generated in Question 1 to find indices
+improved_indices = np.where(improved_mask)[0]
+degraded_indices = np.where(degraded_mask)[0]
+
+# Select the first available instance for each
+pos_improved = improved_indices[0]
+pos_degraded = degraded_indices[0]
+
+# Retrieve original dataframe index for metadata/image paths
+idx_improved = X_test.index[pos_improved]
+idx_degraded = X_test.index[pos_degraded]
+
+# Display the Waterfall visualizations
+display_explanation_with_image(idx_improved, pos_improved, "ENSEMBLE IMPROVED")
+display_explanation_with_image(idx_degraded, pos_degraded, "ENSEMBLE DEGRADED")
+```
+
+### Force plots (showing same information)
+```{python}
+def display_force_plot(pos, title):
+    print(f"\n--- {title} ---")
+    # matplotlib=True is required for inline rendering in notebooks
+    shap.plots.force(
+        explainer.expected_value,
+        shap_values[pos],
+        X_test.iloc[pos],
+        feature_names=model_cols,
+        matplotlib=True
+    )
+
+# Visualise force plots for the same improved and degraded examples
+display_force_plot(pos_improved, "Force Plot: Ensemble Improved Instance")
+display_force_plot(pos_degraded, "Force Plot: Ensemble Degraded Instance")
+```
+
+
+### Local Experts (Images where globally most important models have low SHAP values, and less important models have large SHAP values)
+```{python}
+# Get the Global Top Model index
+global_lead_idx = np.argsort(np.abs(shap_values).mean(axis=0))[-1]
+
+# Find instances where Global Lead has low impact (near zero) but a lower-ranked model has high impact (e.g., > 0.5)
+local_expert_indices = []
+for i in range(len(shap_values)):
+    local_val_lead = np.abs(shap_values[i, global_lead_idx])
+    other_vals = np.abs(shap_values[i, :])
+    
+    # Logic: Global lead is in bottom 3 of local impact, 
+    # and some other model has a high impact
+    if local_val_lead < 0.05 and np.max(other_vals) > 0.39:
+        local_expert_indices.append(i)
+
+# Visualise the first discovery
+if local_expert_indices:
+    pos_h3 = local_expert_indices[0]
+    idx_h3 = X_test.index[pos_h3]
+    display_explanation_with_image(idx_h3, pos_h3, "H3 Evidence: Local Expert Override")
+else:
+    print("No clear override instances found with these thresholds.")
+```
+
+## Conclusions

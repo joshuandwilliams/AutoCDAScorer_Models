@@ -1,0 +1,215 @@
+settings: top_n=100 max_configs=20 max_rss_mb=80000
+Dataset: /hpc-home/jowillia/agroinfiltration_scoring/AutoCDAScorer_Models/data/datasets/medoid_64/medoid_64.npy
+Combined train+val size: 2289
+Grid: 2592 valid configs; task 128 self-scheduling -> top-100
+
+=== Config 2308/2592 (task 128) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'learning_rate': 0.01, 'mlp_ratio': 2, 'num_heads': 4, 'num_transformer_layers': 2, 'opt': 'Adam', 'patch_size': 4, 'projection_dim': 256, 'reg': 'L2', 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  [rss] after 1 config(s): 3553 MB
+
+=== Config 2329/2592 (task 128) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'learning_rate': 0.01, 'mlp_ratio': 2, 'num_heads': 4, 'num_transformer_layers': 4, 'opt': 'Adam', 'patch_size': 4, 'projection_dim': 128, 'reg': 'L2', 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  [rss] after 2 config(s): 5478 MB
+
+=== Config 2346/2592 (task 128) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'learning_rate': 0.01, 'mlp_ratio': 2, 'num_heads': 4, 'num_transformer_layers': 4, 'opt': 'Adam', 'patch_size': 8, 'projection_dim': 32, 'reg': 'L2', 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to divergence > 0.15
+  Fold 2/5
+Stopping training due to divergence > 0.15
+  Fold 3/5
+Stopping training due to divergence > 0.15
+  Fold 4/5
+Stopping training due to divergence > 0.15
+  Fold 5/5
+Stopping training due to divergence > 0.15
+  [rss] after 3 config(s): 7148 MB
+
+=== Config 2364/2592 (task 128) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'learning_rate': 0.01, 'mlp_ratio': 2, 'num_heads': 4, 'num_transformer_layers': 6, 'opt': 'Adam', 'patch_size': 8, 'projection_dim': 128, 'reg': 'L2', 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  [rss] after 4 config(s): 9684 MB
+
+=== Config 2382/2592 (task 128) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'learning_rate': 0.01, 'mlp_ratio': 2, 'num_heads': 8, 'num_transformer_layers': 2, 'opt': 'Adam', 'patch_size': 4, 'projection_dim': 32, 'reg': 'L2', 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to divergence > 0.15
+  Fold 2/5
+Stopping training due to divergence > 0.15
+  Fold 3/5
+Stopping training due to divergence > 0.15
+  Fold 4/5
+Stopping training due to divergence > 0.15
+  Fold 5/5
+Stopping training due to divergence > 0.15
+  [rss] after 5 config(s): 10592 MB
+
+=== Config 2405/2592 (task 128) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'learning_rate': 0.01, 'mlp_ratio': 2, 'num_heads': 8, 'num_transformer_layers': 4, 'opt': 'Adam', 'patch_size': 4, 'projection_dim': 256, 'reg': None, 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  [rss] after 6 config(s): 12388 MB
+
+=== Config 2427/2592 (task 128) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'learning_rate': 0.01, 'mlp_ratio': 2, 'num_heads': 8, 'num_transformer_layers': 6, 'opt': 'Adam', 'patch_size': 4, 'projection_dim': 256, 'reg': 'L2', 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  [rss] after 7 config(s): 14966 MB
+
+=== Config 2454/2592 (task 128) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'learning_rate': 0.01, 'mlp_ratio': 4, 'num_heads': 4, 'num_transformer_layers': 2, 'opt': 'Adam', 'patch_size': 4, 'projection_dim': 32, 'reg': 'L2', 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to divergence > 0.15
+  Fold 2/5
+Stopping training due to divergence > 0.15
+  Fold 3/5
+Stopping training due to divergence > 0.15
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to divergence > 0.15
+  [rss] after 8 config(s): 15930 MB
+
+=== Config 2470/2592 (task 128) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'learning_rate': 0.01, 'mlp_ratio': 4, 'num_heads': 4, 'num_transformer_layers': 2, 'opt': 'Adam', 'patch_size': 8, 'projection_dim': 64, 'reg': 'L2', 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to divergence > 0.15
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to divergence > 0.15
+  Fold 4/5
+Stopping training due to divergence > 0.15
+  Fold 5/5
+Stopping training due to divergence > 0.15
+  [rss] after 9 config(s): 16934 MB
+
+=== Config 2488/2592 (task 128) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'learning_rate': 0.01, 'mlp_ratio': 4, 'num_heads': 4, 'num_transformer_layers': 4, 'opt': 'Adam', 'patch_size': 8, 'projection_dim': 256, 'reg': 'L2', 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  [rss] after 10 config(s): 18721 MB
+
+=== Config 2514/2592 (task 128) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'learning_rate': 0.01, 'mlp_ratio': 4, 'num_heads': 4, 'num_transformer_layers': 6, 'opt': 'Adam', 'patch_size': 8, 'projection_dim': 32, 'reg': 'L2', 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to divergence > 0.15
+  Fold 2/5
+Stopping training due to divergence > 0.15
+  Fold 3/5
+Stopping training due to divergence > 0.15
+  Fold 4/5
+Stopping training due to divergence > 0.15
+  Fold 5/5
+Stopping training due to divergence > 0.15
+  [rss] after 11 config(s): 21176 MB
+
+=== Config 2532/2592 (task 128) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'learning_rate': 0.01, 'mlp_ratio': 4, 'num_heads': 8, 'num_transformer_layers': 2, 'opt': 'Adam', 'patch_size': 8, 'projection_dim': 128, 'reg': 'L2', 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  [rss] after 12 config(s): 22172 MB
+
+=== Config 2550/2592 (task 128) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'learning_rate': 0.01, 'mlp_ratio': 4, 'num_heads': 8, 'num_transformer_layers': 4, 'opt': 'Adam', 'patch_size': 4, 'projection_dim': 32, 'reg': 'L2', 'reg_strength': 0.0001}
+  Fold 1/5
+Stopping training due to divergence > 0.15
+  Fold 2/5
+Stopping training due to divergence > 0.15
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to divergence > 0.15
+  Fold 5/5
+Stopping training due to divergence > 0.15
+  [rss] after 13 config(s): 23917 MB
+
+=== Config 2566/2592 (task 128) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'learning_rate': 0.01, 'mlp_ratio': 4, 'num_heads': 8, 'num_transformer_layers': 4, 'opt': 'Adam', 'patch_size': 8, 'projection_dim': 64, 'reg': 'L2', 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to divergence > 0.15
+  Fold 2/5
+Stopping training due to divergence > 0.15
+  Fold 3/5
+Stopping training due to divergence > 0.15
+  Fold 4/5
+Stopping training due to divergence > 0.15
+  Fold 5/5
+Stopping training due to divergence > 0.15
+  [rss] after 14 config(s): 25610 MB
+
+=== Config 2584/2592 (task 128) ===
+{'activation_function': 'relu', 'batch_size': 64, 'dropout': 0.3, 'epochs': 50, 'learning_rate': 0.01, 'mlp_ratio': 4, 'num_heads': 8, 'num_transformer_layers': 6, 'opt': 'Adam', 'patch_size': 8, 'projection_dim': 256, 'reg': 'L2', 'reg_strength': 0.001}
+  Fold 1/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 2/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 3/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 4/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  Fold 5/5
+Stopping training due to no improvement in validation accuracy for 4 epochs
+  [rss] after 15 config(s): 28117 MB
+Task 128: trained 15 configs

@@ -34,7 +34,10 @@
 #     protects them from --delete so a push never wipes results produced on the
 #     HPC (even mid-run): array_task*/, *.out, *.err, and the search outputs
 #     results/, parts/, logs/, random_search_results.csv, threshold.txt,
-#     next.txt, and the .*_lock/ dirs.
+#     next.txt, testrun/, memtest/, and the .*_lock/ dirs.
+#     testrun/ and memtest/ were added after a code push silently deleted a
+#     memory_samples.json measurement on the HPC: their per-run .json files matched
+#     no exclude, so --delete removed them for not existing locally.
 #
 # The sync uses --delete, so files removed from the local repo are also
 # removed on the HPC (excluded paths above are protected). Run with --dry
@@ -96,6 +99,8 @@ rsync -av --delete $DRY_RUN $DATA_EXCLUDE -e ssh \
     --exclude='random_search_results.csv' \
     --exclude='threshold.txt' \
     --exclude='next.txt' \
+    --exclude='testrun/' \
+    --exclude='memtest/' \
     --exclude='.topn_lock/' \
     --exclude='.csv_lock/' \
     --exclude='.counter_lock/' \

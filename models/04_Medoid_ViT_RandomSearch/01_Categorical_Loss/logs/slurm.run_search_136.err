@@ -1,0 +1,434 @@
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1788965079.879681 3294898 port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+I0000 00:00:1788965081.143001 3294898 cpu_feature_guard.cc:227] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 AVX512F AVX512_VNNI FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1788965085.565841 3294898 port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+I0000 00:00:1788965089.737943 3294898 gpu_device.cc:2043] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 79191 MB memory:  -> device: 0, name: NVIDIA A100 80GB PCIe, pci bus id: 0000:17:00.0, compute capability: 8.0
+I0000 00:00:1788965097.309818 3295352 service.cc:153] XLA service 0x7fea48042b30 initialized for platform CUDA (this does not guarantee that XLA will be used). Devices:
+I0000 00:00:1788965097.309852 3295352 service.cc:161]   StreamExecutor [0]: NVIDIA A100 80GB PCIe, Compute Capability 8.0 (Driver: 13.0.0; Runtime: 12.9.0; Toolkit: 12.5.0; DNN: 9.24.0)
+I0000 00:00:1788965097.473724 3295352 dump_mlir_util.cc:269] disabling MLIR crash reproducer, set env var `MLIR_CRASH_REPRODUCER_DIRECTORY` to enable.
+I0000 00:00:1788965098.225984 3295352 cuda_dnn.cc:461] Loaded cuDNN version 92400
+I0000 00:00:1788965098.449042 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_9216__.105
+I0000 00:00:1788965107.455291 3295437 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_58', 172 bytes spill stores, 140 bytes spill loads
+
+I0000 00:00:1788965107.799043 3295435 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_96', 4 bytes spill stores, 4 bytes spill loads
+
+I0000 00:00:1788965109.205813 3295435 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_60', 172 bytes spill stores, 140 bytes spill loads
+
+I0000 00:00:1788965111.820952 3295437 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_98', 8 bytes spill stores, 8 bytes spill loads
+
+I0000 00:00:1788965126.163293 3295352 device_compiler.h:208] Compiled cluster using XLA!  This line is logged at most once for the lifetime of the process.
+I0000 00:00:1788965127.397661 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_9216__.105
+I0000 00:00:1788965130.126977 3295867 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_58', 64 bytes spill stores, 64 bytes spill loads
+
+I0000 00:00:1788965130.715135 3295868 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_58', 728 bytes spill stores, 460 bytes spill loads
+
+I0000 00:00:1788965134.073353 3295866 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_76', 20 bytes spill stores, 20 bytes spill loads
+
+I0000 00:00:1788965139.128253 3295867 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_60', 64 bytes spill stores, 64 bytes spill loads
+
+I0000 00:00:1788965140.009185 3295869 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_60', 728 bytes spill stores, 460 bytes spill loads
+
+I0000 00:00:1788965153.055480 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_10250__.41
+I0000 00:00:1788965158.087090 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_10250__.41
+I0000 00:00:1788965158.891301 3295350 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788965169.543933 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_10250__.41
+I0000 00:00:1788965174.617808 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_10250__.41
+I0000 00:00:1788965180.306234 3295353 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788965180.411071 3295353 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788965184.272697 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_14853__.17
+I0000 00:00:1788965187.404057 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_15350__.25
+I0000 00:00:1788965196.652615 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_24751__.105
+I0000 00:00:1788965207.613357 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_24751__.105
+I0000 00:00:1788965217.317053 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_25785__.41
+I0000 00:00:1788965219.852532 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_25785__.41
+I0000 00:00:1788965228.530308 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_25785__.41
+I0000 00:00:1788965232.088730 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_25785__.41
+I0000 00:00:1788965234.338790 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_30560__.17
+I0000 00:00:1788965239.055552 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_31057__.25
+I0000 00:00:1788965249.469164 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_40458__.105
+I0000 00:00:1788965260.432439 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_40458__.105
+I0000 00:00:1788965270.375089 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_41492__.41
+I0000 00:00:1788965276.443781 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_41492__.41
+I0000 00:00:1788965285.361446 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_41492__.41
+I0000 00:00:1788965289.965376 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_41492__.41
+I0000 00:00:1788965298.567412 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_46267__.17
+I0000 00:00:1788965314.715422 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_46764__.25
+I0000 00:00:1788965322.745573 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_56085__.105
+I0000 00:00:1788965333.379050 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_56085__.105
+I0000 00:00:1788965344.812029 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_57119__.41
+I0000 00:00:1788965347.711606 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_57119__.41
+I0000 00:00:1788965356.595871 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_57119__.41
+I0000 00:00:1788965360.801352 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_57119__.41
+I0000 00:00:1788965364.056234 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_61722__.17
+I0000 00:00:1788965366.719601 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_62219__.25
+I0000 00:00:1788965375.604000 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_71540__.105
+I0000 00:00:1788965386.708193 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_71540__.105
+I0000 00:00:1788965394.453053 3301561 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_58', 120 bytes spill stores, 96 bytes spill loads
+
+I0000 00:00:1788965405.877825 3301564 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_58', 688 bytes spill stores, 444 bytes spill loads
+
+I0000 00:00:1788965410.298990 3301563 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_60', 120 bytes spill stores, 96 bytes spill loads
+
+I0000 00:00:1788965410.647194 3301564 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_60', 688 bytes spill stores, 444 bytes spill loads
+
+I0000 00:00:1788965415.267927 3301562 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_60', 24 bytes spill stores, 24 bytes spill loads
+
+I0000 00:00:1788965422.746370 3301562 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_add_multiply_reduce_fusion_1', 16 bytes spill stores, 16 bytes spill loads
+
+I0000 00:00:1788965430.204610 3295353 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_add_multiply_reduce_fusion_2', 16 bytes spill stores, 16 bytes spill loads
+ptxas warning : Registers are spilled to local memory in function 'input_add_multiply_reduce_fusion_1', 16 bytes spill stores, 16 bytes spill loads
+
+I0000 00:00:1788965430.890846 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_72574__.41
+I0000 00:00:1788965434.010785 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_72574__.41
+I0000 00:00:1788965435.274794 3295352 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788965450.278512 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_72574__.41
+I0000 00:00:1788965455.578137 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_72574__.41
+I0000 00:00:1788965459.900604 3295353 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788965461.462682 3302892 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_3', 32 bytes spill stores, 32 bytes spill loads
+
+I0000 00:00:1788965465.156426 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_77521__.17
+I0000 00:00:1788965467.780471 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_78018__.25
+I0000 00:00:1788965472.883825 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_79922__.41
+I0000 00:00:1788965475.352394 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_79922__.41
+I0000 00:00:1788965475.488859 3295350 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788965482.883940 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_80429__.17
+I0000 00:00:1788965490.049255 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_80916__.25
+I0000 00:00:1788965510.702656 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_97148__.179
+I0000 00:00:1788965514.053927 3303585 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_77', 4 bytes spill stores, 4 bytes spill loads
+
+I0000 00:00:1788965517.308256 3303585 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_132', 176 bytes spill stores, 124 bytes spill loads
+
+I0000 00:00:1788965519.530193 3303585 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_84', 8 bytes spill stores, 8 bytes spill loads
+
+I0000 00:00:1788965523.806717 3303584 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_84', 92 bytes spill stores, 92 bytes spill loads
+
+I0000 00:00:1788965527.544443 3303587 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_130', 184 bytes spill stores, 128 bytes spill loads
+
+I0000 00:00:1788965531.687334 3303584 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_86', 52 bytes spill stores, 52 bytes spill loads
+
+I0000 00:00:1788965537.007784 3303587 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_transpose_fusion_7', 8 bytes spill stores, 4 bytes spill loads
+
+I0000 00:00:1788965549.594152 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_97148__.179
+I0000 00:00:1788965554.233030 3304174 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_84', 8 bytes spill stores, 8 bytes spill loads
+
+I0000 00:00:1788965555.354484 3304176 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_84', 92 bytes spill stores, 92 bytes spill loads
+
+I0000 00:00:1788965558.962921 3304176 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_77', 152 bytes spill stores, 152 bytes spill loads
+
+I0000 00:00:1788965561.834721 3304173 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_87', 140 bytes spill stores, 140 bytes spill loads
+
+I0000 00:00:1788965563.451626 3304174 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_86', 52 bytes spill stores, 52 bytes spill loads
+
+I0000 00:00:1788965569.218496 3304174 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_transpose_fusion_7', 8 bytes spill stores, 4 bytes spill loads
+
+I0000 00:00:1788965579.485080 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_98738__.65
+I0000 00:00:1788965581.156197 3305052 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_29', 4 bytes spill stores, 4 bytes spill loads
+
+I0000 00:00:1788965584.524401 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_98738__.65
+I0000 00:00:1788965586.194949 3295351 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788965596.820315 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_98738__.65
+I0000 00:00:1788965604.071590 3305578 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_29', 156 bytes spill stores, 156 bytes spill loads
+
+I0000 00:00:1788965608.439294 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_98738__.65
+I0000 00:00:1788965608.783245 3295350 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788965609.233716 3295350 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788965612.740645 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_102553__.29
+I0000 00:00:1788965615.677468 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_103426__.45
+I0000 00:00:1788965627.794123 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_119891__.179
+I0000 00:00:1788965640.660428 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_119891__.179
+I0000 00:00:1788965652.979930 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_121481__.65
+I0000 00:00:1788965655.033562 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_121481__.65
+I0000 00:00:1788965668.386506 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_121481__.65
+I0000 00:00:1788965671.188696 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_121481__.65
+I0000 00:00:1788965673.556983 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_126688__.29
+I0000 00:00:1788965675.886641 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_127561__.45
+I0000 00:00:1788965688.260381 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_144026__.179
+I0000 00:00:1788965701.432508 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_144026__.179
+I0000 00:00:1788965713.819537 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_145616__.65
+I0000 00:00:1788965717.363701 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_145616__.65
+I0000 00:00:1788965727.796977 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_145616__.65
+I0000 00:00:1788965730.259126 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_145616__.65
+I0000 00:00:1788965734.003838 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_149431__.29
+I0000 00:00:1788965736.268992 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_150304__.45
+I0000 00:00:1788965748.849482 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_166625__.179
+I0000 00:00:1788965761.827895 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_166625__.179
+I0000 00:00:1788965774.266488 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_168215__.65
+I0000 00:00:1788965776.423987 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_168215__.65
+I0000 00:00:1788965790.192935 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_168215__.65
+I0000 00:00:1788965792.789354 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_168215__.65
+I0000 00:00:1788965796.597597 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_172030__.29
+I0000 00:00:1788965798.867716 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_172903__.45
+I0000 00:00:1788965811.303953 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_189224__.179
+I0000 00:00:1788965824.310451 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_189224__.179
+I0000 00:00:1788965827.172264 3309984 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_87', 140 bytes spill stores, 140 bytes spill loads
+
+I0000 00:00:1788965828.204520 3309983 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_86', 52 bytes spill stores, 52 bytes spill loads
+
+I0000 00:00:1788965832.767550 3309985 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_77', 152 bytes spill stores, 152 bytes spill loads
+
+I0000 00:00:1788965835.937078 3309984 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_84', 8 bytes spill stores, 8 bytes spill loads
+
+I0000 00:00:1788965837.409684 3309984 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_84', 92 bytes spill stores, 92 bytes spill loads
+
+I0000 00:00:1788965841.633792 3309982 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_transpose_fusion_7', 8 bytes spill stores, 4 bytes spill loads
+
+I0000 00:00:1788965853.588268 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_190814__.65
+I0000 00:00:1788965855.673295 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_190814__.65
+I0000 00:00:1788965856.919387 3295351 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788965868.041395 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_190814__.65
+I0000 00:00:1788965870.656840 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_190814__.65
+I0000 00:00:1788965870.994385 3295350 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788965871.338401 3295350 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788965874.947090 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_194629__.29
+I0000 00:00:1788965877.394888 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_195502__.45
+I0000 00:00:1788965881.816630 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_198534__.65
+I0000 00:00:1788965883.869561 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_198534__.65
+I0000 00:00:1788965889.058625 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_199353__.29
+I0000 00:00:1788965891.316186 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_200216__.45
+I0000 00:00:1788965908.180394 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_223448__.253
+I0000 00:00:1788965911.531996 3311600 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_128', 96 bytes spill stores, 96 bytes spill loads
+
+I0000 00:00:1788965911.750530 3311599 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_128', 52 bytes spill stores, 52 bytes spill loads
+
+I0000 00:00:1788965916.007146 3311601 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_272', 4 bytes spill stores, 4 bytes spill loads
+
+I0000 00:00:1788965923.224109 3311599 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_204', 172 bytes spill stores, 140 bytes spill loads
+
+I0000 00:00:1788965927.071513 3311602 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_202', 172 bytes spill stores, 140 bytes spill loads
+
+I0000 00:00:1788965929.425426 3311601 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_274', 8 bytes spill stores, 8 bytes spill loads
+
+I0000 00:00:1788965930.522697 3311599 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_126', 72 bytes spill stores, 72 bytes spill loads
+
+I0000 00:00:1788965932.558608 3311599 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_126', 112 bytes spill stores, 112 bytes spill loads
+
+I0000 00:00:1788965937.576737 3311600 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_transpose_fusion_11', 8 bytes spill stores, 4 bytes spill loads
+
+I0000 00:00:1788965952.101312 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_223448__.253
+I0000 00:00:1788965955.509663 3312270 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_115', 136 bytes spill stores, 136 bytes spill loads
+
+I0000 00:00:1788965956.392046 3312267 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_67', 144 bytes spill stores, 132 bytes spill loads
+
+I0000 00:00:1788965957.462167 3312268 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_196', 20 bytes spill stores, 20 bytes spill loads
+
+I0000 00:00:1788965959.857051 3312269 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_129', 72 bytes spill stores, 72 bytes spill loads
+
+I0000 00:00:1788965964.706448 3312270 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_202', 64 bytes spill stores, 64 bytes spill loads
+
+I0000 00:00:1788965972.756686 3312268 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_202', 280 bytes spill stores, 180 bytes spill loads
+
+I0000 00:00:1788965973.867960 3312267 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_128', 52 bytes spill stores, 52 bytes spill loads
+
+I0000 00:00:1788965973.987791 3312268 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_128', 96 bytes spill stores, 96 bytes spill loads
+
+I0000 00:00:1788965975.763991 3312270 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_216', 24 bytes spill stores, 24 bytes spill loads
+
+I0000 00:00:1788965977.644315 3312269 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_204', 64 bytes spill stores, 64 bytes spill loads
+
+I0000 00:00:1788965979.787572 3312268 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_204', 244 bytes spill stores, 160 bytes spill loads
+
+I0000 00:00:1788965981.852614 3312268 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_126', 72 bytes spill stores, 72 bytes spill loads
+
+I0000 00:00:1788965982.884782 3312270 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_126', 112 bytes spill stores, 112 bytes spill loads
+
+I0000 00:00:1788965983.005046 3312269 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_126', 300 bytes spill stores, 300 bytes spill loads
+
+I0000 00:00:1788965988.906125 3312267 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_transpose_fusion_11', 8 bytes spill stores, 4 bytes spill loads
+
+I0000 00:00:1788966000.362322 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_225594__.89
+I0000 00:00:1788966007.056967 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_225594__.89
+I0000 00:00:1788966008.563181 3313415 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_98', 12 bytes spill stores, 12 bytes spill loads
+
+I0000 00:00:1788966032.150994 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_225594__.89
+I0000 00:00:1788966039.371909 3314158 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_43', 164 bytes spill stores, 164 bytes spill loads
+
+I0000 00:00:1788966042.740684 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_225594__.89
+I0000 00:00:1788966048.485550 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_231757__.41
+I0000 00:00:1788966051.507387 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_233006__.65
+I0000 00:00:1788966072.219233 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_256535__.253
+I0000 00:00:1788966089.596231 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_256535__.253
+I0000 00:00:1788966105.192630 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_258681__.89
+I0000 00:00:1788966108.159083 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_258681__.89
+I0000 00:00:1788966130.066845 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_258681__.89
+I0000 00:00:1788966133.315412 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_258681__.89
+I0000 00:00:1788966136.348783 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_264464__.41
+I0000 00:00:1788966139.280376 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_265713__.65
+I0000 00:00:1788966157.257586 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_289034__.253
+I0000 00:00:1788966174.513413 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_289034__.253
+I0000 00:00:1788966190.578780 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_291180__.89
+I0000 00:00:1788966193.562054 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_291180__.89
+I0000 00:00:1788966218.257057 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_291180__.89
+I0000 00:00:1788966221.723669 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_291180__.89
+I0000 00:00:1788966224.864827 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_297135__.41
+I0000 00:00:1788966227.836400 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_298384__.65
+I0000 00:00:1788966247.393472 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_321705__.253
+I0000 00:00:1788966264.886088 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_321705__.253
+I0000 00:00:1788966280.932727 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_323851__.89
+I0000 00:00:1788966283.831571 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_323851__.89
+I0000 00:00:1788966303.634548 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_323851__.89
+I0000 00:00:1788966306.884742 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_323851__.89
+I0000 00:00:1788966309.954136 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_329082__.41
+I0000 00:00:1788966312.989301 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_330331__.65
+I0000 00:00:1788966331.210465 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_353652__.253
+I0000 00:00:1788966348.729978 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_353652__.253
+I0000 00:00:1788966353.454781 3318828 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_204', 120 bytes spill stores, 96 bytes spill loads
+
+I0000 00:00:1788966354.160582 3318830 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_204', 480 bytes spill stores, 292 bytes spill loads
+
+I0000 00:00:1788966354.267066 3318829 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_204', 24 bytes spill stores, 24 bytes spill loads
+
+I0000 00:00:1788966357.231887 3318829 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_216', 24 bytes spill stores, 24 bytes spill loads
+
+I0000 00:00:1788966359.496443 3318828 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_129', 72 bytes spill stores, 72 bytes spill loads
+
+I0000 00:00:1788966361.739976 3318831 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_115', 136 bytes spill stores, 136 bytes spill loads
+
+I0000 00:00:1788966363.091396 3318828 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_126', 72 bytes spill stores, 72 bytes spill loads
+
+I0000 00:00:1788966364.361454 3318829 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_126', 112 bytes spill stores, 112 bytes spill loads
+
+I0000 00:00:1788966365.607960 3318829 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_126', 300 bytes spill stores, 300 bytes spill loads
+
+I0000 00:00:1788966366.815801 3318828 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_67', 144 bytes spill stores, 132 bytes spill loads
+
+I0000 00:00:1788966370.325082 3318829 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_128', 52 bytes spill stores, 52 bytes spill loads
+
+I0000 00:00:1788966370.644479 3318828 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_128', 96 bytes spill stores, 96 bytes spill loads
+
+I0000 00:00:1788966372.411940 3318829 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_202', 120 bytes spill stores, 96 bytes spill loads
+
+I0000 00:00:1788966373.182002 3318830 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_202', 520 bytes spill stores, 316 bytes spill loads
+
+I0000 00:00:1788966380.433396 3318831 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_transpose_fusion_11', 8 bytes spill stores, 4 bytes spill loads
+
+I0000 00:00:1788966390.287671 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_355798__.89
+I0000 00:00:1788966393.227299 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_355798__.89
+I0000 00:00:1788966395.454923 3319613 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_98', 12 bytes spill stores, 12 bytes spill loads
+
+I0000 00:00:1788966420.631025 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_355798__.89
+I0000 00:00:1788966423.670217 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_355798__.89
+I0000 00:00:1788966426.076669 3320336 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_98', 12 bytes spill stores, 12 bytes spill loads
+
+I0000 00:00:1788966429.752770 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_362477__.41
+I0000 00:00:1788966432.807142 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_363726__.65
+I0000 00:00:1788966439.183424 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_367886__.89
+I0000 00:00:1788966441.830739 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_367886__.89
+I0000 00:00:1788966443.924981 3320654 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_43', 8 bytes spill stores, 8 bytes spill loads
+
+I0000 00:00:1788966446.407947 3320656 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_98', 8 bytes spill stores, 8 bytes spill loads
+
+I0000 00:00:1788966450.574028 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_369017__.41
+I0000 00:00:1788966453.668949 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_370256__.65
+I0000 00:00:1788966478.736557 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_393552__.253
+I0000 00:00:1788966479.766138 3295353 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966480.237254 3321368 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_24', 12 bytes spill stores, 12 bytes spill loads
+
+I0000 00:00:1788966482.248470 3321368 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_MatMul_1_202', 32 bytes spill stores, 28 bytes spill loads
+
+I0000 00:00:1788966483.676342 3295353 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966484.929580 3295353 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966488.283189 3295353 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966489.444474 3321366 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_27', 12 bytes spill stores, 12 bytes spill loads
+
+I0000 00:00:1788966508.728495 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_393552__.253
+I0000 00:00:1788966509.776514 3295352 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966510.088761 3295352 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966510.652868 3321912 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_3', 8 bytes spill stores, 8 bytes spill loads
+
+I0000 00:00:1788966511.403858 3295352 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966512.109438 3321912 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_24', 12 bytes spill stores, 12 bytes spill loads
+
+I0000 00:00:1788966512.128468 3321911 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_24', 20 bytes spill stores, 20 bytes spill loads
+
+I0000 00:00:1788966512.540544 3295352 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966513.192260 3321913 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_27', 20 bytes spill stores, 20 bytes spill loads
+
+I0000 00:00:1788966513.473827 3321910 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_27', 12 bytes spill stores, 12 bytes spill loads
+
+I0000 00:00:1788966522.403212 3321913 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_add_reduce_subtract_fusion', 8 bytes spill stores, 8 bytes spill loads
+
+I0000 00:00:1788966530.137233 3295352 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_add_reduce_subtract_fusion_6', 8 bytes spill stores, 8 bytes spill loads
+
+I0000 00:00:1788966531.640609 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_395698__.89
+I0000 00:00:1788966537.148054 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_395698__.89
+I0000 00:00:1788966537.483249 3295351 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966537.558701 3295351 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966537.861237 3295351 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966538.947796 3322333 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_3', 8 bytes spill stores, 8 bytes spill loads
+
+I0000 00:00:1788966548.695572 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_395698__.89
+I0000 00:00:1788966549.952341 3295350 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966554.793075 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_395698__.89
+I0000 00:00:1788966555.601610 3295350 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966555.829661 3295350 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966556.577898 3322965 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_3', 8 bytes spill stores, 8 bytes spill loads
+
+I0000 00:00:1788966556.869447 3295350 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966559.853244 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_399825__.41
+I0000 00:00:1788966563.342453 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_401074__.65
+I0000 00:00:1788966582.307223 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_424603__.253
+I0000 00:00:1788966597.708238 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_424603__.253
+I0000 00:00:1788966608.675142 3295351 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_add_reduce_subtract_fusion_6', 8 bytes spill stores, 8 bytes spill loads
+
+I0000 00:00:1788966610.157522 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_426749__.89
+I0000 00:00:1788966613.213338 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_426749__.89
+I0000 00:00:1788966629.034899 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_426749__.89
+I0000 00:00:1788966632.668229 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_426749__.89
+I0000 00:00:1788966636.842577 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_430876__.41
+I0000 00:00:1788966640.257032 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_432125__.65
+I0000 00:00:1788966660.488658 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_455446__.253
+I0000 00:00:1788966677.997412 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_455446__.253
+I0000 00:00:1788966688.821328 3295351 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_add_reduce_subtract_fusion_6', 8 bytes spill stores, 8 bytes spill loads
+
+I0000 00:00:1788966690.322059 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_457592__.89
+I0000 00:00:1788966693.381701 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_457592__.89
+I0000 00:00:1788966704.418421 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_457592__.89
+I0000 00:00:1788966708.003799 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_457592__.89
+I0000 00:00:1788966710.589663 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_462823__.41
+I0000 00:00:1788966714.009674 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_464072__.65
+I0000 00:00:1788966733.235577 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_487601__.253
+I0000 00:00:1788966749.882177 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_487601__.253
+I0000 00:00:1788966760.918789 3295352 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_add_reduce_subtract_fusion_6', 8 bytes spill stores, 8 bytes spill loads
+
+I0000 00:00:1788966762.444596 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_489747__.89
+I0000 00:00:1788966765.556100 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_489747__.89
+I0000 00:00:1788966778.000936 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_489747__.89
+I0000 00:00:1788966781.509182 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_489747__.89
+I0000 00:00:1788966784.526943 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_495702__.41
+I0000 00:00:1788966787.980805 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_496951__.65
+I0000 00:00:1788966807.312413 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_520272__.253
+I0000 00:00:1788966822.613226 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_520272__.253
+I0000 00:00:1788966823.972936 3295351 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966825.610382 3295351 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966826.133215 3326305 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_27', 12 bytes spill stores, 12 bytes spill loads
+
+I0000 00:00:1788966829.968966 3295351 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966830.603594 3326307 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_24', 12 bytes spill stores, 12 bytes spill loads
+
+I0000 00:00:1788966830.929330 3295351 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966844.172527 3295351 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_add_reduce_subtract_fusion_6', 8 bytes spill stores, 8 bytes spill loads
+
+I0000 00:00:1788966845.693244 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_522418__.89
+I0000 00:00:1788966849.489460 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_522418__.89
+I0000 00:00:1788966849.823190 3295353 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966849.896635 3295353 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966850.209955 3295353 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966850.967026 3326672 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_3', 8 bytes spill stores, 8 bytes spill loads
+
+I0000 00:00:1788966863.333058 3295350 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_522418__.89
+I0000 00:00:1788966866.797723 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_522418__.89
+I0000 00:00:1788966867.079827 3295352 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966867.772812 3295352 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966868.080423 3295352 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966873.230328 3295351 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_528029__.41
+I0000 00:00:1788966876.637323 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_529278__.65
+I0000 00:00:1788966884.069360 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_533438__.89
+I0000 00:00:1788966886.979289 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_533438__.89
+I0000 00:00:1788966887.728508 3295353 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966887.885368 3295353 dot_search_space.cc:240] All configs were filtered out because none of them sufficiently match the hints. Maybe the hints set does not contain a good representative set of valid configs? Working around this by using the full hints set instead.
+I0000 00:00:1788966888.937398 3327431 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_3', 8 bytes spill stores, 8 bytes spill loads
+
+I0000 00:00:1788966893.011635 3295352 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_534569__.41
+I0000 00:00:1788966896.366864 3295353 dot_merger.cc:481] Merging Dots in computation: a_inference_one_step_on_data_535808__.65

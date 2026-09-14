@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.38">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Is the cGAN any good? Training curves, samples, and a real-data reference</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="cgan_quality_files/libs/clipboard/clipboard.min.js"></script>
+<script src="cgan_quality_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="cgan_quality_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="cgan_quality_files/libs/quarto-html/popper.min.js"></script>
+<script src="cgan_quality_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="cgan_quality_files/libs/quarto-html/anchor.min.js"></script>
+<link href="cgan_quality_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="cgan_quality_files/libs/quarto-html/quarto-syntax-highlighting-15634bcf2e68342d4ad2dfa704d543f6.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="cgan_quality_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="cgan_quality_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="cgan_quality_files/libs/bootstrap/bootstrap-138a6193a3bd40baf1e627da441a4734.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#what-this-is-for" id="toc-what-this-is-for" class="nav-link active" data-scroll-target="#what-this-is-for">What this is for</a></li>
+  <li><a href="#the-real-data-reference" id="toc-the-real-data-reference" class="nav-link" data-scroll-target="#the-real-data-reference">1. The real-data reference</a></li>
+  <li><a href="#the-training-curves" id="toc-the-training-curves" class="nav-link" data-scroll-target="#the-training-curves">2. The training curves</a></li>
+  <li><a href="#were-the-other-top-configs-still-improving" id="toc-were-the-other-top-configs-still-improving" class="nav-link" data-scroll-target="#were-the-other-top-configs-still-improving">3. Were the other top configs still improving?</a></li>
+  <li><a href="#the-crops-themselves" id="toc-the-crops-themselves" class="nav-link" data-scroll-target="#the-crops-themselves">4. The crops themselves</a></li>
+  <li><a href="#is-it-copying-its-training-data" id="toc-is-it-copying-its-training-data" class="nav-link" data-scroll-target="#is-it-copying-its-training-data">5. Is it copying its training data?</a></li>
+  <li><a href="#testing-four-specific-complaints-about-the-samples" id="toc-testing-four-specific-complaints-about-the-samples" class="nav-link" data-scroll-target="#testing-four-specific-complaints-about-the-samples">6. Testing four specific complaints about the samples</a>
+  <ul class="collapse">
+  <li><a href="#is-the-range-of-appearances-narrower-than-the-real-data" id="toc-is-the-range-of-appearances-narrower-than-the-real-data" class="nav-link" data-scroll-target="#is-the-range-of-appearances-narrower-than-the-real-data">6.1 Is the range of appearances narrower than the real data?</a></li>
+  </ul></li>
+  <li><a href="#frechet-calibration-against-the-ordinal-scale" id="toc-frechet-calibration-against-the-ordinal-scale" class="nav-link" data-scroll-target="#frechet-calibration-against-the-ordinal-scale">7. Frechet calibration against the ordinal scale</a></li>
+  <li><a href="#what-this-says" id="toc-what-this-says" class="nav-link" data-scroll-target="#what-this-says">8. What this says</a></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Is the cGAN any good? Training curves, samples, and a real-data reference</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p>Date: 10/09/2026</p>
+<section id="what-this-is-for" class="level2">
+<h2 class="anchored" data-anchor-id="what-this-is-for">What this is for</h2>
+<p><code>models/06_Medoid_CGAN</code> trained 64 conditional GANs and recorded one number each, the best Fréchet CDA distance. That number on its own cannot say whether a generator is good, because there is nothing to compare it against and because it is a <strong>minimum over 100 noisy evaluations</strong> rather than a typical value. This document supplies the missing pieces: the training curves the run did not plot, a real-data reference for the distance, and the generated crops side by side with real ones.</p>
+<div id="a4635edf" class="cell" data-execution_count="1">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> sys, glob, warnings</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np, pandas <span class="im">as</span> pd, tensorflow <span class="im">as</span> tf</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>warnings.filterwarnings(<span class="st">"ignore"</span>)</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>repo_root <span class="op">=</span> <span class="bu">next</span>(p <span class="cf">for</span> p <span class="kw">in</span> Path.cwd().parents <span class="cf">if</span> (p <span class="op">/</span> <span class="st">".git"</span>).exists())</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>sys.path.insert(<span class="dv">0</span>, <span class="bu">str</span>(repo_root <span class="op">/</span> <span class="st">"src"</span>))</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> base_dataset, cgan                                             <span class="co"># noqa: E402</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>RUN <span class="op">=</span> repo_root <span class="op">/</span> <span class="st">"models/06_Medoid_CGAN/01_Conditional"</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>CNN <span class="op">=</span> repo_root <span class="op">/</span> <span class="st">"models/03_Medoid_CNN_RandomSearch/01_Categorical_Loss"</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>plt.rcParams.update({<span class="st">"figure.dpi"</span>: <span class="dv">120</span>, <span class="st">"font.size"</span>: <span class="dv">9</span>})</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>res <span class="op">=</span> pd.read_csv(RUN <span class="op">/</span> <span class="st">"cgan_results.csv"</span>)</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>BEST <span class="op">=</span> <span class="bu">int</span>(res.nsmallest(<span class="dv">1</span>, <span class="st">"best_fcd"</span>).slurm_array.iloc[<span class="dv">0</span>])</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>hist <span class="op">=</span> pd.read_csv(RUN <span class="op">/</span> <span class="ss">f"array_task</span><span class="sc">{</span>BEST<span class="sc">}</span><span class="ss">/history_</span><span class="sc">{</span>BEST<span class="sc">}</span><span class="ss">.csv"</span>)</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>fcd_pts <span class="op">=</span> hist[hist.fcd.notna()]</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"64 configs; best is config </span><span class="sc">{</span>BEST<span class="sc">}</span><span class="ss"> at Frechet </span><span class="sc">{</span>res<span class="sc">.</span>best_fcd<span class="sc">.</span><span class="bu">min</span>()<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"its history: </span><span class="sc">{</span><span class="bu">len</span>(hist)<span class="sc">}</span><span class="ss"> epochs, </span><span class="sc">{</span><span class="bu">len</span>(fcd_pts)<span class="sc">}</span><span class="ss"> Frechet evaluations "</span></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"(one every 50 epochs)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stderr">
+<pre><code>2026-09-11 22:46:15.078617: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>64 configs; best is config 48 at Frechet 3.659
+its history: 5000 epochs, 100 Frechet evaluations (one every 50 epochs)</code></pre>
+</div>
+</div>
+</section>
+<section id="the-real-data-reference" class="level2">
+<h2 class="anchored" data-anchor-id="the-real-data-reference">1. The real-data reference</h2>
+<p>The Fréchet distance has no absolute scale, so the only way to read it is against what real data scores. Two reference points, both computed with the <strong>same sample size the training loop used</strong> — <code>cgan.sample(n_per_class=64)</code> returns 64 images per class, so 448, not 64:</p>
+<ul>
+<li><strong>Real held-out sample.</strong> 448 real training crops scored against the 455 validation crops. This is the floor a perfect generator would reach: two disjoint samples of genuine leaves, differing only by sampling noise.</li>
+<li><strong>Perfect memorisation.</strong> 448 crops drawn <em>from</em> the validation set itself. A generator that had memorised its training data and reproduced it exactly would score near this.</li>
+</ul>
+<div id="b23e61cf" class="cell" data-execution_count="2">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>CACHE <span class="op">=</span> Path(<span class="st">"reference.npz"</span>)</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>ds <span class="op">=</span> base_dataset.load_dataset(repo_root <span class="op">/</span> <span class="st">"data/datasets/medoid_64/medoid_64.npy"</span>)</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>val <span class="op">=</span> np.asarray(ds[<span class="st">"val_images"</span>], dtype<span class="op">=</span><span class="st">"float32"</span>)</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>tr  <span class="op">=</span> np.asarray(ds[<span class="st">"train_images"</span>], dtype<span class="op">=</span><span class="st">"float32"</span>)</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>yr  <span class="op">=</span> np.asarray(ds[<span class="st">"train_labels"</span>]).astype(<span class="bu">int</span>)</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>best_cnn <span class="op">=</span> <span class="bu">int</span>(pd.read_csv(CNN <span class="op">/</span> <span class="st">"random_search_results.csv"</span>)</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>               .sort_values(<span class="st">"avg_vaf"</span>, ascending<span class="op">=</span><span class="va">False</span>).iloc[<span class="dv">0</span>].model_id)</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>fcd <span class="op">=</span> cgan.FrechetCDADistance(glob.glob(<span class="bu">str</span>(CNN <span class="op">/</span> <span class="ss">f"results/*_</span><span class="sc">{</span>best_cnn<span class="sc">}</span><span class="ss">/model.keras"</span>))[<span class="dv">0</span>])</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>gen <span class="op">=</span> tf.keras.models.load_model(RUN <span class="op">/</span> <span class="ss">f"array_task</span><span class="sc">{</span>BEST<span class="sc">}</span><span class="ss">/models/generator_best.keras"</span>)</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>LATENT <span class="op">=</span> <span class="bu">int</span>(pd.read_csv(RUN <span class="op">/</span> <span class="st">"cgan_results.csv"</span>)</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>             .query(<span class="st">"slurm_array == @BEST"</span>).latent_dim.iloc[<span class="dv">0</span>])</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> CACHE.exists():</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    z <span class="op">=</span> np.load(CACHE)<span class="op">;</span> real_ref, memo_ref, ckpt <span class="op">=</span> z[<span class="st">"real"</span>], z[<span class="st">"memo"</span>], z[<span class="st">"ckpt"</span>]</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>    rng <span class="op">=</span> np.random.default_rng(<span class="dv">0</span>)</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>    draw <span class="op">=</span> <span class="kw">lambda</span> pool, n: pool[rng.choice(<span class="bu">len</span>(pool), n, replace<span class="op">=</span><span class="va">False</span>)]</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>    real_ref <span class="op">=</span> np.array([fcd(val, draw(tr, <span class="dv">448</span>)) <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">15</span>)])</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>    memo_ref <span class="op">=</span> np.array([fcd(val, draw(val, <span class="dv">448</span>)) <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">15</span>)])</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>    <span class="co"># The saved checkpoint, re-evaluated on 15 fresh latent draws. If its recorded score</span></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>    <span class="co"># was a lucky evaluation rather than a genuinely better generator, these will sit at</span></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>    <span class="co"># the plateau mean instead of near the recorded value.</span></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>    ckpt <span class="op">=</span> np.array([fcd(val, cgan.sample(gen, LATENT, <span class="dv">64</span>, seed<span class="op">=</span>s)[<span class="dv">0</span>]) <span class="cf">for</span> s <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">15</span>)])</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>    np.savez(CACHE, real<span class="op">=</span>real_ref, memo<span class="op">=</span>memo_ref, ckpt<span class="op">=</span>ckpt)</span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(pd.DataFrame({</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>    <span class="st">"median"</span>: [np.median(real_ref), np.median(memo_ref), np.median(ckpt)],</span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>    <span class="st">"min"</span>:    [real_ref.<span class="bu">min</span>(), memo_ref.<span class="bu">min</span>(), ckpt.<span class="bu">min</span>()],</span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>    <span class="st">"max"</span>:    [real_ref.<span class="bu">max</span>(), memo_ref.<span class="bu">max</span>(), ckpt.<span class="bu">max</span>()],</span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>}, index<span class="op">=</span>[<span class="st">"448 real train crops"</span>, <span class="st">"448 crops from val (memorisation)"</span>,</span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>          <span class="ss">f"config </span><span class="sc">{</span>BEST<span class="sc">}</span><span class="ss"> checkpoint"</span>]).<span class="bu">round</span>(<span class="dv">3</span>).to_string())</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">recorded best_fcd for config </span><span class="sc">{</span>BEST<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>res<span class="sc">.</span>best_fcd<span class="sc">.</span><span class="bu">min</span>()<span class="sc">:.3f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>                                   median    min    max
+448 real train crops                3.065  2.705  3.597
+448 crops from val (memorisation)   0.032  0.013  0.052
+config 48 checkpoint                3.896  3.727  4.142
+
+recorded best_fcd for config 48: 3.659</code></pre>
+</div>
+</div>
+</section>
+<section id="the-training-curves" class="level2">
+<h2 class="anchored" data-anchor-id="the-training-curves">2. The training curves</h2>
+<div id="8b03f08f" class="cell" data-execution_count="3">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>plateau <span class="op">=</span> fcd_pts[fcd_pts.epoch <span class="op">&gt;</span> <span class="dv">3000</span>].fcd</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Two rows, not three. The per-epoch generator and discriminator losses were dropped: no</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="co"># statement in this analysis or in the chapter rests on them, and the discriminator</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="co"># accuracy below already reports how the two are faring against each other.</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(<span class="dv">2</span>, <span class="dv">1</span>, figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="fl">5.6</span>), sharex<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>                       gridspec_kw<span class="op">=</span>{<span class="st">"height_ratios"</span>: [<span class="dv">2</span>, <span class="dv">1</span>], <span class="st">"hspace"</span>: <span class="fl">0.12</span>})</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>ax[<span class="dv">0</span>].axhline(np.median(real_ref), color<span class="op">=</span><span class="st">"#C44E52"</span>, ls<span class="op">=</span><span class="st">"--"</span>, lw<span class="op">=</span><span class="fl">1.3</span>, zorder<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>              label<span class="op">=</span><span class="ss">f"Real data (</span><span class="sc">{</span>np<span class="sc">.</span>median(real_ref)<span class="sc">:.2f}</span><span class="ss">)"</span>)</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>ax[<span class="dv">0</span>].plot(fcd_pts.epoch, fcd_pts.fcd, <span class="st">"o-"</span>, ms<span class="op">=</span><span class="dv">3</span>, lw<span class="op">=</span><span class="fl">0.9</span>, color<span class="op">=</span><span class="st">"#4C72B0"</span>, zorder<span class="op">=</span><span class="dv">3</span>,</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>           label<span class="op">=</span><span class="st">"Generated"</span>)</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>b <span class="op">=</span> res.query(<span class="st">"slurm_array == @BEST"</span>).iloc[<span class="dv">0</span>]   <span class="co"># used by the summary print below</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>ax[<span class="dv">0</span>].set_ylabel(<span class="st">"Fréchet CDA distance"</span>)</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="co"># One point per EVALUATION, not per epoch: --fcd_every is 50, so the distance exists at 100</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a><span class="co"># of the 5,000 epochs.</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a><span class="co"># A label drawn on the line itself sat on top of the data, so both series are named in a</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="co"># legend instead.</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>_l0 <span class="op">=</span> ax[<span class="dv">0</span>].legend(fontsize<span class="op">=</span><span class="dv">8</span>, ncol<span class="op">=</span><span class="dv">2</span>, loc<span class="op">=</span><span class="st">"upper right"</span>)</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _h <span class="kw">in</span> _l0.get_lines():</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>    _h.set_linewidth(<span class="fl">2.5</span>)</span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>ax[<span class="dv">1</span>].plot(fcd_pts.epoch, fcd_pts.disc_acc, <span class="st">"o-"</span>, ms<span class="op">=</span><span class="fl">2.5</span>, lw<span class="op">=</span><span class="fl">0.8</span>, color<span class="op">=</span><span class="st">"#55A868"</span>)</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>ax[<span class="dv">1</span>].set_ylabel(<span class="st">"Discriminator</span><span class="ch">\n</span><span class="st">accuracy"</span>)<span class="op">;</span> ax[<span class="dv">1</span>].set_xlabel(<span class="st">"Epoch"</span>)</span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> a <span class="kw">in</span> ax:</span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>    a.grid(alpha<span class="op">=</span><span class="fl">0.25</span>)</span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>fig.tight_layout()</span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path <span class="im">as</span> _P</span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a>_tp <span class="op">=</span> _P(<span class="st">"thesis_plots"</span>)<span class="op">;</span> _tp.mkdir(exist_ok<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a>fig.savefig(_tp <span class="op">/</span> <span class="st">"cgan_training_curve.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a>sl <span class="op">=</span> np.polyfit(fcd_pts[fcd_pts.epoch <span class="op">&gt;</span> <span class="dv">3000</span>].epoch, plateau, <span class="dv">1</span>)[<span class="dv">0</span>] <span class="op">*</span> <span class="dv">1000</span></span>
+<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"after epoch 3000: mean </span><span class="sc">{</span>plateau<span class="sc">.</span>mean()<span class="sc">:.3f}</span><span class="ss">, sd </span><span class="sc">{</span>plateau<span class="sc">.</span>std()<span class="sc">:.3f}</span><span class="ss">, "</span></span>
+<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"trend </span><span class="sc">{</span>sl<span class="sc">:+.3f}</span><span class="ss"> per 1000 epochs"</span>)</span>
+<span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"saved checkpoint value </span><span class="sc">{</span>b<span class="sc">.</span>best_fcd<span class="sc">:.3f}</span><span class="ss"> is "</span></span>
+<span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span>(plateau.mean() <span class="op">-</span> b.best_fcd) <span class="op">/</span> plateau<span class="sc">.</span>std()<span class="sc">:.2f}</span><span class="ss"> sd below that mean"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="cgan_quality_files/figure-html/cell-4-output-1.png" width="939" height="589" class="figure-img"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>after epoch 3000: mean 4.949, sd 1.211, trend -0.184 per 1000 epochs
+saved checkpoint value 3.659 is 1.06 sd below that mean</code></pre>
+</div>
+</div>
+</section>
+<section id="were-the-other-top-configs-still-improving" class="level2">
+<h2 class="anchored" data-anchor-id="were-the-other-top-configs-still-improving">3. Were the other top configs still improving?</h2>
+<div id="a97b2dfe" class="cell" data-execution_count="4">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>rows <span class="op">=</span> []</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> a <span class="kw">in</span> res.nsmallest(<span class="dv">6</span>, <span class="st">"best_fcd"</span>).slurm_array.astype(<span class="bu">int</span>):</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    h <span class="op">=</span> pd.read_csv(RUN <span class="op">/</span> <span class="ss">f"array_task</span><span class="sc">{</span>a<span class="sc">}</span><span class="ss">/history_</span><span class="sc">{</span>a<span class="sc">}</span><span class="ss">.csv"</span>)</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    f <span class="op">=</span> h[h.fcd.notna()]</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    late <span class="op">=</span> f[f.epoch <span class="op">&gt;</span> <span class="dv">3000</span>]</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    rows.append({<span class="st">"config"</span>: a,</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>                 <span class="st">"best_fcd"</span>: <span class="bu">float</span>(res.query(<span class="st">"slurm_array == @a"</span>).best_fcd.iloc[<span class="dv">0</span>]),</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>                 <span class="st">"mean 3-4k"</span>: f[(f.epoch <span class="op">&gt;</span> <span class="dv">3000</span>) <span class="op">&amp;</span> (f.epoch <span class="op">&lt;=</span> <span class="dv">4000</span>)].fcd.mean(),</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>                 <span class="st">"mean 4-5k"</span>: f[f.epoch <span class="op">&gt;</span> <span class="dv">4000</span>].fcd.mean(),</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>                 <span class="st">"sd after 3k"</span>: late.fcd.std(),</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>                 <span class="st">"trend /1000 ep"</span>: np.polyfit(late.epoch, late.fcd, <span class="dv">1</span>)[<span class="dv">0</span>] <span class="op">*</span> <span class="dv">1000</span>})</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(pd.DataFrame(rows).<span class="bu">round</span>(<span class="dv">3</span>).to_string(index<span class="op">=</span><span class="va">False</span>))</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">real-data reference: </span><span class="sc">{</span>np<span class="sc">.</span>median(real_ref)<span class="sc">:.3f}</span><span class="ss"> "</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"(</span><span class="sc">{</span>real_ref<span class="sc">.</span><span class="bu">min</span>()<span class="sc">:.3f}</span><span class="ss">-</span><span class="sc">{</span>real_ref<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.3f}</span><span class="ss">)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code> config  best_fcd  mean 3-4k  mean 4-5k  sd after 3k  trend /1000 ep
+     48     3.659      5.003      4.896        1.211          -0.184
+     42     3.749      7.333      4.568        2.064          -2.898
+     36     3.752      6.019      5.746        2.003          -0.122
+     40     3.759      5.129      5.157        1.495          -0.013
+     38     3.761      6.354      5.334        2.199          -1.362
+      4     3.764      4.155      4.253        0.485           0.171
+
+real-data reference: 3.065 (2.705-3.597)</code></pre>
+</div>
+</div>
+</section>
+<section id="the-crops-themselves" class="level2">
+<h2 class="anchored" data-anchor-id="the-crops-themselves">4. The crops themselves</h2>
+<div id="e01ddf25" class="cell" data-execution_count="5">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 5</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>Xg, yg <span class="op">=</span> cgan.sample(gen, LATENT, <span class="dv">8</span>, seed<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">3</span>)</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>rgb <span class="op">=</span> <span class="kw">lambda</span> im: np.clip(im[:, :, ::<span class="op">-</span><span class="dv">1</span>], <span class="dv">0</span>, <span class="dv">1</span>)     <span class="co"># arrays are BGR (cv.imread), display RGB</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="co"># The reference column is the CDAScorer scoring key (data/scoring_key/cdascorer_key.jpg),</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="co"># the same key the scores were assigned against, rather than randomly drawn real crops.</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.image <span class="im">as</span> _mpimg</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a><span class="co"># The key is a 7-class photo strip with the score digits printed above it and a white page</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="co"># margin all round. Both are found from the image rather than hard-coded: the strip is the</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="co"># band of rows that is non-white across more than 80% of the width, and its columns are</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="co"># found the same way, which removes the thin orange edge the fixed 190:553 crop left in.</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>_raw <span class="op">=</span> _mpimg.imread(<span class="bu">str</span>(repo_root <span class="op">/</span> <span class="st">"data/scoring_key/cdascorer_key.jpg"</span>))[:, :, :<span class="dv">3</span>]</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>_nw <span class="op">=</span> _raw.<span class="bu">min</span>(<span class="dv">2</span>) <span class="op">&lt;</span> <span class="dv">235</span></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>_rb <span class="op">=</span> np.where(_nw.<span class="bu">sum</span>(<span class="dv">1</span>) <span class="op">&gt;</span> <span class="fl">0.8</span> <span class="op">*</span> _raw.shape[<span class="dv">1</span>])[<span class="dv">0</span>]</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>_strip <span class="op">=</span> _nw[_rb.<span class="bu">min</span>():_rb.<span class="bu">max</span>() <span class="op">+</span> <span class="dv">1</span>]</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>_cb <span class="op">=</span> np.where(_strip.<span class="bu">sum</span>(<span class="dv">0</span>) <span class="op">&gt;</span> <span class="fl">0.8</span> <span class="op">*</span> _strip.shape[<span class="dv">0</span>])[<span class="dv">0</span>]</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>_key <span class="op">=</span> _raw[_rb.<span class="bu">min</span>():_rb.<span class="bu">max</span>() <span class="op">+</span> <span class="dv">1</span>, _cb.<span class="bu">min</span>():_cb.<span class="bu">max</span>() <span class="op">+</span> <span class="dv">1</span>]</span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a><span class="co"># 2,740 px over 7 classes is not an integer, so the edges are taken as floats and rounded</span></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a><span class="co"># per class; a floor division drifts by up to 4 px by the last class.</span></span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>_edge <span class="op">=</span> [<span class="bu">int</span>(<span class="bu">round</span>(i <span class="op">*</span> _key.shape[<span class="dv">1</span>] <span class="op">/</span> <span class="dv">7</span>)) <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">8</span>)]</span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>_ka <span class="op">=</span> _key.shape[<span class="dv">0</span>] <span class="op">/</span> (_key.shape[<span class="dv">1</span>] <span class="op">/</span> <span class="dv">7</span>)      <span class="co"># one key cell is slightly taller than wide</span></span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>N_GEN <span class="op">=</span> <span class="dv">6</span></span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">3</span>)</span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a><span class="co"># Generated crops are 64x64 and key cells are ~391x365, so nothing is drawn with</span></span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a><span class="co"># aspect="auto"; the row height is set from the key cell and the crops keep square pixels.</span></span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">7</span>, N_GEN <span class="op">+</span> <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="fl">1.02</span> <span class="op">*</span> (N_GEN <span class="op">+</span> <span class="dv">2</span>), <span class="fl">1.02</span> <span class="op">*</span> <span class="dv">7</span> <span class="op">*</span> _ka),</span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a>                         gridspec_kw<span class="op">=</span>{<span class="st">"width_ratios"</span>: [<span class="dv">1</span>, <span class="fl">0.22</span>] <span class="op">+</span> [<span class="dv">1</span>] <span class="op">*</span> N_GEN,</span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>                                      <span class="st">"hspace"</span>: <span class="fl">0.04</span>, <span class="st">"wspace"</span>: <span class="fl">0.04</span>})</span>
+<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> s_ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>):</span>
+<span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a>    axes[s_, <span class="dv">0</span>].imshow(_key[:, _edge[s_]:_edge[s_ <span class="op">+</span> <span class="dv">1</span>]])</span>
+<span id="cb10-33"><a href="#cb10-33" aria-hidden="true" tabindex="-1"></a>    axes[s_, <span class="dv">1</span>].text(<span class="fl">0.5</span>, <span class="fl">0.5</span>, <span class="bu">str</span>(s_), ha<span class="op">=</span><span class="st">"center"</span>, va<span class="op">=</span><span class="st">"center"</span>, fontsize<span class="op">=</span><span class="dv">9</span>,</span>
+<span id="cb10-34"><a href="#cb10-34" aria-hidden="true" tabindex="-1"></a>                     transform<span class="op">=</span>axes[s_, <span class="dv">1</span>].transAxes)</span>
+<span id="cb10-35"><a href="#cb10-35" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> j_, i_ <span class="kw">in</span> <span class="bu">enumerate</span>(rng.choice(np.where(yg <span class="op">==</span> s_)[<span class="dv">0</span>], N_GEN, replace<span class="op">=</span><span class="va">False</span>)):</span>
+<span id="cb10-36"><a href="#cb10-36" aria-hidden="true" tabindex="-1"></a>        axes[s_, <span class="dv">2</span> <span class="op">+</span> j_].imshow(np.clip(Xg[i_][:, :, ::<span class="op">-</span><span class="dv">1</span>], <span class="dv">0</span>, <span class="dv">1</span>))</span>
+<span id="cb10-37"><a href="#cb10-37" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> a_ <span class="kw">in</span> axes.ravel():</span>
+<span id="cb10-38"><a href="#cb10-38" aria-hidden="true" tabindex="-1"></a>    a_.axis(<span class="st">"off"</span>)</span>
+<span id="cb10-39"><a href="#cb10-39" aria-hidden="true" tabindex="-1"></a>axes[<span class="dv">0</span>, <span class="dv">0</span>].set_title(<span class="st">"Scoring key"</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
+<span id="cb10-40"><a href="#cb10-40" aria-hidden="true" tabindex="-1"></a><span class="co"># Centred over the span of the six generated columns, not over one of them.</span></span>
+<span id="cb10-41"><a href="#cb10-41" aria-hidden="true" tabindex="-1"></a>_x0 <span class="op">=</span> axes[<span class="dv">0</span>, <span class="dv">2</span>].get_position().x0</span>
+<span id="cb10-42"><a href="#cb10-42" aria-hidden="true" tabindex="-1"></a>_x1 <span class="op">=</span> axes[<span class="dv">0</span>, <span class="dv">1</span> <span class="op">+</span> N_GEN].get_position().x1</span>
+<span id="cb10-43"><a href="#cb10-43" aria-hidden="true" tabindex="-1"></a>_yt <span class="op">=</span> axes[<span class="dv">0</span>, <span class="dv">0</span>].get_position().y1</span>
+<span id="cb10-44"><a href="#cb10-44" aria-hidden="true" tabindex="-1"></a>fig.text((_x0 <span class="op">+</span> _x1) <span class="op">/</span> <span class="dv">2</span>, _yt <span class="op">+</span> <span class="fl">0.004</span>, <span class="st">"Generated"</span>, ha<span class="op">=</span><span class="st">"center"</span>, va<span class="op">=</span><span class="st">"bottom"</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
+<span id="cb10-45"><a href="#cb10-45" aria-hidden="true" tabindex="-1"></a>fig.savefig(_P(<span class="st">"thesis_plots"</span>) <span class="op">/</span> <span class="st">"cgan_real_vs_generated.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb10-46"><a href="#cb10-46" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="cgan_quality_files/figure-html/cell-6-output-1.png" width="769" height="660" class="figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="is-it-copying-its-training-data" class="level2">
+<h2 class="anchored" data-anchor-id="is-it-copying-its-training-data">5. Is it copying its training data?</h2>
+<p>For each generated crop, the closest real training crop in the CNN feature space, against how close real crops are to <em>each other</em>. A generator reproducing its training set would sit at or below the real-to-real distance.</p>
+<div id="b705766d" class="cell" data-execution_count="6">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> feats(x):</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    f <span class="op">=</span> fcd.model.predict(x, batch_size<span class="op">=</span><span class="dv">128</span>, verbose<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> f.reshape(<span class="bu">len</span>(f), <span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>Fg, Ft <span class="op">=</span> feats(Xg), feats(tr)</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>D <span class="op">=</span> np.linalg.norm(Fg[:, <span class="va">None</span>, :] <span class="op">-</span> Ft[<span class="va">None</span>, :, :], axis<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>nn_gen <span class="op">=</span> D.<span class="bu">min</span>(<span class="dv">1</span>)</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>Dr <span class="op">=</span> np.linalg.norm(Ft[:, <span class="va">None</span>, :] <span class="op">-</span> Ft[<span class="va">None</span>, :, :], axis<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>np.fill_diagonal(Dr, np.inf)</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>nn_real <span class="op">=</span> Dr.<span class="bu">min</span>(<span class="dv">1</span>)</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"generated crop -&gt; nearest real crop:  median </span><span class="sc">{</span>np<span class="sc">.</span>median(nn_gen)<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"real crop      -&gt; nearest other real: median </span><span class="sc">{</span>np<span class="sc">.</span>median(nn_real)<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"ratio </span><span class="sc">{</span>np<span class="sc">.</span>median(nn_gen) <span class="op">/</span> np<span class="sc">.</span>median(nn_real)<span class="sc">:.2f}</span><span class="ss">x"</span>)</span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">2</span>, <span class="dv">8</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">3.4</span>))</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> k, gi <span class="kw">in</span> <span class="bu">enumerate</span>(np.argsort(nn_gen)[:<span class="dv">8</span>]):      <span class="co"># the 8 closest to a real crop</span></span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>    axes[<span class="dv">0</span>, k].imshow(rgb(Xg[gi]))<span class="op">;</span> axes[<span class="dv">0</span>, k].set_title(<span class="ss">f"gen s</span><span class="sc">{</span>yg[gi]<span class="sc">}</span><span class="ss">"</span>, fontsize<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>    axes[<span class="dv">1</span>, k].imshow(rgb(tr[D[gi].argmin()]))</span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>    axes[<span class="dv">1</span>, k].set_title(<span class="ss">f"nearest real s</span><span class="sc">{</span>yr[D[gi].argmin()]<span class="sc">}</span><span class="ch">\n</span><span class="ss">d=</span><span class="sc">{</span>nn_gen[gi]<span class="sc">:.2f}</span><span class="ss">"</span>, fontsize<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> a <span class="kw">in</span> axes.ravel():</span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a>    a.axis(<span class="st">"off"</span>)</span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a>fig.suptitle(<span class="st">"The 8 generated crops closest to a real one, with their nearest match"</span>,</span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a>             fontsize<span class="op">=</span><span class="dv">10</span>)</span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a>fig.tight_layout()</span>
+<span id="cb11-27"><a href="#cb11-27" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>generated crop -&gt; nearest real crop:  median 4.630
+real crop      -&gt; nearest other real: median 4.285
+ratio 1.08x</code></pre>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="cgan_quality_files/figure-html/cell-7-output-2.png" width="1421" height="407" class="figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="testing-four-specific-complaints-about-the-samples" class="level2">
+<h2 class="anchored" data-anchor-id="testing-four-specific-complaints-about-the-samples">6. Testing four specific complaints about the samples</h2>
+<p>Looking at the grid above, four things stand out as wrong. Each is measurable, and two of them turn out not to be what is actually happening.</p>
+<div id="290ed5d4" class="cell" data-execution_count="7">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 7</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy <span class="im">import</span> ndimage</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> cv2 <span class="im">as</span> cv</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>Xg2, _ <span class="op">=</span> cgan.sample(gen, LATENT, <span class="dv">60</span>, seed<span class="op">=</span><span class="dv">5</span>)</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>rr <span class="op">=</span> np.random.default_rng(<span class="dv">0</span>)</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>R, Gn <span class="op">=</span> tr[rr.choice(<span class="bu">len</span>(tr), <span class="bu">len</span>(Xg2), replace<span class="op">=</span><span class="va">False</span>)], Xg2</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="bu">len</span>(R)<span class="sc">}</span><span class="ss"> real vs </span><span class="sc">{</span><span class="bu">len</span>(Gn)<span class="sc">}</span><span class="ss"> generated crops"</span>)</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>sys.path.insert(<span class="dv">0</span>, <span class="bu">str</span>(repo_root <span class="op">/</span> <span class="st">"analyses/07_gan_diversity"</span>))</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> chapter2_features <span class="im">as</span> c2                                        <span class="co"># noqa: E402</span></span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> dark_frac(X):</span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Fraction of near-black pixels: the off-leaf background a bounding box picks up</span></span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a><span class="co">    when it overhangs the edge of the leaf."""</span></span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.array([np.mean(x.mean(<span class="dv">2</span>) <span class="op">&lt;</span> <span class="fl">0.15</span>) <span class="cf">for</span> x <span class="kw">in</span> X])</span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> lesion_geometry(X):</span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Where the lesion sits and how big it is, from the same Otsu segmentation the</span></span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a><span class="co">    Chapter 2 features use."""</span></span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>    off, ar <span class="op">=</span> [], []</span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> x <span class="kw">in</span> X:</span>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a>        leaf, cda <span class="op">=</span> c2.segment_cda(x)</span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a>        m <span class="op">=</span> cda <span class="op">&amp;</span> leaf</span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a>        ar.append(m.<span class="bu">sum</span>() <span class="op">/</span> <span class="bu">max</span>(leaf.<span class="bu">sum</span>(), <span class="dv">1</span>))</span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> m.<span class="bu">sum</span>() <span class="op">&lt;</span> <span class="dv">10</span>:</span>
+<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a>            off.append(np.nan)<span class="op">;</span> <span class="cf">continue</span></span>
+<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a>        cy, cx <span class="op">=</span> ndimage.center_of_mass(m)</span>
+<span id="cb13-31"><a href="#cb13-31" aria-hidden="true" tabindex="-1"></a>        off.append(np.hypot(cy <span class="op">-</span> <span class="fl">31.5</span>, cx <span class="op">-</span> <span class="fl">31.5</span>) <span class="op">/</span> <span class="dv">32</span>)   <span class="co"># in half-widths</span></span>
+<span id="cb13-32"><a href="#cb13-32" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.array(off), np.array(ar)</span>
+<span id="cb13-33"><a href="#cb13-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-34"><a href="#cb13-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-35"><a href="#cb13-35" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ridges(X):</span>
+<span id="cb13-36"><a href="#cb13-36" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Veins are LONG CONNECTED ridges. Scattered vein-like texture has the same edge</span></span>
+<span id="cb13-37"><a href="#cb13-37" aria-hidden="true" tabindex="-1"></a><span class="co">    energy but breaks into many small rounder pieces, so measure connectivity and</span></span>
+<span id="cb13-38"><a href="#cb13-38" aria-hidden="true" tabindex="-1"></a><span class="co">    elongation rather than edge energy alone."""</span></span>
+<span id="cb13-39"><a href="#cb13-39" aria-hidden="true" tabindex="-1"></a>    frac, elong, n_comp, energy <span class="op">=</span> [], [], [], []</span>
+<span id="cb13-40"><a href="#cb13-40" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> x <span class="kw">in</span> X:</span>
+<span id="cb13-41"><a href="#cb13-41" aria-hidden="true" tabindex="-1"></a>        g <span class="op">=</span> (x.mean(<span class="dv">2</span>) <span class="op">*</span> <span class="dv">255</span>).astype(np.uint8)</span>
+<span id="cb13-42"><a href="#cb13-42" aria-hidden="true" tabindex="-1"></a>        energy.append(np.<span class="bu">abs</span>(ndimage.laplace(x.mean(<span class="dv">2</span>))).mean())</span>
+<span id="cb13-43"><a href="#cb13-43" aria-hidden="true" tabindex="-1"></a>        th <span class="op">=</span> cv.morphologyEx(g, cv.MORPH_BLACKHAT,</span>
+<span id="cb13-44"><a href="#cb13-44" aria-hidden="true" tabindex="-1"></a>                             cv.getStructuringElement(cv.MORPH_ELLIPSE, (<span class="dv">7</span>, <span class="dv">7</span>)))</span>
+<span id="cb13-45"><a href="#cb13-45" aria-hidden="true" tabindex="-1"></a>        m <span class="op">=</span> th <span class="op">&gt;</span> <span class="bu">max</span>(<span class="dv">8</span>, np.percentile(th, <span class="dv">92</span>))</span>
+<span id="cb13-46"><a href="#cb13-46" aria-hidden="true" tabindex="-1"></a>        lab, n <span class="op">=</span> ndimage.label(m)</span>
+<span id="cb13-47"><a href="#cb13-47" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> n <span class="op">==</span> <span class="dv">0</span>:</span>
+<span id="cb13-48"><a href="#cb13-48" aria-hidden="true" tabindex="-1"></a>            frac.append(<span class="dv">0</span>)<span class="op">;</span> elong.append(<span class="dv">1</span>)<span class="op">;</span> n_comp.append(<span class="dv">0</span>)<span class="op">;</span> <span class="cf">continue</span></span>
+<span id="cb13-49"><a href="#cb13-49" aria-hidden="true" tabindex="-1"></a>        sizes <span class="op">=</span> np.bincount(lab.ravel())[<span class="dv">1</span>:]</span>
+<span id="cb13-50"><a href="#cb13-50" aria-hidden="true" tabindex="-1"></a>        ys, xs <span class="op">=</span> np.where(lab <span class="op">==</span> <span class="bu">int</span>(np.argmax(sizes)) <span class="op">+</span> <span class="dv">1</span>)</span>
+<span id="cb13-51"><a href="#cb13-51" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">len</span>(ys) <span class="op">&gt;</span> <span class="dv">3</span>:</span>
+<span id="cb13-52"><a href="#cb13-52" aria-hidden="true" tabindex="-1"></a>            ev <span class="op">=</span> np.sort(np.linalg.eigvalsh(np.cov(np.vstack([ys, xs]))))</span>
+<span id="cb13-53"><a href="#cb13-53" aria-hidden="true" tabindex="-1"></a>            elong.append(np.sqrt(ev[<span class="dv">1</span>] <span class="op">/</span> <span class="bu">max</span>(ev[<span class="dv">0</span>], <span class="fl">1e-6</span>)))</span>
+<span id="cb13-54"><a href="#cb13-54" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb13-55"><a href="#cb13-55" aria-hidden="true" tabindex="-1"></a>            elong.append(<span class="fl">1.0</span>)</span>
+<span id="cb13-56"><a href="#cb13-56" aria-hidden="true" tabindex="-1"></a>        frac.append(sizes.<span class="bu">max</span>() <span class="op">/</span> m.<span class="bu">sum</span>())<span class="op">;</span> n_comp.append(n)</span>
+<span id="cb13-57"><a href="#cb13-57" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (np.array(frac), np.array(elong), np.array(n_comp), np.array(energy))</span>
+<span id="cb13-58"><a href="#cb13-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-59"><a href="#cb13-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-60"><a href="#cb13-60" aria-hidden="true" tabindex="-1"></a>dR, dG <span class="op">=</span> dark_frac(R), dark_frac(Gn)</span>
+<span id="cb13-61"><a href="#cb13-61" aria-hidden="true" tabindex="-1"></a>oR, aR <span class="op">=</span> lesion_geometry(R)</span>
+<span id="cb13-62"><a href="#cb13-62" aria-hidden="true" tabindex="-1"></a>oG, aG <span class="op">=</span> lesion_geometry(Gn)</span>
+<span id="cb13-63"><a href="#cb13-63" aria-hidden="true" tabindex="-1"></a>fR, eR, nR, enR <span class="op">=</span> ridges(R)</span>
+<span id="cb13-64"><a href="#cb13-64" aria-hidden="true" tabindex="-1"></a>fG, eG, nG, enG <span class="op">=</span> ridges(Gn)</span>
+<span id="cb13-65"><a href="#cb13-65" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-66"><a href="#cb13-66" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(pd.DataFrame({</span>
+<span id="cb13-67"><a href="#cb13-67" aria-hidden="true" tabindex="-1"></a>    <span class="st">"real"</span>:      [np.median(dR), np.mean(dR <span class="op">&gt;</span> <span class="fl">0.05</span>), np.mean(dR <span class="op">&gt;</span> <span class="fl">0.10</span>),</span>
+<span id="cb13-68"><a href="#cb13-68" aria-hidden="true" tabindex="-1"></a>                  np.nanmedian(oR), np.nanstd(oR), np.nanmedian(aR), np.nanstd(aR),</span>
+<span id="cb13-69"><a href="#cb13-69" aria-hidden="true" tabindex="-1"></a>                  np.median(enR), np.median(fR), np.median(eR), np.median(nR)],</span>
+<span id="cb13-70"><a href="#cb13-70" aria-hidden="true" tabindex="-1"></a>    <span class="st">"generated"</span>: [np.median(dG), np.mean(dG <span class="op">&gt;</span> <span class="fl">0.05</span>), np.mean(dG <span class="op">&gt;</span> <span class="fl">0.10</span>),</span>
+<span id="cb13-71"><a href="#cb13-71" aria-hidden="true" tabindex="-1"></a>                  np.nanmedian(oG), np.nanstd(oG), np.nanmedian(aG), np.nanstd(aG),</span>
+<span id="cb13-72"><a href="#cb13-72" aria-hidden="true" tabindex="-1"></a>                  np.median(enG), np.median(fG), np.median(eG), np.median(nG)],</span>
+<span id="cb13-73"><a href="#cb13-73" aria-hidden="true" tabindex="-1"></a>}, index<span class="op">=</span>[<span class="st">"dark background, median fraction"</span>,</span>
+<span id="cb13-74"><a href="#cb13-74" aria-hidden="true" tabindex="-1"></a>          <span class="st">"crops with &gt;5</span><span class="sc">% d</span><span class="st">ark background"</span>,</span>
+<span id="cb13-75"><a href="#cb13-75" aria-hidden="true" tabindex="-1"></a>          <span class="st">"crops with &gt;10</span><span class="sc">% d</span><span class="st">ark background"</span>,</span>
+<span id="cb13-76"><a href="#cb13-76" aria-hidden="true" tabindex="-1"></a>          <span class="st">"lesion centroid offset from centre"</span>,</span>
+<span id="cb13-77"><a href="#cb13-77" aria-hidden="true" tabindex="-1"></a>          <span class="st">"  its spread (sd)"</span>,</span>
+<span id="cb13-78"><a href="#cb13-78" aria-hidden="true" tabindex="-1"></a>          <span class="st">"lesion area / leaf area"</span>,</span>
+<span id="cb13-79"><a href="#cb13-79" aria-hidden="true" tabindex="-1"></a>          <span class="st">"  its spread (sd)"</span>,</span>
+<span id="cb13-80"><a href="#cb13-80" aria-hidden="true" tabindex="-1"></a>          <span class="st">"edge energy (mean |Laplacian|)"</span>,</span>
+<span id="cb13-81"><a href="#cb13-81" aria-hidden="true" tabindex="-1"></a>          <span class="st">"largest ridge component / all ridge px"</span>,</span>
+<span id="cb13-82"><a href="#cb13-82" aria-hidden="true" tabindex="-1"></a>          <span class="st">"elongation of largest ridge component"</span>,</span>
+<span id="cb13-83"><a href="#cb13-83" aria-hidden="true" tabindex="-1"></a>          <span class="st">"number of separate ridge components"</span>]).<span class="bu">round</span>(<span class="dv">4</span>).to_string())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>420 real vs 420 generated crops
+                                            real  generated
+dark background, median fraction          0.0201     0.0037
+crops with &gt;5% dark background            0.3952     0.0952
+crops with &gt;10% dark background           0.2690     0.0167
+lesion centroid offset from centre        0.1143     0.1152
+  its spread (sd)                         0.0925     0.0869
+lesion area / leaf area                   0.4996     0.4980
+  its spread (sd)                         0.1187     0.1156
+edge energy (mean |Laplacian|)            0.1099     0.1203
+largest ridge component / all ridge px    0.1109     0.0805
+elongation of largest ridge component     2.4849     2.0917
+number of separate ridge components     121.0000   144.0000</code></pre>
+</div>
+</div>
+<p><strong>The background is missing, and this is the biggest single difference.</strong> A bounding box drawn round a lesion near the edge of a leaf picks up near-black background, and 39.5% of real crops have more than 5% such pixels against 9.5% of generated ones. Above 10% the gap is 26.9% against 1.7%. The generator has essentially learned that crops are filled edge to edge with leaf.</p>
+<p><strong>They are not, however, near-identical centred blobs.</strong> Lesion centroid offset from the crop centre is 0.114 of a half-width in real crops and 0.115 in generated ones, with spreads of 0.093 and 0.087; lesion area over leaf area is 0.500 against 0.498, spreads 0.119 and 0.116. Position and size are as varied as the real data. The impression of sameness comes from the uniform background, not from the lesion.</p>
+<p><strong>The vein-like marks are real texture in the wrong arrangement.</strong> Edge energy is if anything slightly higher in generated crops (0.120 against 0.110), so this is not a lack of detail. What differs is connectivity: the largest connected ridge holds 11.1% of ridge pixels in real crops against 8.0% in generated ones, its elongation is 2.49 against 2.09, and the marks break into 144 pieces against 121. The generator produces vein-like contrast but not vein-like runs.</p>
+<p><strong>Pipette ring damage: this measurement cannot answer it.</strong> A Hough circle transform finds 0.42 circles per real crop and 0.65 per generated one, which is the wrong direction, almost certainly because a roughly circular lesion boundary is itself a circle and the generated lesions are rounder. Separating ring damage from lesion outline needs annotation this dataset does not have, so nothing here supports or refutes the observation.</p>
+<section id="is-the-range-of-appearances-narrower-than-the-real-data" class="level3">
+<h3 class="anchored" data-anchor-id="is-the-range-of-appearances-narrower-than-the-real-data">6.1 Is the range of appearances narrower than the real data?</h3>
+<p>The complaint is not that any one generated crop is wrong but that they all look alike. That is a statement about variance, not about medians, so it needs measuring that way: match the class counts exactly, then compare how much the two sets spread out.</p>
+<div id="7f99b1dd" class="cell" data-execution_count="8">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 8</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> shape(X):</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    circ, elong, texture <span class="op">=</span> [], [], []</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> x <span class="kw">in</span> X:</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>        leaf, cda <span class="op">=</span> c2.segment_cda(x)</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>        m <span class="op">=</span> (cda <span class="op">&amp;</span> leaf).astype(np.uint8)</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> m.<span class="bu">sum</span>() <span class="op">&lt;</span> <span class="dv">20</span>:</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>        cs, _ <span class="op">=</span> cv.findContours(m, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_NONE)</span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>        c <span class="op">=</span> <span class="bu">max</span>(cs, key<span class="op">=</span>cv.contourArea)</span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>        P, A <span class="op">=</span> cv.arcLength(c, <span class="va">True</span>), cv.contourArea(c)</span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>        circ.append(<span class="dv">4</span> <span class="op">*</span> np.pi <span class="op">*</span> A <span class="op">/</span> <span class="bu">max</span>(P <span class="op">*</span> P, <span class="fl">1e-6</span>))</span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a>        ys, xs <span class="op">=</span> np.where(m <span class="op">&gt;</span> <span class="dv">0</span>)</span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a>        ev <span class="op">=</span> np.sort(np.linalg.eigvalsh(np.cov(np.vstack([ys, xs]))))</span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a>        elong.append(np.sqrt(ev[<span class="dv">1</span>] <span class="op">/</span> <span class="bu">max</span>(ev[<span class="dv">0</span>], <span class="fl">1e-6</span>)))</span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a>        texture.append(x.mean(<span class="dv">2</span>)[m <span class="op">&gt;</span> <span class="dv">0</span>].std())</span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.array(circ), np.array(elong), np.array(texture)</span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a>rr2 <span class="op">=</span> np.random.default_rng(<span class="dv">0</span>)</span>
+<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a>sel <span class="op">=</span> np.concatenate([rr2.choice(np.where(yr <span class="op">==</span> c)[<span class="dv">0</span>], <span class="dv">60</span>, replace<span class="op">=</span><span class="va">False</span>) <span class="cf">for</span> c <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>)])</span>
+<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a>Rm, yRm <span class="op">=</span> tr[sel], yr[sel]</span>
+<span id="cb15-23"><a href="#cb15-23" aria-hidden="true" tabindex="-1"></a>Gm, yGm <span class="op">=</span> cgan.sample(gen, LATENT, <span class="dv">60</span>, seed<span class="op">=</span><span class="dv">5</span>)</span>
+<span id="cb15-24"><a href="#cb15-24" aria-hidden="true" tabindex="-1"></a>cR, eRs, tR <span class="op">=</span> shape(Rm)</span>
+<span id="cb15-25"><a href="#cb15-25" aria-hidden="true" tabindex="-1"></a>cG, eGs, tG <span class="op">=</span> shape(Gm)</span>
+<span id="cb15-26"><a href="#cb15-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-27"><a href="#cb15-27" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(pd.DataFrame({</span>
+<span id="cb15-28"><a href="#cb15-28" aria-hidden="true" tabindex="-1"></a>    <span class="st">"real median"</span>: [np.median(cR), np.median(eRs), np.median(tR)],</span>
+<span id="cb15-29"><a href="#cb15-29" aria-hidden="true" tabindex="-1"></a>    <span class="st">"real sd"</span>:     [cR.std(), eRs.std(), tR.std()],</span>
+<span id="cb15-30"><a href="#cb15-30" aria-hidden="true" tabindex="-1"></a>    <span class="st">"gen median"</span>:  [np.median(cG), np.median(eGs), np.median(tG)],</span>
+<span id="cb15-31"><a href="#cb15-31" aria-hidden="true" tabindex="-1"></a>    <span class="st">"gen sd"</span>:      [cG.std(), eGs.std(), tG.std()],</span>
+<span id="cb15-32"><a href="#cb15-32" aria-hidden="true" tabindex="-1"></a>}, index<span class="op">=</span>[<span class="st">"lesion circularity (1 = perfect circle)"</span>,</span>
+<span id="cb15-33"><a href="#cb15-33" aria-hidden="true" tabindex="-1"></a>          <span class="st">"lesion elongation (1 = round)"</span>,</span>
+<span id="cb15-34"><a href="#cb15-34" aria-hidden="true" tabindex="-1"></a>          <span class="st">"within-lesion brightness sd (texture)"</span>]).<span class="bu">round</span>(<span class="dv">3</span>).to_string())</span>
+<span id="cb15-35"><a href="#cb15-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-36"><a href="#cb15-36" aria-hidden="true" tabindex="-1"></a>FRm, FGm <span class="op">=</span> c2.feature_table(Rm), c2.feature_table(Gm)</span>
+<span id="cb15-37"><a href="#cb15-37" aria-hidden="true" tabindex="-1"></a>mu2, sd2 <span class="op">=</span> FRm.mean(<span class="dv">0</span>), FRm.std(<span class="dv">0</span>)</span>
+<span id="cb15-38"><a href="#cb15-38" aria-hidden="true" tabindex="-1"></a>sd2[sd2 <span class="op">==</span> <span class="dv">0</span>] <span class="op">=</span> <span class="dv">1</span></span>
+<span id="cb15-39"><a href="#cb15-39" aria-hidden="true" tabindex="-1"></a>ZRm, ZGm <span class="op">=</span> (FRm <span class="op">-</span> mu2) <span class="op">/</span> sd2, (FGm <span class="op">-</span> mu2) <span class="op">/</span> sd2</span>
+<span id="cb15-40"><a href="#cb15-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-41"><a href="#cb15-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-42"><a href="#cb15-42" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> spread(Z, yy):</span>
+<span id="cb15-43"><a href="#cb15-43" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.mean([np.linalg.norm(Z[yy <span class="op">==</span> c] <span class="op">-</span> Z[yy <span class="op">==</span> c].mean(<span class="dv">0</span>), axis<span class="op">=</span><span class="dv">1</span>).mean()</span>
+<span id="cb15-44"><a href="#cb15-44" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">for</span> c <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>)])</span>
+<span id="cb15-45"><a href="#cb15-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-46"><a href="#cb15-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-47"><a href="#cb15-47" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> nnd(Z):</span>
+<span id="cb15-48"><a href="#cb15-48" aria-hidden="true" tabindex="-1"></a>    D <span class="op">=</span> np.linalg.norm(Z[:, <span class="va">None</span>] <span class="op">-</span> Z[<span class="va">None</span>], axis<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb15-49"><a href="#cb15-49" aria-hidden="true" tabindex="-1"></a>    np.fill_diagonal(D, np.inf)</span>
+<span id="cb15-50"><a href="#cb15-50" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.median(D.<span class="bu">min</span>(<span class="dv">1</span>))</span>
+<span id="cb15-51"><a href="#cb15-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-52"><a href="#cb15-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-53"><a href="#cb15-53" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Chapter 2 feature space (fixed arithmetic, nothing fitted to either set):"</span>)</span>
+<span id="cb15-54"><a href="#cb15-54" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  within-class spread      real </span><span class="sc">{</span>spread(ZRm, yRm)<span class="sc">:.3f}</span><span class="ss">  generated "</span></span>
+<span id="cb15-55"><a href="#cb15-55" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span>spread(ZGm, yGm)<span class="sc">:.3f}</span><span class="ss">  ratio </span><span class="sc">{</span>spread(ZGm, yGm) <span class="op">/</span> spread(ZRm, yRm)<span class="sc">:.2f}</span><span class="ss">x"</span>)</span>
+<span id="cb15-56"><a href="#cb15-56" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  nearest-neighbour dist   real </span><span class="sc">{</span>nnd(ZRm)<span class="sc">:.3f}</span><span class="ss">  generated </span><span class="sc">{</span>nnd(ZGm)<span class="sc">:.3f}</span><span class="ss">"</span></span>
+<span id="cb15-57"><a href="#cb15-57" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"  ratio </span><span class="sc">{</span>nnd(ZGm) <span class="op">/</span> nnd(ZRm)<span class="sc">:.2f}</span><span class="ss">x"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>                                         real median  real sd  gen median  gen sd
+lesion circularity (1 = perfect circle)        0.668    0.169       0.695   0.135
+lesion elongation (1 = round)                  1.208    0.460       1.200   0.156
+within-lesion brightness sd (texture)          0.079    0.031       0.087   0.028
+
+Chapter 2 feature space (fixed arithmetic, nothing fitted to either set):
+  within-class spread      real 2.459  generated 2.114  ratio 0.86x
+  nearest-neighbour dist   real 1.202  generated 1.067  ratio 0.89x</code></pre>
+</div>
+</div>
+<p><strong>The medians match and the variance is compressed.</strong> Median circularity is 0.668 real against 0.695 generated and median elongation 1.208 against 1.200, so a typical generated lesion is the right shape. The spreads are where they part: elongation has a standard deviation of 0.460 in real crops and <strong>0.156</strong> in generated ones, a threefold compression, and circularity 0.169 against 0.135. The generator has learned what an average lesion looks like and produces variations around it that are far narrower than the real range.</p>
+<p>Overall diversity in the unfitted feature space is 0.86x the real value by within-class spread and 0.89x by nearest-neighbour distance. That is a real narrowing but a modest one, which is why the effect reads as sameness rather than as identical images: the eye is picking up the threefold compression in shape variety and the near-total absence of dark background, not a collapse to one output.</p>
+<p><strong>Within-lesion texture is not the problem.</strong> Median within-lesion brightness standard deviation is 0.079 real against 0.087 generated, so generated lesions are, if anything, slightly less smooth than real ones.</p>
+</section>
+</section>
+<section id="frechet-calibration-against-the-ordinal-scale" class="level2">
+<h2 class="anchored" data-anchor-id="frechet-calibration-against-the-ordinal-scale">7. Frechet calibration against the ordinal scale</h2>
+<p>A Frechet distance has no units, so the generator’s 3.66 can only be read against distances measured the same way on real data. The calibration is the distance between REAL score classes: if two real classes one step apart sit at distance d, a generator whose crops sit at distance d from real crops of their own class is, in these terms, one score step wrong.</p>
+<p>Every comparison uses 131 crops per side. The Frechet distance is strongly biased by sample size – the 64-crop version of the section 1 reference gave the opposite answer to the 448-crop one – so holding n fixed across every pair is what makes the ladder readable.</p>
+<div id="46e853bd" class="cell" data-execution_count="9">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 7.1</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path <span class="im">as</span> _P2</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>CAL <span class="op">=</span> _P2(<span class="st">"calibration.npz"</span>)</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> CAL.exists():</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>    _z <span class="op">=</span> np.load(CAL)</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>    pair_d, pair_gap, within_d, gen_d <span class="op">=</span> _z[<span class="st">"pair_d"</span>], _z[<span class="st">"pair_gap"</span>], _z[<span class="st">"within_d"</span>], _z[<span class="st">"gen_d"</span>]</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>    NPC <span class="op">=</span> <span class="dv">131</span></span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>    _Xg2, _yg2 <span class="op">=</span> cgan.sample(gen, LATENT, <span class="dv">60</span>, seed<span class="op">=</span><span class="dv">5</span>)</span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>    by_class <span class="op">=</span> {c: tr[yr <span class="op">==</span> c] <span class="cf">for</span> c <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>)}</span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>    gen_class <span class="op">=</span> {c: _Xg2[_yg2 <span class="op">==</span> c] <span class="cf">for</span> c <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>)}</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>    pair_d, pair_gap <span class="op">=</span> [], []</span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> a <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>):</span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> b <span class="kw">in</span> <span class="bu">range</span>(a <span class="op">+</span> <span class="dv">1</span>, <span class="dv">7</span>):</span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a>            pair_d.append(fcd(by_class[a][:NPC], by_class[b][:NPC]))</span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a>            pair_gap.append(b <span class="op">-</span> a)</span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a>    within_d <span class="op">=</span> [fcd(by_class[c][:NPC], by_class[c][NPC:<span class="dv">2</span> <span class="op">*</span> NPC]) <span class="cf">for</span> c <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>)]</span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a>    gen_d <span class="op">=</span> [fcd(by_class[c][:NPC], gen_class[c][:NPC]) <span class="cf">for</span> c <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>)]</span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a>    pair_d, pair_gap <span class="op">=</span> np.array(pair_d), np.array(pair_gap)</span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a>    within_d, gen_d <span class="op">=</span> np.array(within_d), np.array(gen_d)</span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a>    np.savez(CAL, pair_d<span class="op">=</span>pair_d, pair_gap<span class="op">=</span>pair_gap, within_d<span class="op">=</span>within_d, gen_d<span class="op">=</span>gen_d)</span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="fl">6.6</span>, <span class="fl">4.0</span>))</span>
+<span id="cb17-24"><a href="#cb17-24" aria-hidden="true" tabindex="-1"></a>ax.scatter(np.zeros(<span class="bu">len</span>(within_d)), within_d, s<span class="op">=</span><span class="dv">30</span>, color<span class="op">=</span><span class="st">"#55A868"</span>,</span>
+<span id="cb17-25"><a href="#cb17-25" aria-hidden="true" tabindex="-1"></a>           label<span class="op">=</span><span class="st">"Two halves of one real class"</span>)</span>
+<span id="cb17-26"><a href="#cb17-26" aria-hidden="true" tabindex="-1"></a>ax.scatter(pair_gap <span class="op">+</span> np.random.default_rng(<span class="dv">0</span>).normal(<span class="dv">0</span>, <span class="fl">0.06</span>, <span class="bu">len</span>(pair_gap)), pair_d,</span>
+<span id="cb17-27"><a href="#cb17-27" aria-hidden="true" tabindex="-1"></a>           s<span class="op">=</span><span class="dv">26</span>, color<span class="op">=</span><span class="st">"#4C72B0"</span>, alpha<span class="op">=</span><span class="fl">0.8</span>, label<span class="op">=</span><span class="st">"Two different real classes"</span>)</span>
+<span id="cb17-28"><a href="#cb17-28" aria-hidden="true" tabindex="-1"></a><span class="co"># Named in the legend rather than written along the line, which put text over the data.</span></span>
+<span id="cb17-29"><a href="#cb17-29" aria-hidden="true" tabindex="-1"></a>ax.axhline(np.median(gen_d), color<span class="op">=</span><span class="st">"#C44E52"</span>, ls<span class="op">=</span><span class="st">"--"</span>, lw<span class="op">=</span><span class="fl">1.4</span>,</span>
+<span id="cb17-30"><a href="#cb17-30" aria-hidden="true" tabindex="-1"></a>           label<span class="op">=</span><span class="ss">f"Generated vs real, same class (median </span><span class="sc">{</span>np<span class="sc">.</span>median(gen_d)<span class="sc">:.2f}</span><span class="ss">)"</span>)</span>
+<span id="cb17-31"><a href="#cb17-31" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"Class separation on the 0-6 scale"</span>)</span>
+<span id="cb17-32"><a href="#cb17-32" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"Fréchet CDA distance"</span>)</span>
+<span id="cb17-33"><a href="#cb17-33" aria-hidden="true" tabindex="-1"></a>ax.set_xticks(<span class="bu">range</span>(<span class="dv">7</span>))</span>
+<span id="cb17-34"><a href="#cb17-34" aria-hidden="true" tabindex="-1"></a>ax.legend(fontsize<span class="op">=</span><span class="dv">8</span>, frameon<span class="op">=</span><span class="va">False</span>, loc<span class="op">=</span><span class="st">"upper left"</span>)</span>
+<span id="cb17-35"><a href="#cb17-35" aria-hidden="true" tabindex="-1"></a>ax.spines[[<span class="st">"top"</span>, <span class="st">"right"</span>]].set_visible(<span class="va">False</span>)</span>
+<span id="cb17-36"><a href="#cb17-36" aria-hidden="true" tabindex="-1"></a>fig.savefig(_P2(<span class="st">"thesis_plots"</span>) <span class="op">/</span> <span class="st">"frechet_calibration.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb17-37"><a href="#cb17-37" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb17-38"><a href="#cb17-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-39"><a href="#cb17-39" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> g <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, <span class="dv">7</span>):</span>
+<span id="cb17-40"><a href="#cb17-40" aria-hidden="true" tabindex="-1"></a>    m <span class="op">=</span> pair_gap <span class="op">==</span> g</span>
+<span id="cb17-41"><a href="#cb17-41" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  </span><span class="sc">{</span>g<span class="sc">}</span><span class="ss"> score step</span><span class="sc">{</span><span class="st">'s'</span> <span class="cf">if</span> g <span class="op">&gt;</span> <span class="dv">1</span> <span class="cf">else</span> <span class="st">' '</span><span class="sc">}</span><span class="ss">: median </span><span class="sc">{</span>np<span class="sc">.</span>median(pair_d[m])<span class="sc">:6.2f}</span><span class="ss">  (n=</span><span class="sc">{</span>m<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">}</span><span class="ss"> pairs)"</span>)</span>
+<span id="cb17-42"><a href="#cb17-42" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  same class, two halves:  median </span><span class="sc">{</span>np<span class="sc">.</span>median(within_d)<span class="sc">:6.2f}</span><span class="ss">"</span>)</span>
+<span id="cb17-43"><a href="#cb17-43" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  generated vs own class:  median </span><span class="sc">{</span>np<span class="sc">.</span>median(gen_d)<span class="sc">:6.2f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="cgan_quality_files/figure-html/cell-10-output-1.png" width="700" height="442" class="figure-img"></p>
+<figcaption>Frechet CDA distance between real score classes against their separation on the 0-6 scale, with the generator’s distance from real crops of its own class marked.</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  1 score step : median  28.44  (n=6 pairs)
+  2 score steps: median  84.40  (n=5 pairs)
+  3 score steps: median 181.67  (n=4 pairs)
+  4 score steps: median 303.40  (n=3 pairs)
+  5 score steps: median 423.59  (n=2 pairs)
+  6 score steps: median 568.18  (n=1 pairs)
+  same class, two halves:  median   7.27
+  generated vs own class:  median  10.81</code></pre>
+</div>
+</div>
+<hr>
+</section>
+<section id="what-this-says" class="level2">
+<h2 class="anchored" data-anchor-id="what-this-says">8. What this says</h2>
+<p><strong>The generator is close to real data but not inside it.</strong> Re-evaluated on 15 fresh latent draws the saved checkpoint scores 3.727-4.142, against 2.705-3.597 for a real held-out sample of the same size. The two ranges do not overlap, so the gap is real rather than sampling noise, but it is small – roughly a quarter of the way from real data to nothing.</p>
+<p><strong>The saved checkpoint is genuinely better than a typical epoch, not a lucky evaluation.</strong> This mattered because <code>best_fcd</code> is a minimum over 100 noisy evaluations, and the plateau after epoch 3000 has a standard deviation of 1.21, so the minimum of 100 draws would sit well below the mean by chance alone. The check is the re-evaluation above: if the recorded 3.659 had been luck, fresh draws would return to the plateau mean of 4.949. They return 3.896, so the epoch-selection rule picked a real improvement.</p>
+<p><strong>The epoch cap did not bind: config 48 is flat from about epoch 2,000.</strong> Measuring the trend from successively later start points gives -0.61, -0.57, -0.33, -0.06 and -0.18 per 1,000 epochs from epochs 1,000, 1,500, 2,000, 2,500 and 3,000, against a point-to-point standard deviation of 1.1 to 1.6 throughout. From epoch 2,000 the fitted decline over the remaining 3,000 epochs is about 1.0, smaller than the noise between consecutive evaluations, so it is not distinguishable from flat. Of the top six configs only 42 has a trend clearly larger than its own noise. Training longer is not the lever.</p>
+<p><strong>Nothing is memorising.</strong> Each generated crop’s nearest real training crop sits at 4.630 against 4.285 for real-to-real nearest neighbours, a ratio of 1.08. Generated crops are slightly further from real ones than real ones are from each other, which is the opposite of copying. The Fréchet distance cannot see this on its own – perfect memorisation scores 0.032 on it, thirty times <em>better</em> than the real-data reference – so it had to be checked separately.</p>
+<p><strong>What the samples get wrong is the range of appearances, not the average one.</strong> The lesion grows and yellows correctly from score 0 to 6, so the conditioning works, and a typical generated lesion has the right position, size, circularity and internal texture. What has gone is the tail of the distribution: elongation varies threefold less than in real crops, and the dark off-leaf background that appears in 39.5% of real crops appears in 9.5% of generated ones. Section 6 measures each of these. A classifier trained on this data would never see a lesion running off the edge of a leaf, and never see a long thin one.</p>
+<p><strong>The one hyperparameter that separated.</strong> All ten best configs used <code>lr_ratio_d = 4.0</code>, the discriminator running at four times the generator’s learning rate. Mean Fréchet distance is 4.71 at that setting against 13.27 at 1.0. Nothing else – beta_1, dropout, label smoothing, generator width – separates as cleanly, which is worth reporting given that the original grid held this axis fixed at 1.0 and so could not have found it.</p>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

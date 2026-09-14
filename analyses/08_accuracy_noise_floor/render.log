@@ -1,0 +1,52 @@
+
+Starting autocdascorer-analyses kernel...[IPKernelApp] WARNING | Kernel is running over TCP without encryption. All communication (including code and outputs) is sent in plain text and is susceptible to eavesdropping. Use IPC transport or launch with kernel manager-provisioned CurveZMQ keys to enable transport encryption.
+Done
+
+Executing 'cnn_accuracy_noise_floor.quarto_ipynb'
+  Cell 1/19: ''...Done
+  Cell 2/19: ''...Done
+  Cell 3/19: ''...Done
+  Cell 4/19: ''...Done
+  Cell 5/19: ''...Done
+  Cell 6/19: ''...Done
+  Cell 7/19: ''...Done
+  Cell 8/19: ''...Done
+  Cell 9/19: ''...Done
+  Cell 10/19: ''...Done
+  Cell 11/19: ''...Done
+  Cell 12/19: ''...Done
+  Cell 13/19: ''...Done
+  Cell 14/19: ''...Done
+  Cell 15/19: ''...Done
+  Cell 16/19: ''...Done
+  Cell 17/19: ''...Done
+  Cell 18/19: ''...Done
+  Cell 19/19: ''...Done
+
+[1mpandoc [22m
+  to: html
+  output-file: cnn_accuracy_noise_floor.html
+  standalone: true
+  section-divs: true
+  html-math-method: mathjax
+  wrap: none
+  default-image-extension: png
+  toc: true
+  variables: {}
+  
+[1mmetadata[22m
+  document-css: false
+  link-citations: true
+  date-format: long
+  lang: en
+  engines:
+    - path: /Applications/quarto/share/extension-subtrees/julia-engine/_extensions/julia-engine/julia-engine.js
+  title: Is the top CNN just luck? The accuracy noise floor of the Base-CNN grid search
+  jupyter: autocdascorer-analyses
+  
+[33mWARNING (/Applications/quarto/share/filters/main.lua:10085) 
+The following string was found in the document: :::
+
+This usually indicates a problem with a fenced div in the document. Please check the document for errors.
+[39mOutput created: cnn_accuracy_noise_floor.html
+

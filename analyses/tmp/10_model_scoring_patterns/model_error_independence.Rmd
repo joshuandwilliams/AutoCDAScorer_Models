@@ -1,0 +1,1105 @@
+---
+title: "Model Error Independence Analysis for Ensembling"
+author: "Joshua Williams"
+date: "2025-05-01"
+output: html_document
+---
+
+## Questions:
+
+### Is there enough disagreement between models to allow an ensemble to identify a more accurate prediction than any single model? Do the models make unique errors or do they all fail on the same images?
+
+$H_0$: Models will make different errors on different images: their error residuals will be uncorrelated.
+
+Rationale: Models differ in their architecture and training data source, leading them to learn different decision boundaries.
+
+$H_1$: Models will make the same errors on the same images: their error residuals will be correlated. If model 1's prediction is distant from the ground truth, then model 2's prediction is also distant in the same direction.
+
+Rationale: All training datasets were derived from the same parent dataset. Ambiguous ground truth labels could cause the model to learn the same incorrect rules and make the same errors.
+
+### Do voting and Random Forest ensembles improve upon the top-performing single model?
+
+$H_0$: Ensembling the model outputs will give no significant performance improvement over the top-performing single model.
+
+Rationale: Inconsistent data labeling could mean that disagreements between models are random predictions between adjacent scores.
+
+$H_1$: Ensembling the model outputs will give significant performance improvements over the top-performing single model.
+
+Rationale:  All model accuracies are better than half. If models disagree, some may score one image subset better, and some may score a different subset better.
+
+### Experimental Plan
+
+#### Data visualisations
+
+*Overall view of agreement patterns*
+
+- Model scores heatmap: Plot all scores of all models. Horizontal bands indicate agreement. Vertical bands indicate disagreement.
+
+*How much room for improvement is there?*
+
+- Internal model agreement: If most models agree with each other most of the time, there is little room for improvement.
+- External model agreement: If most models are correct most of the time, there is little room for improvement.
+
+*Why are model predictions different?*
+
+- Prediction counts: If models predict some scores more often than others, this might explain differences in prediction.
+- Distance from median heatmap: Some models may on average score higher or lower than the average. This may explain differences in prediction.
+
+*Error relationships between model pairs*
+
+- Pearson Correlation heatmap: Do any specific models disagree often?
+- Tile heatmap: Do these models show a particular pattern of disagreement?
+
+#### Krippendorff's Alpha (with bootstrapping)
+
+Krippendorff's alpha measures inter-scorer reliability for more than two scorers and any data types (nominal, ordinal, interval). It lies between 0 (complete disagreement) and 1 (complete agreement).
+
+Null Hypothesis: The error residuals of the 9 models are uncorrelated (low inter-scorer reliability - good for ensembling).
+
+Note: Although the original CDA severity scores are ordinal, we treat the residuals as interval data to weight the mathematical distance between disagreeing predictions (i.e. disagreements of different magnitudes are weighted differently).
+
+*Sources* Hughes and Krippendorff, 2007 <https://doi.org/10.1080/19312450709336664>
+
+Krippendorff, 2011 "Computing Krippendorff's Alpha-Reliability" <https://www.asc.upenn.edu/sites/default/files/2021-03/Computing%20Krippendorff%27s%20Alpha-Reliability.pdf>
+
+#### Ensembling
+
+*Simple Voting:* Take a median of the 9 predictions as a single consensus prediction.
+
+*Random Forests:* Try random forest models with node counts between 2 and 200 and select that with best ensemble set accuracy.
+
+### Setup
+
+```{r packages, include=FALSE}
+library(tidyverse)
+library(irr) # Needed for Krippendorff test
+library(forcats)
+library(viridis)
+library(randomForest)
+```
+
+### Load data and downsample
+
+```{r load_data}
+model_scores <- read_csv("/Users/jowillia/Documents/GitHub/AutoCDAScorer_Models/analyses/10_model_scoring_patterns/ranked_model_predictions.csv", show_col_types=FALSE)
+model_scores$experiment <- str_replace_all(model_scores$experiment, "-", "_")
+cat(sprintf("There are %d images in the original dataset.\n", nrow(model_scores)))
+```
+
+### Model scores heatmap
+
+Visualising all scores of all models in a heatmap provides an initial look at whether the models tend to agree with each other (horizontal banding) or disagree with each other (vertical banding)
+
+```{r}
+# Sorting images by low to high median then mean will help identify blocks of agreement
+model_scores_filtered <- model_scores %>%
+  select(1:10) %>%
+  mutate(
+    img_median = apply(across(2:10), 1, median),
+    img_mean = apply(across(2:10), 1, mean)
+  ) %>%
+  filter(img_median > 0) %>%
+  arrange(img_median, img_mean) %>%
+  mutate(img_name = fct_inorder(img_name))
+
+# Pivot to long format
+plot_data <- model_scores_filtered %>%
+  pivot_longer(
+    cols = 2:10,
+    names_to = "model_id",
+    values_to = "score"
+  ) %>%
+  mutate(score = factor(score, levels = 0:6))
+```
+
+```{r heatmap, fig.height=45, fig.width=10}
+ggplot(plot_data, aes(x = model_id, y = img_name, fill = score)) + 
+  geom_tile() + 
+  # Use manual colors from the magma palette to ensure exactly 7 distinct colors
+  scale_fill_manual(
+    values = magma(7), 
+    drop = FALSE,
+    guide = guide_legend(reverse = TRUE, override.aes = list(size = 5))
+  ) + 
+  scale_x_discrete(position = "top") +
+  theme_minimal() + 
+  theme(
+    axis.text.x = element_text(angle = 45, vjust = 0, hjust = 0),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    panel.grid = element_blank(),
+  ) +
+  labs(
+    x = "Model Name",
+    y = "Images (Sorted: Median then Mean)",
+    fill = "Score"
+  )
+```
+
+Some horizontal banding (agreement) is visible, particularly among images with a median model prediction of 1 or 6.
+
+There is very little horizontal banding in intermediate scores: there is almost always some scoring disagreement.
+
+Most disagreements are adjacent scores.
+
+Because I sorted by median and mean, the colour transitions in each vertical band show where each model transitions from one score to the next. The disagreements between models often follows a pattern where one model scores consistently higher (e.g. Tran_Composite_7000), and one consistently lower (e.g. CNN_Base), rather than random disagreement.
+
+### Load in Human Scores
+```{r}
+path <- "/Users/jowillia/Documents/GitHub/AutoCDAScorer_Models/analyses/01_generate_raw_data/06_Score_Table/score_table.csv"
+human_scores <- read.csv(path, check.names = FALSE)
+
+# Preview data
+head(human_scores)
+```
+
+### Downsampled Dataset
+
+```{r downsample}
+set.seed(42)
+min_count <- model_scores %>%
+  count(human_score) %>%
+  pull(n) %>%
+  min()
+sampled_data <- model_scores %>%
+  group_by(human_score) %>%
+  slice_sample(n = min_count) %>%
+  ungroup()
+cat(sprintf("There are %d images in the downsampled dataset.\n", nrow(sampled_data)))
+cat(sprintf("Each class contains %d images.\n", min_count))
+```
+
+Downsample human scores to the same subset.
+
+```{r}
+# Construct the filename key to match model_scores
+human_scores_with_name <- human_scores %>%
+  mutate(
+    Base_Stem = str_remove(Basename, "(?i)\\.TIF"),
+    img_name_generated = paste0(Base_Stem, "_", Row, "_", Col, "_", Pos, ".tif")
+  )
+
+# Extract only the images selected in sampled_data
+human_sampled_data <- human_scores_with_name %>%
+  inner_join(sampled_data %>% select(img_name), 
+             by = c("img_name_generated" = "img_name"))
+
+# Output summary
+cat(sprintf("There are %d images in the downsampled dataset.\n", nrow(human_sampled_data)))
+
+min_count_human <- human_sampled_data %>%
+  count(median_score) %>%
+  pull(n) %>%
+  min()
+
+cat(sprintf("Each class contains %d images.\n", min_count_human))
+```
+
+### Internal and external model agreement
+
+```{r}
+combined_plot_data <- sampled_data %>%
+  mutate(img_median = apply(across(2:10), 1, median)) %>%
+  filter(img_median > 0) %>%
+  mutate(
+    Consensus = round(model_agreement * 9),
+    Accuracy = round(agreement_pct * 9)
+  ) %>%
+  pivot_longer(
+    cols = c(Consensus, Accuracy), 
+    names_to = "Metric", 
+    values_to = "Agreeing_Models"
+  ) %>%
+  count(Metric, Agreeing_Models) %>%
+  complete(Metric, Agreeing_Models = 0:9, fill = list(n = 0))
+
+# 2. Create the grouped bar plot
+ggplot(combined_plot_data, aes(x = factor(Agreeing_Models), y = n, fill = Metric)) +
+  geom_bar(stat = "identity", position = "dodge", color = "black") +
+  geom_text(
+    aes(label = n), 
+    position = position_dodge(width = 0.9), 
+    vjust = -0.5, 
+    size = 3.5
+  ) +
+  scale_x_discrete(limits = as.character(0:9)) +
+  scale_fill_manual(values = c("Consensus" = "steelblue", "Accuracy" = "coral")) +
+  labs(
+    x = "Number of Models",
+    y = "Count of Images (Median > 0)"
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    legend.position = "top"
+  )
+```
+
+#### Blue: How many models agree with each other?
+
+The blue bars show how common it is for a given number of models to agree with the median score.
+
+If most models agree most of the time, there is little room for improvement. If most models disagree (show different errors), ensembling may improve performance.
+
+For most of the images, more than half of the models agree on the score.
+
+The most common outcome is 5 agreeing models. With each additional agreeing model, the number of images decreases. The remaining disagreeing models may agree or disagree among themselves.
+
+Models show some level of disagreement for most images. There is room for improvement.
+
+#### Orange: How many models agree with the ground truth?
+
+The orange bars show how common it is for a given number of models to agree with the ground truth.
+
+If most models are correct most of the time, there is little room for improvement. If most models are incorrect most of the time, there is little room for improvement. If some models are correct and others are incorrect, ensembling may improve performance.
+
+The most common outcome is for 6 or 7 models to agree with the ground truth (and each other). There is some room for improvement.
+
+There are 718 (28%) images where less than half of the models agree with the ground truth.
+
+There are 138 images where 0 models agreed with the ground truth, and 178 where only one did. Here the models either cannot distinguish the correct predictive features, or collectively disagree with unreliable ground truth labels.
+
+#### Comparison
+
+Even when the majority of models agree among themselves, they often disagree with the ground truth.
+
+There are more images where all 9 models agreed than where all 9 models are correct. In these images, all models disagreed with the ground truth.
+
+Conversely, there are 178 images where only one model is correct. Since there are only 2 images where there is a consensus of 1, in those 178 images the models have clustered somewhere else.
+
+### Prediction Score Counts per Model
+
+In the downsampled dataset, a model with 100% accuracy would predict 436 of each score.
+
+This heatmap will visualise whether models predict some scores more often than others.
+
+```{r, fig.height=10, fig.width=10}
+model_names <- colnames(sampled_data)[2:10]
+
+score_freq_all <- sampled_data %>%
+  select(1:10) %>%
+  pivot_longer(cols = 2:10, names_to = "model_id", values_to = "score") %>%
+  mutate(model_id = factor(model_id, levels = model_names)) %>%
+  group_by(model_id, score) %>%
+  summarise(Count = n(), .groups = 'drop')
+
+ggplot(score_freq_all, aes(x = model_id, y = factor(score), fill = Count)) +
+  geom_tile(color = "black") +
+  geom_text(aes(label = Count), color = "black", size = 4) +
+  scale_fill_gradient2(
+    low = "blue", 
+    mid = "white", 
+    high = "red", 
+    midpoint = min_count, 
+    name = "Frequency"
+  ) + 
+  labs(
+    x = "Model", 
+    y = "Score"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+```
+
+The heatmap shows us that the models do indeed predict some scores more often than others.
+
+When models favour one score (e.g. CNN Confident Score 1) then adjacent scores are predicted less often (e.g. CNN Confident Scores 0 and 2).
+
+The patterns seen in this plot agree with the vertical banding transitions from the all-score heatmap above - scores predicted more often by a model appear as a longer vertical band on the all-score heatmap.
+
+Because of their architectures and training datasets, models have learnt different decision boundaries.
+
+### Distance from Model Prediction Median Heatmap
+
+To identify models that predict consistently higher or lower than the median prediction.
+
+```{r, fig.height=10, fig.width=10}
+bias_order <- sampled_data %>%
+  select(1:10) %>%
+  mutate(img_median = apply(across(2:10), 1, median)) %>%
+  pivot_longer(cols = 2:10, names_to = "model_id", values_to = "score") %>%
+  mutate(distance = score - img_median) %>%
+  group_by(model_id) %>%
+  summarise(mean_bias = mean(distance), .groups = 'drop') %>%
+  arrange(mean_bias) %>%
+  pull(model_id)
+
+dist_data_all <- sampled_data %>%
+  select(1:10) %>%
+  mutate(img_median = apply(across(2:10), 1, median)) %>%
+  pivot_longer(cols = 2:10, names_to = "model_id", values_to = "score") %>%
+  mutate(
+    distance = score - img_median,
+    model_id = factor(model_id, levels = bias_order)
+  ) %>%
+  group_by(model_id, distance) %>%
+  summarise(Count = n(), .groups = 'drop') %>%
+  mutate(fill_count = ifelse(distance == 0, NA, Count))
+
+ggplot(dist_data_all, aes(x = model_id, y = distance)) +
+  geom_tile(aes(fill = fill_count), color = "black") +
+  geom_text(aes(label = Count), color = "black", size = 4) +
+  scale_fill_gradient(
+    name = "Frequency", 
+    low = "white", 
+    high = "red", 
+    na.value = "skyblue"
+  ) + 
+  scale_y_continuous(breaks = seq(-6, 6, 1)) + 
+  labs(
+    x = "Model", 
+    y = "Distance (Score - Median)"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
+    panel.grid.major = element_line(color = "grey90"),
+    panel.grid.minor = element_blank()
+  )
+```
+
+This shows that some models tend to predict scores higher than the median (e.g. Tran_Composite_7000), whilst some tend to predict scores lower than the median (e.g. CNN_Base).
+
+The four models that predict higher than the median more often are trained on data that less accurately represent real images (composite images, CGAN images). In GAN-generated images, this can be caused by a calibration bias, where the synthetic data distribution isn't perfectly aligned with the real-world validation set.
+
+The two best-performing models, Tran_Geom_700 and Tran_Composite_7000, have opposing mean biases despite high validation accuracies, indicating it may be worthwhile to ensemble them. CNN_Geom_700 could be added as a neutral anchor, since its predictions consistently fall in the middle of the group.
+
+### Heatmap of Pearson correlations
+
+```{r}
+residuals_wide <- sampled_data %>%
+  mutate(across(2:10, ~ . - human_score)) %>%
+  select(2:10)
+
+# Correlation matrix
+cor_matrix <- cor(residuals_wide, method = "pearson")
+
+# Reshape for plotting
+cor_melted <- cor_matrix %>%
+  as.data.frame() %>%
+  rownames_to_column(var = "Model1") %>%
+  pivot_longer(cols = -Model1, names_to = "Model2", values_to = "Pearson")
+
+ggplot(cor_melted, aes(x = Model1, y = Model2, fill = Pearson)) +
+  geom_tile(color = "black", linewidth = 0.2) +
+  geom_text(aes(label = round(Pearson, 2)), color = "black", size = 3) +
+  scale_fill_gradient2(low = "lightblue", high = "red", mid = "white", 
+                       midpoint = 0.5, limit = c(0, 1)) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(x = NULL, y = NULL)
+```
+
+The Pearson correlation of all model pairs is \>0.
+
+The lowest correlation is between CNN_Base and Tran_CGAN_A at 0.39, and the highest correlation is between Tran_Base and Tran_Geom_700 at 0.74.
+
+### Visually compare the residuals of each model
+
+#### Continuous Colour Scheme
+
+```{r}
+# Calculate residuals
+residuals_with_id <- sampled_data %>%
+  mutate(across(2:10, ~ . - human_score)) %>%
+  select(2:10) %>%
+  rowid_to_column(var = "ImageID")
+
+# Convert to long format
+long_data <- residuals_with_id %>%
+  pivot_longer(cols = -ImageID, names_to = "Model", values_to = "Residual")
+
+# Filter model comparisons (only make each comparison one time)
+pairwise_data <- long_data %>%
+  inner_join(long_data, by = "ImageID", suffix = c(".x", ".y"), relationship = "many-to-many") %>%
+  filter(as.character(Model.x) < as.character(Model.y)) 
+
+# Count frequencies
+plot_matrix <- pairwise_data %>%
+  count(Model.x, Model.y, Residual.x, Residual.y, name = "Count")
+
+# Shorten model names for plot
+all_models <- sort(unique(c(as.character(residuals_with_id %>% select(-ImageID) %>% colnames()))))
+short_labels <- setNames(substring(all_models, 9), all_models)
+
+# Add shortened model names to frequency matrix
+plot_matrix_viz <- plot_matrix %>%
+  mutate(
+    Model.x = factor(Model.x, levels = all_models, labels = short_labels[all_models]),
+    Model.y = factor(Model.y, levels = rev(all_models), labels = short_labels[rev(all_models)])
+  )
+
+print(plot_matrix_viz)
+```
+
+**Single pair of models**
+
+```{r}
+my_palette <- colorRampPalette(c("lightblue", "red"))(100)
+
+single_pair_data <- plot_matrix_viz %>%
+  filter(Model.x == "CNN_Base", Model.y == "Tran_Composite_7000")
+
+ggplot(single_pair_data, aes(x = Residual.x, y = Residual.y)) +
+  geom_tile(aes(fill = Count), color = "black", linewidth = 0.1) +
+  annotate("segment", x = -6, y = -6, xend = 6, yend = 6, 
+           linetype = "dashed", alpha = 0.6, linewidth = 0.2) +
+  scale_fill_gradientn(colours = my_palette, name = "Frequency") +
+  scale_x_continuous(breaks = c(-6, -3, 0, 3, 6)) +
+  scale_y_continuous(breaks = c(-6, -3, 0, 3, 6)) +
+  coord_cartesian(xlim = c(-6, 6), ylim = c(-6, 6)) +
+  labs(
+    x = "CNN_Base Residuals",
+    y = "Tran_Composite_7000 Residuals", 
+  ) + 
+  theme_bw() +
+  theme(
+    panel.grid = element_blank(),
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 10)
+  )
+```
+
+The further the boxes are from the diagonal line, the more the models' errors are different.
+
+**Tile plot (all v all)**
+
+```{r}
+line_data <- plot_matrix_viz %>%
+  distinct(Model.x, Model.y) %>%
+  mutate(slope = 1, intercept = 0)
+
+my_palette <- colorRampPalette(c("lightblue", "red"))(100)
+
+ggplot(plot_matrix_viz, aes(x = Residual.x, y = Residual.y)) +
+  geom_tile(aes(fill = Count), color = "black", linewidth = 0.1) +
+  geom_abline(data = line_data, 
+              aes(slope = slope, intercept = intercept), 
+              linetype = "dashed", alpha = 0.6, linewidth = 0.2) +
+  scale_fill_gradientn(colours = my_palette, name = "Frequency") +
+  facet_grid(Model.y ~ Model.x, switch = "both") +
+  scale_x_continuous(breaks = c(-6, -3, 0, 3, 6)) +
+  scale_y_continuous(breaks = c(-6, -3, 0, 3, 6)) +
+  labs(x = NULL, y = NULL) + 
+  theme_bw() +
+  theme(
+    panel.grid = element_blank(),
+    strip.placement = "outside",
+    panel.spacing = unit(0.05, "lines"),
+    strip.background = element_blank(),
+    strip.text.x = element_text(angle = 0, hjust = 1, vjust = 0.5, size = 4),
+    strip.text.y.left = element_text(angle = 0, hjust = 1, vjust = 0.5, size = 4),
+    axis.text = element_text(size = 5),
+    legend.text = element_text(size = 6),
+    legend.title = element_text(size = 6)
+  )
+```
+
+The most common error pattern is no error - the models agree with each other and with the ground truth.
+
+#### Discrete Colour Scheme
+
+```{r}
+single_pair_data <- plot_matrix_viz %>%
+  filter(Model.x == "CNN_Base", Model.y == "Tran_Composite_7000") %>%
+  mutate(Count_Binned = cut(Count, 
+                            breaks = c(0, 1, 10, 100, 1000, Inf),
+                            labels = c("1", "2-10", "11-100", "101-1000", "1000+"),
+                            include.lowest = TRUE))
+
+discrete_palette <- c(
+  "1"       = "#eff3ff",
+  "2-10"    = "#9ecae1",
+  "11-100"  = "#3182bd",
+  "101-1000" = "#fdae61",
+  "1000+"    = "#d73027"
+)
+```
+
+**Single pair of models**
+
+```{r}
+ggplot(single_pair_data, aes(x = Residual.x, y = Residual.y)) +
+  geom_tile(aes(fill = Count_Binned), color = "black", linewidth = 0.1) +
+  annotate("segment", x = -6, y = -6, xend = 6, yend = 6, 
+           linetype = "dashed", alpha = 0.6, linewidth = 0.2) +
+  scale_fill_manual(values = discrete_palette, name = "Frequency") +
+  scale_x_continuous(breaks = c(-6, -3, 0, 3, 6)) +
+  scale_y_continuous(breaks = c(-6, -3, 0, 3, 6)) +
+  coord_cartesian(xlim = c(-6, 6), ylim = c(-6, 6)) +
+  labs(
+    x = "CNN_Base Residuals",
+    y = "Tran_Composite_7000 Residuals",
+  ) + 
+  theme_bw() +
+  theme(
+    panel.grid = element_blank(),
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 10)
+  )
+```
+
+**Tile plot (all v all)**
+
+```{r}
+plot_matrix_viz <- plot_matrix_viz %>%
+  mutate(Count_Binned = cut(Count, 
+                            breaks = c(0, 1, 10, 100, 1000, Inf),
+                            labels = c("1", "2-10", "11-100", "101-1000", "1000+")))
+
+segment_data <- plot_matrix_viz %>%
+  distinct(Model.x, Model.y) %>%
+  mutate(x_start = -6, y_start = -6, x_end = 6, y_end = 6)
+
+ggplot(plot_matrix_viz, aes(x = Residual.x, y = Residual.y)) +
+  geom_tile(aes(fill = Count_Binned), color = "black", linewidth = 0.1) +
+  
+  geom_segment(data = segment_data, aes(x = x_start, y = y_start, xend = x_end, yend = y_end), 
+               linetype = "dashed", alpha = 0.6, linewidth = 0.2) +
+  
+  scale_fill_manual(values = discrete_palette, name = "Frequency") +
+  
+  facet_grid(Model.y ~ Model.x, switch = "both") +
+  scale_x_continuous(breaks = c(-6, -3, 0, 3, 6)) +
+  scale_y_continuous(breaks = c(-6, -3, 0, 3, 6)) +
+  labs(x = NULL, y = NULL) + 
+  
+  theme_bw() +
+  theme(
+    panel.grid = element_blank(),
+    strip.placement = "outside",
+    panel.spacing = unit(0.05, "lines"),
+    strip.background = element_blank(),
+    strip.text.x = element_text(angle = 0, hjust = 1, vjust = 0.5, size = 4),
+    strip.text.y.left = element_text(angle = 0, hjust = 1, vjust = 0.5, size = 4),
+    axis.text = element_text(size = 5),
+    legend.text = element_text(size = 6),
+    legend.title = element_text(size = 6)
+  )
+```
+
+This colour scale still shows that agreement between both models and the ground truth is the most common.
+
+It also shows more clearly that the extreme disagreements tend to be single occurences.
+
+The bins for this discrete colour scale follow an approximately logarithmic scale
+
+```{r}
+plot_matrix_viz <- plot_matrix_viz %>%
+  mutate(Count_Binned = cut(Count, 
+                            breaks = c(0, 1, 10, 100, 1000, Inf),
+                            labels = c("1", "2-10", "11-100", "101-1000", "1000+"),
+                            include.lowest = TRUE))
+
+ggplot(plot_matrix_viz, aes(x = Count, fill = Count_Binned)) +
+  geom_histogram(bins = 60, color = "black", linewidth = 0.1) +
+  scale_fill_manual(values = discrete_palette, name = "Count Group") +
+  scale_x_log10(breaks = c(1, 10, 100, 1000, 10000), labels = scales::comma) +
+  labs(
+    x = "Number of images sharing the same specific (Model A, Model B) residual pair (log scale)",
+    y = "Frequency (how many unique error patterns share this occurence rate)"
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "right",
+    plot.subtitle = element_text(size = 9, color = "grey40"),
+    axis.title.x = element_text(size = 8), 
+    axis.title.y = element_text(size = 8),
+    axis.text = element_text(size = 8)
+  )
+```
+
+### Pairwise agreement
+
+```{r}
+# Identify the model columns (columns 2 through 10 in your sampled_data)
+model_names <- colnames(sampled_data)[2:10]
+
+# Generate all unique pairs of models
+model_pairs <- t(combn(model_names, 2))
+
+# Calculate agreement metrics for each pair
+pairwise_agreement_results <- apply(model_pairs, 1, function(pair) {
+  m1 <- pair[1]
+  m2 <- pair[2]
+  
+  # Exact agreement: model1 == model2
+  exact_agree <- mean(sampled_data[[m1]] == sampled_data[[m2]]) * 100
+  
+  # Within 1 score: |model1 - model2| <= 1
+  near_agree <- mean(abs(sampled_data[[m1]] - sampled_data[[m2]]) <= 1) * 100
+  
+  data.frame(
+    Model_A = m1,
+    Model_B = m2,
+    Exact_Agreement_Pct = exact_agree,
+    Within_1_Pct = near_agree
+  )
+}) %>% bind_rows()
+
+# View summary statistics
+summary_stats <- pairwise_agreement_results %>%
+  summarise(
+    Avg_Exact_Agreement = mean(Exact_Agreement_Pct),
+    Avg_Within_1_Agreement = mean(Within_1_Pct)
+  )
+
+print(summary_stats)
+#print(pairwise_agreement_results)
+```
+
+```{r}
+# Identify the human scorer columns (excluding IDs and metadata)
+human_names <- setdiff(names(human_sampled_data), 
+                       c("Basename", "Row", "Col", "Pos", "median_score", "Base_Stem", "img_name_generated"))
+
+# Ensure all scorer columns are numeric
+human_sampled_data <- human_sampled_data %>%
+  mutate(across(all_of(human_names), ~as.numeric(as.character(.))))
+
+# Generate all unique pairs of human scorers
+human_pairs <- t(combn(human_names, 2))
+
+# Calculate agreement metrics for each pair, accounting for NAs
+pairwise_human_results <- apply(human_pairs, 1, function(pair) {
+  h1 <- pair[1]
+  h2 <- pair[2]
+  
+  s1 <- human_sampled_data[[h1]]
+  s2 <- human_sampled_data[[h2]]
+  
+  # Only compare images where both scorers provided a score
+  valid_indices <- !is.na(s1) & !is.na(s2)
+  
+  if (sum(valid_indices) == 0) {
+    return(data.frame(
+      Scorer_A = h1,
+      Scorer_B = h2,
+      Exact_Agreement_Pct = NA,
+      Within_1_Pct = NA
+    ))
+  }
+  
+  v1 <- s1[valid_indices]
+  v2 <- s2[valid_indices]
+  
+  data.frame(
+    Scorer_A = h1,
+    Scorer_B = h2,
+    Exact_Agreement_Pct = mean(v1 == v2) * 100,
+    Within_1_Pct = mean(abs(v1 - v2) <= 1) * 100
+  )
+}) %>% bind_rows()
+
+# View summary statistics
+human_summary_stats <- pairwise_human_results %>%
+  summarise(
+    Avg_Exact_Agreement = mean(Exact_Agreement_Pct, na.rm = TRUE),
+    Avg_Within_1_Agreement = mean(Within_1_Pct, na.rm = TRUE)
+  )
+
+print(human_summary_stats)
+```
+
+### Krippendorff's Alpha
+
+```{r}
+residuals_matrix <- sampled_data %>%
+  mutate(across(2:10, ~ . - human_score)) %>%
+  select(2:10) %>%
+  as.matrix() %>%
+  t()
+
+single_result <- kripp.alpha(residuals_matrix, method = "interval")
+print(single_result)
+```
+
+When $\alpha$ = 1, this means all scorers are in complete agreement (perfect reliability).
+
+When $\alpha$ = 0, this means scorers are in complete disagreement.
+
+Hayes and Krippendorff (2007) argue that based on the risks of drawing invalid conclusions from noisy data, $\alpha \ge 0.80$ is standard for good reliability, and $0.80 > \alpha \ge 0.667$ supports tentative conclusions.
+
+Our $alpha$ value of 0.522 is below both of these thresholds. Different models share some of the same errors, but their residuals vary enough that they cannot be called consistent.
+
+I wanted to ensure that the random subset chosen during class balancing wasn't biasing the outcome, so I repeated the calculation 1000 times with a different random subsets, computing Krippendorff's Alpha for each and generating a distribution.
+
+```{r}
+output_file <- "alpha_values.rds"
+n_iterations <- 1000
+
+if (file.exists(output_file)) {
+  cat("Loading cached results from", output_file, "\n")
+  alpha_values <- readRDS(output_file)
+} else {
+  cat("No cache found. Running", n_iterations, "iterations...\n")
+  alpha_values <- numeric(n_iterations)
+  
+  # Smallest class size
+  min_count <- model_scores %>%
+    count(human_score) %>%
+    pull(n) %>%
+    min()
+  
+  for (i in 1:n_iterations) {
+    # Downsample
+    sampled_data <- model_scores %>%
+      group_by(human_score) %>%
+      slice_sample(n = min_count) %>%
+      ungroup()
+    
+    # Calculate residuals & format
+    residuals_matrix <- sampled_data %>%
+      mutate(across(2:10, ~ . - human_score)) %>%
+      select(2:10) %>%
+      as.matrix() %>%
+      t()
+    
+    # Calculate Alpha
+    result <- kripp.alpha(residuals_matrix, method = "interval")
+    alpha_values[i] <- result$value
+    
+    # Track progress
+    if (i %% 10 == 0) cat(i)
+  }
+  
+  # Save results for next time
+  saveRDS(alpha_values, output_file)
+  cat("\nComputation complete. Saved to", output_file, "\n")
+}
+
+# Visualise
+hist(alpha_values, main="Distribution of Krippendorff's Alpha", xlab="Alpha")
+summary(alpha_values)
+```
+
+#### Comparing with humans
+
+```{r}
+output_file_raw_model <- "alpha_values_raw_model.rds"
+
+if (file.exists(output_file_raw_model)) {
+  cat("Loading cached results from", output_file_raw_model, "\n")
+  alpha_values_raw_model <- readRDS(output_file_raw_model)
+} else {
+  cat("Running", n_iterations, "iterations for Model Raw Scores...\n")
+  alpha_values_raw_model <- numeric(n_iterations)
+  
+  # Identify model columns
+  model_cols <- colnames(model_scores)[2:10]
+  
+  for (i in 1:n_iterations) {
+    # Downsample
+    sampled_data <- model_scores %>%
+      group_by(human_score) %>%
+      slice_sample(n = min_count) %>%
+      ungroup()
+    
+    # Format raw scores as matrix (Coders x Items)
+    raw_model_matrix <- sampled_data %>%
+      select(all_of(model_cols)) %>%
+      as.matrix() %>%
+      t()
+    
+    # Calculate Alpha
+    result <- kripp.alpha(raw_model_matrix, method = "interval")
+    alpha_values_raw_model[i] <- result$value
+    
+    if (i %% 100 == 0) cat(i, " ")
+  }
+  
+  saveRDS(alpha_values_raw_model, output_file_raw_model)
+  cat("\nComputation complete.\n")
+}
+
+# Visualise and Summary
+hist(alpha_values_raw_model, main="Distribution of Model Raw Krippendorff's Alpha", xlab="Alpha")
+summary(alpha_values_raw_model)
+```
+
+```{r}
+output_file_human_raw <- "alpha_values_human_raw.rds"
+
+if (file.exists(output_file_human_raw)) {
+  cat("Loading cached results from", output_file_human_raw, "\n")
+  alpha_values_human_raw <- readRDS(output_file_human_raw)
+} else {
+  cat("No cache found. Running", n_iterations, "iterations for Human Raw Scores...\n")
+  alpha_values_human_raw <- numeric(n_iterations)
+  
+  # Identify human scorer columns
+  human_names <- setdiff(names(human_scores_with_name), 
+                         c("Basename", "Row", "Col", "Pos", "median_score", "Base_Stem", "img_name_generated"))
+
+  for (i in 1:n_iterations) {
+    # 1. Downsample using the model's logic
+    sampled_ids <- model_scores %>%
+      group_by(human_score) %>%
+      slice_sample(n = min_count) %>%
+      ungroup() %>%
+      select(img_name)
+    
+    # 2. Extract raw scores and format as matrix (Coders x Items)
+    human_raw_matrix <- human_scores_with_name %>%
+      inner_join(sampled_ids, by = c("img_name_generated" = "img_name")) %>%
+      select(all_of(human_names)) %>%
+      as.matrix() %>%
+      t()
+    
+    # 3. Calculate Alpha (Interval method)
+    result <- kripp.alpha(human_raw_matrix, method = "interval")
+    alpha_values_human_raw[i] <- result$value
+    
+    if (i %% 100 == 0) cat(i, " ")
+  }
+  
+  saveRDS(alpha_values_human_raw, output_file_human_raw)
+  cat("\nComputation complete. Saved to", output_file_human_raw, "\n")
+}
+
+# Visualise and Summary
+hist(alpha_values_human_raw, main="Distribution of Human Raw Krippendorff's Alpha", xlab="Alpha")
+summary(alpha_values_human_raw)
+```
+#### Interpretation
+
+The Krippendorff Alpha values of both the raw human and raw model scores show strong agreement. The agreement among the models (0.9337) is higher than among the humans (0.8926). The lower human score suggests that the humans have more disagreement in interpreting the boundaries between scores. This makes sense given the observed disagreement among humans (50.36% +-1 88.86%) is 10% lower than among models (61.00% +- 95.90%).
+
+### Ensemble models
+
+Load in global ensemble and test datasets
+
+```{r}
+# Load the split mapping generated from Python
+split_mapping <- read.csv("/Users/jowillia/Documents/GitHub/AutoCDAScorer_Models/data/datasets/base_64/base_64.csv")
+
+# Assuming your R dataframe is called 'model_scores' and has a column 'image_name'
+# that matches the 'filename' column in the CSV
+dataset_with_splits <- model_scores %>%
+  inner_join(split_mapping, by = c("img_name" = "filename"))
+
+# You can now create specific split dataframes
+train_data <- dataset_with_splits %>% filter(split == "train")
+val_data   <- dataset_with_splits %>% filter(split == "val")
+ens_data   <- dataset_with_splits %>% filter(split == "ensemble")
+test_data  <- dataset_with_splits %>% filter(split == "test")
+
+# Verify counts match the Python output
+table(dataset_with_splits$split)
+```
+
+Downsample datasets
+
+```{r}
+min_count_ens <- ens_data %>%
+  count(human_score) %>%
+  pull(n) %>%
+  min()
+
+ens_data <- ens_data %>%
+  group_by(human_score) %>%
+  slice_sample(n = min_count_ens) %>%
+  ungroup()
+
+min_count_test <- test_data %>%
+  count(human_score) %>%
+  pull(n) %>%
+  min()
+
+test_data <- test_data %>%
+  group_by(human_score) %>%
+  slice_sample(n = min_count_test) %>%
+  ungroup()
+
+cat(sprintf("Ensemble: %d images (%d per class).\n", nrow(ens_data), min_count_ens))
+cat(sprintf("Test: %d images (%d per class).\n", nrow(test_data), min_count_test))
+```
+
+Helpers
+
+```{r}
+model_cols <- c(
+  '567_924_Tran_CGAN_A', '574_938_CNN_Confident', '600_933_CNN_CGAN_A', 
+  '611_974_Tran_Base', '617_961_CNN_Geom_700', '621_969_CNN_Base', 
+  '640_950_Tran_Composite_7000', '653_968_CNN_Composite_7000', '676_970_Tran_Geom_700'
+)
+
+get_metrics <- function(pred_col, truth_col) {
+  exact_match <- as.integer(pred_col == truth_col)
+  near_miss   <- as.integer(abs(pred_col - truth_col) <= 1)
+  return(list(exact = exact_match, near = near_miss))
+}
+```
+
+#### Best single model
+
+```{r}
+model_performance <- data.frame(
+  Model = character(), 
+  Exact_Acc = numeric(), 
+  Near_Miss_Acc = numeric(), 
+  stringsAsFactors = FALSE
+)
+
+for (m in model_cols) {
+  scores <- get_metrics(ens_data[[m]], ens_data$human_score)
+  model_performance[nrow(model_performance) + 1, ] <- list(
+    m, 
+    mean(scores$exact), 
+    mean(scores$near)
+  )
+}
+
+best_model_name <- model_performance$Model[which.max(model_performance$Exact_Acc)]
+cat(sprintf("Best single model: %s.\n", best_model_name))
+```
+
+#### Simple voting ensemble
+
+```{r}
+# evaluate on test split
+test_data$ensemble_pred <- round(apply(test_data[, model_cols], 1, median))
+
+ens_res <- get_metrics(test_data$ensemble_pred, test_data$human_score)
+best_single_res <- get_metrics(test_data[[best_model_name]], test_data$human_score)
+
+cat("Evaluation on Test Split (n =", nrow(test_data), ")\n")
+cat("--------------------------------------------\n")
+cat("Best Single Model (", best_model_name, "):\n")
+cat("   Exact Match: ", round(mean(best_single_res$exact) * 100, 2), "%\n")
+cat("   Near-Miss:   ", round(mean(best_single_res$near) * 100, 2), "%\n\n")
+
+cat("Median Ensemble:\n")
+cat("   Exact Match: ", round(mean(ens_res$exact) * 100, 2), "%\n")
+cat("   Near-Miss:   ", round(mean(ens_res$near) * 100, 2), "%\n")
+```
+
+The performance of the best single model and the ensemble of all 9 models are almost identical.
+
+#### Random forest ensembling
+```{r random_forest, fig.width=14, fig.height=8}
+train_rf <- ens_data %>%
+  select(all_of(model_cols), human_score) %>%
+  rename_with(make.names) %>%
+  mutate(human_score = as.factor(human_score))
+
+test_rf <- test_data %>%
+  select(all_of(model_cols), human_score) %>%
+  rename_with(make.names) %>%
+  mutate(human_score = as.factor(human_score))
+
+# Define tree sizes to test
+ntree_values <- seq(2, 200, by = 2)
+
+# Initialize vectors to store metrics
+ensemble_accuracy <- numeric(length(ntree_values))
+ensemble_near_miss <- numeric(length(ntree_values))
+set.seed(42)
+# Loop through different tree sizes
+for (i in seq_along(ntree_values)) {
+  # Train random forest with current ntree
+  rf_fit_loop <- randomForest(
+    human_score ~ ., 
+    data = train_rf, 
+    ntree = ntree_values[i]
+  )
+  
+  # Predict on the downsampled test split
+  preds_loop <- as.numeric(as.character(predict(rf_fit_loop, test_rf)))
+  actuals_loop <- as.numeric(as.character(test_rf$human_score))
+  
+  # Calculate metrics
+  metrics_loop <- get_metrics(preds_loop, actuals_loop)
+  
+  # Store results using mean() to avoid length warnings
+  ensemble_accuracy[i] <- mean(metrics_loop$exact)
+  ensemble_near_miss[i] <- mean(metrics_loop$near)
+}
+
+# Identify the number of trees giving the highest ensemble accuracy
+optimal_idx <- which.max(ensemble_accuracy)
+optimal_ntree <- ntree_values[optimal_idx]
+cat(sprintf("Optimal number of trees: %d (Exact Accuracy: %.2f%%)\n", 
+            optimal_ntree, ensemble_accuracy[optimal_idx] * 100))
+
+# Prepare data for plotting
+plot_data <- data.frame(
+  Trees = ntree_values,
+  Exact = ensemble_accuracy,
+  NearMiss = ensemble_near_miss
+) %>%
+  pivot_longer(cols = c(Exact, NearMiss), names_to = "Metric", values_to = "Accuracy")
+
+# Plot accuracy vs tree count
+ggplot(plot_data, aes(x = Trees, y = Accuracy, color = Metric)) +
+  geom_line() +
+  geom_point(size = 1) +
+  # Horizontal lines for Best Single Model performance
+  geom_hline(yintercept = mean(best_single_res$exact), linetype = "dashed", color = "#F8766D") +
+  geom_hline(yintercept = mean(best_single_res$near), linetype = "dashed", color = "#00BFC4") +
+  theme_minimal() +
+  labs(
+    title = "Random Forest Performance by Tree Count",
+    subtitle = paste("Dashed lines: Best Single Model (", best_model_name, ")"),
+    x = "Number of Trees",
+    y = "Accuracy"
+  ) +
+  scale_y_continuous(labels = scales::percent)
+```
+
+```{r}
+rf_res_exact <- ensemble_accuracy[optimal_idx]
+rf_res_near  <- ensemble_near_miss[optimal_idx]
+
+# evaluate best single model on the downsampled test split
+best_single_preds <- test_data[[best_model_name]]
+best_single_res <- get_metrics(best_single_preds, test_data$human_score)
+
+# results
+cat("Evaluation on Test Split (n =", nrow(test_data), ")\n")
+cat("--------------------------------------------\n")
+cat("Best Single Model (", best_model_name, "):\n")
+cat("   Exact Match: ", round(mean(best_single_res$exact) * 100, 2), "%\n")
+cat("   Near-Miss:   ", round(mean(best_single_res$near) * 100, 2), "%\n\n")
+
+cat("Random Forest Ensemble (Optimal Trees =", optimal_ntree, "):\n")
+cat("   Exact Match: ", round(rf_res_exact * 100, 2), "%\n")
+cat("   Near-Miss:   ", round(rf_res_near * 100, 2), "%\n")
+```
+
+#### Importance Analysis (Mean Decrease in Gini Impurity)
+
+```{r importance, fig.height=12, fig.width=12}
+# Re-train the final model using the optimal number of trees found in the loop
+rf_fit <- randomForest(
+  human_score ~ ., 
+  data = train_rf, 
+  ntree = optimal_ntree
+)
+
+# Extract importance values
+importance_values <- as.data.frame(importance(rf_fit))
+importance_values$Model <- rownames(importance_values)
+
+# Sort by MeanDecreaseGini
+importance_values <- importance_values[order(-importance_values$MeanDecreaseGini), ]
+#print(importance_values[, c("Model", "MeanDecreaseGini")])
+
+varImpPlot(rf_fit, main = paste("Random Forest Model Importance (Trees =", optimal_ntree, ")"))
+```
+
+Gini importance measures the average decrease in class variation before and after each tree split involving a certain variable (e.g. model or scorer).
+
+If a model is able to split the data from mixed classes into purer classes, it is contributing effectively to the classification task, and it's Gini Importance will be higher.
+
+CNN_Base has the highest Gini Importance. It typically scored lower than other models.
+
+Tran_Geom_700 had the lowest Gini Importance, roughly 1/3 of CNN_Base. This is interesting, because it has the highest hold-out test accuracy.
+
+
+

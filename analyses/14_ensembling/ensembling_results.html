@@ -1,0 +1,1623 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.38">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Ensembling</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js" integrity="sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2" crossorigin="anonymous"></script><script src="ensembling_results_files/libs/clipboard/clipboard.min.js"></script>
+<script src="ensembling_results_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="ensembling_results_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="ensembling_results_files/libs/quarto-html/popper.min.js"></script>
+<script src="ensembling_results_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="ensembling_results_files/libs/quarto-html/anchor.min.js"></script>
+<link href="ensembling_results_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="ensembling_results_files/libs/quarto-html/quarto-syntax-highlighting-15634bcf2e68342d4ad2dfa704d543f6.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="ensembling_results_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="ensembling_results_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="ensembling_results_files/libs/bootstrap/bootstrap-138a6193a3bd40baf1e627da441a4734.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script src="https://cdn.jsdelivr.net/npm/requirejs@2.3.6/require.min.js" integrity="sha384-c9c+LnTbwQ3aujuU7ULEPVvgLs+Fn6fJUvIGTsuu1ZcCf11fiEubah0ttpca4ntM sha384-6V1/AdqZRWk1KAlWbKBlGhN7VG4iE/yAZcO6NZPMF8od0vukrvr0tg4qY6NSrItx" crossorigin="anonymous"></script>
+
+<script type="application/javascript">define('jquery', [],function() {return window.jQuery;})</script>
+
+
+</head>
+
+<body class="quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#gohrep" id="toc-gohrep" class="nav-link active" data-scroll-target="#gohrep">GOHREP</a></li>
+  <li><a href="#setup" id="toc-setup" class="nav-link" data-scroll-target="#setup">1. Setup</a>
+  <ul class="collapse">
+  <li><a href="#packages" id="toc-packages" class="nav-link" data-scroll-target="#packages">1.1 Packages</a></li>
+  <li><a href="#the-22-tied-cnns" id="toc-the-22-tied-cnns" class="nav-link" data-scroll-target="#the-22-tied-cnns">1.2 The 22 tied CNNs</a></li>
+  <li><a href="#check-the-cached-predictions-match-what-the-grid-search-recorded" id="toc-check-the-cached-predictions-match-what-the-grid-search-recorded" class="nav-link" data-scroll-target="#check-the-cached-predictions-match-what-the-grid-search-recorded">1.3 Check: the cached predictions match what the grid search recorded</a></li>
+  <li><a href="#metrics" id="toc-metrics" class="nav-link" data-scroll-target="#metrics">1.4 Metrics</a></li>
+  </ul></li>
+  <li><a href="#how-much-accuracy-is-actually-available" id="toc-how-much-accuracy-is-actually-available" class="nav-link" data-scroll-target="#how-much-accuracy-is-actually-available">2. How much accuracy is actually available</a></li>
+  <li><a href="#the-three-rules" id="toc-the-three-rules" class="nav-link" data-scroll-target="#the-three-rules">3. The three rules</a></li>
+  <li><a href="#across-model-families" id="toc-across-model-families" class="nav-link" data-scroll-target="#across-model-families">4. Across model families</a></li>
+  <li><a href="#interpretation-and-discussion" id="toc-interpretation-and-discussion" class="nav-link" data-scroll-target="#interpretation-and-discussion">5. Interpretation and Discussion</a>
+  <ul class="collapse">
+  <li><a href="#caveats" id="toc-caveats" class="nav-link" data-scroll-target="#caveats">Caveats</a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Ensembling</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p>Date: 13/09/2026</p>
+<section id="gohrep" class="level2">
+<h2 class="anchored" data-anchor-id="gohrep">GOHREP</h2>
+<p><strong>Goal:</strong></p>
+<p>Test whether combining the CNNs that cross-validation cannot tell apart beats using one of them.</p>
+<p><strong>Hypothesis:</strong></p>
+<p>It will not. The 22 tied CNNs are trained on the same 1,834 crops and give the same score as each other on 77.9% of held-out crops, so most of what one gets wrong the others get wrong too. Averaging cannot fix a shared mistake.</p>
+<p><strong>Rationale:</strong></p>
+<p>At least one of the 22 is right on 89.67% of crops while the best single one reaches 63.96%. That gap is worth testing even if the models are correlated. The 22 agree exactly on 77.9% of crops and to within one score on 99.7%, so where they disagree it is the same adjacent-score confusion the human raters show against each other.</p>
+<p>Members, rule and any choice are made on the <code>ensemble</code> split (455 crops, held out of all training). <code>test</code> (308 crops) is scored once. Both are reported.</p>
+<hr>
+</section>
+<section id="setup" class="level2">
+<h2 class="anchored" data-anchor-id="setup">1. Setup</h2>
+<section id="packages" class="level3">
+<h3 class="anchored" data-anchor-id="packages">1.1 Packages</h3>
+<div id="c471f544" class="cell" data-execution_count="1">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.1</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>plt.rcParams.update({<span class="st">"figure.dpi"</span>: <span class="dv">120</span>})</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>THESIS_PLOTS <span class="op">=</span> Path(<span class="st">"thesis_plots"</span>)</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>THESIS_PLOTS.mkdir(exist_ok<span class="op">=</span><span class="va">True</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+</div>
+</section>
+<section id="the-22-tied-cnns" class="level3">
+<h3 class="anchored" data-anchor-id="the-22-tied-cnns">1.2 The 22 tied CNNs</h3>
+<div id="c8173887" class="cell" data-execution_count="2">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.2</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co"># A grid's single best config is not reproducibly the best: on 2,289 cross-validation</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co"># crops the standard error near 0.65 is about 1.0 pp, and 22 of the 8,640 configs sit</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co"># inside that of the winner. The tie is defined on cross-validation only, so it never</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co"># touches `ensemble` or `test`.</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="co">#</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Predictions come from pred_cache/probs.npz, built by build_cache.py in this folder:</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="co"># every saved model scored over both held-out splits, full softmax rather than argmax.</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>ROOT <span class="op">=</span> Path.cwd().parents[<span class="dv">1</span>]</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>Z <span class="op">=</span> np.load(<span class="st">"pred_cache/probs.npz"</span>, allow_pickle<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>ye, yt <span class="op">=</span> Z[<span class="st">"ye"</span>].astype(<span class="bu">int</span>), Z[<span class="st">"yt"</span>].astype(<span class="bu">int</span>)</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>GRID <span class="op">=</span> ROOT <span class="op">/</span> <span class="st">"models/03_Medoid_CNN_RandomSearch/01_Categorical_Loss"</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>res <span class="op">=</span> pd.concat(</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    [pd.read_csv(GRID <span class="op">/</span> <span class="st">"random_search_results.csv"</span>)]</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> [pd.read_csv(p) <span class="cf">for</span> p <span class="kw">in</span> (GRID <span class="op">/</span> <span class="st">"parts"</span>).glob(<span class="st">"*.csv"</span>)],</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    ignore_index<span class="op">=</span><span class="va">True</span>).drop_duplicates(<span class="st">"model_id"</span>).set_index(<span class="st">"model_id"</span>)</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>v <span class="op">=</span> res[<span class="st">"avg_vaf"</span>]</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>se_cv <span class="op">=</span> <span class="bu">float</span>(np.sqrt(v.<span class="bu">max</span>() <span class="op">*</span> (<span class="dv">1</span> <span class="op">-</span> v.<span class="bu">max</span>()) <span class="op">/</span> <span class="dv">2289</span>))</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>tied <span class="op">=</span> <span class="bu">set</span>(v[v <span class="op">&gt;=</span> v.<span class="bu">max</span>() <span class="op">-</span> se_cv].index)</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>keep <span class="op">=</span> [i <span class="cf">for</span> i, m <span class="kw">in</span> <span class="bu">enumerate</span>(Z[<span class="st">"cnn_ids"</span>]) <span class="cf">if</span> m <span class="kw">in</span> tied]</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">len</span>(<span class="bu">set</span>(Z[<span class="st">"cnn_ids"</span>][keep].tolist())) <span class="op">==</span> <span class="bu">len</span>(keep), <span class="st">"duplicate model_id in the cache"</span></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>Qe, Qt <span class="op">=</span> Z[<span class="st">"cnn_e"</span>][keep], Z[<span class="st">"cnn_t"</span>][keep]      <span class="co"># softmax, (models, crops, 7)</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>He, Ht <span class="op">=</span> Qe.argmax(<span class="dv">2</span>), Qt.argmax(<span class="dv">2</span>)              <span class="co"># each model's predicted score</span></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>nC <span class="op">=</span> <span class="bu">len</span>(keep)</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"best cross-validated accuracy </span><span class="sc">{</span>v<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.4f}</span><span class="ss">, 1 SE = </span><span class="sc">{</span>se_cv<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>nC<span class="sc">}</span><span class="ss"> configs tied within 1 SE, all with saved weights"</span>)</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"ensemble split </span><span class="sc">{</span><span class="bu">len</span>(ye)<span class="sc">}</span><span class="ss"> crops, test split </span><span class="sc">{</span><span class="bu">len</span>(yt)<span class="sc">}</span><span class="ss"> crops"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>best cross-validated accuracy 0.6457, 1 SE = 0.0100
+22 configs tied within 1 SE, all with saved weights
+ensemble split 455 crops, test split 308 crops</code></pre>
+</div>
+</div>
+</section>
+<section id="check-the-cached-predictions-match-what-the-grid-search-recorded" class="level3">
+<h3 class="anchored" data-anchor-id="check-the-cached-predictions-match-what-the-grid-search-recorded">1.3 Check: the cached predictions match what the grid search recorded</h3>
+<div id="41527dbb" class="cell" data-execution_count="3">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.3</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co"># The grid recorded a test_acc per config when it trained it. If the matrix is built</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co"># right, the accuracy recomputed here must equal that number, model for model.</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>here <span class="op">=</span> (Ht <span class="op">==</span> yt[<span class="va">None</span>, :]).mean(<span class="dv">1</span>)</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>rec <span class="op">=</span> res.reindex(Z[<span class="st">"cnn_ids"</span>][keep])[<span class="st">"test_acc"</span>].to_numpy(<span class="bu">float</span>)</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"max |here - recorded| over the </span><span class="sc">{</span>nC<span class="sc">}</span><span class="ss"> models = </span><span class="sc">{</span>np<span class="sc">.</span><span class="bu">abs</span>(here <span class="op">-</span> rec)<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.5f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>max |here - recorded| over the 22 models = 0.00000</code></pre>
+</div>
+</div>
+</section>
+<section id="metrics" class="level3">
+<h3 class="anchored" data-anchor-id="metrics">1.4 Metrics</h3>
+<div id="137542b7" class="cell" data-execution_count="4">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.4</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> exact(pred, y):</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">float</span>(np.mean(pred <span class="op">==</span> y))</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> near(pred, y):</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">float</span>(np.mean(np.<span class="bu">abs</span>(pred <span class="op">-</span> y) <span class="op">&lt;=</span> <span class="dv">1</span>))</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> mae(pred, y):</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Mean absolute error in score units: the natural loss for an ordered target, since</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    <span class="co"># it charges a 0-scored-as-6 seven times what it charges a 3-scored-as-4.</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">float</span>(np.mean(np.<span class="bu">abs</span>(pred <span class="op">-</span> y)))</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> vote(P):</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Plurality: the score the most members predicted.</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.array([np.bincount(P[:, j], minlength<span class="op">=</span><span class="dv">7</span>).argmax() <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(P.shape[<span class="dv">1</span>])])</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> mean_softmax(Q):</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Average the 22 probability vectors, then take the argmax of the average.</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Q.mean(<span class="dv">0</span>).argmax(<span class="dv">1</span>)</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a><span class="co"># Paired bootstrap: resample the 308 test crops and recompute both accuracies on the same</span></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a><span class="co"># resample, so the comparison is not inflated by the two rules sharing crops.</span></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>BOOT <span class="op">=</span> np.random.default_rng(<span class="dv">0</span>).integers(<span class="dv">0</span>, <span class="bu">len</span>(yt), size<span class="op">=</span>(<span class="dv">10000</span>, <span class="bu">len</span>(yt)))</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> paired(a, b):</span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>    da, db <span class="op">=</span> (a <span class="op">==</span> yt).astype(<span class="bu">float</span>), (b <span class="op">==</span> yt).astype(<span class="bu">float</span>)</span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>    d <span class="op">=</span> da[BOOT].mean(<span class="dv">1</span>) <span class="op">-</span> db[BOOT].mean(<span class="dv">1</span>)</span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (<span class="bu">float</span>(da.mean() <span class="op">-</span> db.mean()), <span class="bu">float</span>(np.quantile(d, <span class="fl">.025</span>)),</span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a>            <span class="bu">float</span>(np.quantile(d, <span class="fl">.975</span>)), <span class="bu">min</span>(<span class="fl">1.0</span>, <span class="dv">2</span> <span class="op">*</span> <span class="bu">min</span>((d <span class="op">&lt;=</span> <span class="dv">0</span>).mean(), (d <span class="op">&gt;=</span> <span class="dv">0</span>).mean())))</span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"1 SE on 455 ensemble crops = </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> np<span class="sc">.</span>sqrt(<span class="fl">.65</span> <span class="op">*</span> <span class="fl">.35</span> <span class="op">/</span> <span class="bu">len</span>(ye))<span class="sc">:.2f}</span><span class="ss"> pp"</span>)</span>
+<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"1 SE on 308 test crops     = </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> np<span class="sc">.</span>sqrt(<span class="fl">.65</span> <span class="op">*</span> <span class="fl">.35</span> <span class="op">/</span> <span class="bu">len</span>(yt))<span class="sc">:.2f}</span><span class="ss"> pp"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>1 SE on 455 ensemble crops = 2.24 pp
+1 SE on 308 test crops     = 2.72 pp</code></pre>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="how-much-accuracy-is-actually-available" class="level2">
+<h2 class="anchored" data-anchor-id="how-much-accuracy-is-actually-available">2. How much accuracy is actually available</h2>
+<div id="94857509" class="cell" data-execution_count="5">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2.1</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>n_right_e <span class="op">=</span> (He <span class="op">==</span> ye[<span class="va">None</span>, :]).<span class="bu">sum</span>(<span class="dv">0</span>)          <span class="co"># how many of the 22 get each crop right</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>oracle <span class="op">=</span> <span class="bu">float</span>((n_right_e <span class="op">&gt;</span> <span class="dv">0</span>).mean())</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>best_i <span class="op">=</span> <span class="bu">int</span>(np.argmax((He <span class="op">==</span> ye[<span class="va">None</span>, :]).mean(<span class="dv">1</span>)))</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"at least one of the </span><span class="sc">{</span>nC<span class="sc">}</span><span class="ss"> correct : </span><span class="sc">{</span>oracle<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"best single model               : </span><span class="sc">{</span>(He[best_i] <span class="op">==</span> ye)<span class="sc">.</span>mean()<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"gap                             : </span><span class="sc">{</span>oracle <span class="op">-</span> (He[best_i] <span class="op">==</span> ye)<span class="sc">.</span>mean()<span class="sc">:.4f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>at least one of the 22 correct : 0.8967
+best single model               : 0.6396
+gap                             : 0.2571</code></pre>
+</div>
+</div>
+<div id="f180b81f" class="cell" data-execution_count="6">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2.2</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Pairwise agreement between members, and how far apart they are when they disagree.</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>ex_p, nm_p <span class="op">=</span> [], []</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(nC):</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(i <span class="op">+</span> <span class="dv">1</span>, nC):</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>        dif <span class="op">=</span> np.<span class="bu">abs</span>(He[i] <span class="op">-</span> He[j])</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>        ex_p.append((dif <span class="op">==</span> <span class="dv">0</span>).mean())<span class="op">;</span> nm_p.append((dif <span class="op">&lt;=</span> <span class="dv">1</span>).mean())</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"pairwise: same score </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> np<span class="sc">.</span>mean(ex_p)<span class="sc">:.2f}</span><span class="ss">%, within 1 score </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> np<span class="sc">.</span>mean(nm_p)<span class="sc">:.2f}</span><span class="ss">%, "</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"2 or more apart </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> (<span class="dv">1</span> <span class="op">-</span> np.mean(nm_p))<span class="sc">:.2f}</span><span class="ss">%"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>pairwise: same score 77.87%, within 1 score 99.73%, 2 or more apart 0.27%</code></pre>
+</div>
+</div>
+<div id="43f9d324" class="cell" data-execution_count="7">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2.3</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="co"># A vote returns the most common answer, so it can only win where the correct score IS</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="co"># the most common answer. Splitting the crops by how many members are right separates</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="co"># the part of the 89.67% a vote could reach from the part it cannot.</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>v_e <span class="op">=</span> vote(He)</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>win <span class="op">=</span> v_e <span class="op">==</span> ye</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> np.arange(nC <span class="op">+</span> <span class="dv">1</span>)</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>bins <span class="op">=</span> np.arange(nC <span class="op">+</span> <span class="dv">2</span>) <span class="op">-</span> <span class="fl">0.5</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>c_win, _ <span class="op">=</span> np.histogram(n_right_e[win], bins<span class="op">=</span>bins)</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>c_none, _ <span class="op">=</span> np.histogram(n_right_e[n_right_e <span class="op">==</span> <span class="dv">0</span>], bins<span class="op">=</span>bins)</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>c_unreach, _ <span class="op">=</span> np.histogram(n_right_e[<span class="op">~</span>win <span class="op">&amp;</span> (n_right_e <span class="op">&gt;</span> <span class="dv">0</span>)], bins<span class="op">=</span>bins)</span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Stacked, not overlaid: k = 11 is the only column holding both a reachable and an</span></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a><span class="co"># unreachable crop, and drawing them from zero would hide the smaller behind the larger.</span></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="fl">6.2</span>, <span class="fl">3.4</span>))</span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>ax.bar(x, c_none, color<span class="op">=</span><span class="st">"#e0e0e0"</span>, label<span class="op">=</span><span class="st">"No model is right"</span>)</span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>ax.bar(x, c_unreach, bottom<span class="op">=</span>c_none, color<span class="op">=</span><span class="st">"#C44E52"</span>,</span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>       label<span class="op">=</span><span class="st">"Some model is right, the vote is not"</span>)</span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>ax.bar(x, c_win, bottom<span class="op">=</span>c_none <span class="op">+</span> c_unreach, color<span class="op">=</span><span class="st">"#4C72B0"</span>, label<span class="op">=</span><span class="st">"The vote is right"</span>)</span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="ss">f"Number of the </span><span class="sc">{</span>nC<span class="sc">}</span><span class="ss"> tied CNNs that score the crop correctly"</span>)</span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"Crops"</span>)</span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a>ax.legend(frameon<span class="op">=</span><span class="va">False</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a>ax.spines[[<span class="st">"top"</span>, <span class="st">"right"</span>]].set_visible(<span class="va">False</span>)</span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>fig.tight_layout()</span>
+<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a>fig.savefig(THESIS_PLOTS <span class="op">/</span> <span class="st">"vote_22_cnns.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a>gap <span class="op">=</span> <span class="op">~</span>win <span class="op">&amp;</span> (n_right_e <span class="op">&gt;</span> <span class="dv">0</span>)</span>
+<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"crops the </span><span class="sc">{</span>oracle<span class="sc">:.2%}</span><span class="ss"> counts but no vote can reach: </span><span class="sc">{</span><span class="bu">int</span>(gap.<span class="bu">sum</span>())<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  median models correct on them: </span><span class="sc">{</span>np<span class="sc">.</span>median(n_right_e[gap])<span class="sc">:.1f}</span><span class="ss"> of </span><span class="sc">{</span>nC<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb12-31"><a href="#cb12-31" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  share with fewer than half the models correct: </span><span class="sc">{</span>(n_right_e[gap] <span class="op">&lt;</span> nC <span class="op">/</span> <span class="dv">2</span>)<span class="sc">.</span>mean()<span class="sc">:.3f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="ensembling_results_files/figure-html/cell-8-output-1.png" width="730" height="395" class="figure-img"></p>
+<figcaption>How many of the 22 tied CNNs score each crop correctly. Blue: the vote gets it right. Red: at least one model is right but the vote is not, the crops the 89.67% counts and no vote can reach. Grey: no model is right.</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>crops the 89.67% counts but no vote can reach: 120
+  median models correct on them: 4.5 of 22
+  share with fewer than half the models correct: 0.975</code></pre>
+</div>
+</div>
+<div id="fc65a025" class="cell" data-execution_count="8">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2.4</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="co"># A crop the whole committee places two or more scores from its recorded label is either</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="co"># mislabelled or intrinsically hard. Off-by-one is adjacent-score ambiguity and is counted</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="co"># separately rather than shown.</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> PIL <span class="im">import</span> Image</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>_modal <span class="op">=</span> np.array([np.bincount(Ht[:, j], minlength<span class="op">=</span><span class="dv">7</span>).argmax() <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(yt))])</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>_agree <span class="op">=</span> np.array([np.bincount(Ht[:, j], minlength<span class="op">=</span><span class="dv">7</span>).<span class="bu">max</span>() <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(yt))])</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>_off <span class="op">=</span> np.<span class="bu">abs</span>(_modal <span class="op">-</span> yt)</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>_files <span class="op">=</span> [<span class="bu">str</span>(f) <span class="cf">for</span> f <span class="kw">in</span> Z[<span class="st">"files_t"</span>]]</span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>cle <span class="op">=</span> pd.DataFrame({<span class="st">"filename"</span>: _files, <span class="st">"true"</span>: yt, <span class="st">"modal"</span>: _modal, <span class="st">"agree"</span>: _agree}</span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>                   )[_off <span class="op">&gt;=</span> <span class="dv">2</span>].sort_values(<span class="st">"agree"</span>, ascending<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="bu">len</span>(cle)<span class="sc">}</span><span class="ss"> of </span><span class="sc">{</span><span class="bu">len</span>(yt)<span class="sc">}</span><span class="ss"> test crops are placed &gt;=2 scores from their recorded label"</span>)</span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="bu">int</span>(((_off <span class="op">==</span> <span class="dv">1</span>) <span class="op">&amp;</span> (_agree <span class="op">&gt;=</span> <span class="fl">0.6</span> <span class="op">*</span> nC)).<span class="bu">sum</span>())<span class="sc">}</span><span class="ss"> more are off by exactly 1 with a "</span></span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"&gt;=60% majority, which is adjacent-score ambiguity rather than a label error"</span>)</span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="bu">len</span>(cle), figsize<span class="op">=</span>(<span class="fl">1.65</span> <span class="op">*</span> <span class="bu">len</span>(cle), <span class="fl">2.1</span>), squeeze<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> ax, (_, r) <span class="kw">in</span> <span class="bu">zip</span>(axes.ravel(), cle.iterrows()):</span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a>    q <span class="op">=</span> ROOT <span class="op">/</span> <span class="st">"data"</span> <span class="op">/</span> <span class="st">"cropped_images_medoid"</span> <span class="op">/</span> <span class="bu">str</span>(<span class="bu">int</span>(r[<span class="st">"true"</span>])) <span class="op">/</span> r[<span class="st">"filename"</span>]</span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a>    ax.imshow(np.asarray(Image.<span class="bu">open</span>(q)))</span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a>    ax.set_title(<span class="ss">f"Recorded </span><span class="sc">{</span><span class="bu">int</span>(r[<span class="st">'true'</span>])<span class="sc">}</span><span class="ss"> </span><span class="ch">\u2192</span><span class="ss"> </span><span class="sc">{</span><span class="bu">int</span>(r[<span class="st">'modal'</span>])<span class="sc">}</span><span class="ch">\n</span><span class="ss">"</span></span>
+<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a>                 <span class="ss">f"</span><span class="sc">{</span><span class="bu">int</span>(r[<span class="st">'agree'</span>])<span class="sc">}</span><span class="ss">/</span><span class="sc">{</span>nC<span class="sc">}</span><span class="ss"> agree"</span>, fontsize<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a>    ax.axis(<span class="st">"off"</span>)</span>
+<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a>fig.tight_layout()</span>
+<span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a>fig.savefig(THESIS_PLOTS <span class="op">/</span> <span class="st">"candidate_label_errors_22.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb14-26"><a href="#cb14-26" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb14-27"><a href="#cb14-27" aria-hidden="true" tabindex="-1"></a>cle.assign(pct<span class="op">=</span>(<span class="dv">100</span> <span class="op">*</span> cle.agree <span class="op">/</span> nC).<span class="bu">round</span>(<span class="dv">1</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>4 of 308 test crops are placed &gt;=2 scores from their recorded label
+89 more are off by exactly 1 with a &gt;=60% majority, which is adjacent-score ambiguity rather than a label error</code></pre>
+</div>
+<div class="cell-output cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="ensembling_results_files/figure-html/cell-9-output-2.png" width="780" height="237" class="figure-img"></p>
+<figcaption>Every test crop the 22 tied CNNs place at least two scores from the recorded label, ordered by how many of the 22 agree.</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-display" data-execution_count="8">
+<div>
+
+
+<table class="dataframe caption-top table table-sm table-striped small" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">filename</th>
+<th data-quarto-table-cell-role="th">true</th>
+<th data-quarto-table-cell-role="th">modal</th>
+<th data-quarto-table-cell-role="th">agree</th>
+<th data-quarto-table-cell-role="th">pct</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">10</th>
+<td>_DSC1805_3_4_6.tif</td>
+<td>1</td>
+<td>3</td>
+<td>22</td>
+<td>100.0</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">180</th>
+<td>DSC_8266_3_1_1.tif</td>
+<td>4</td>
+<td>6</td>
+<td>22</td>
+<td>100.0</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">267</th>
+<td>DSC_9237_3_3_2.tif</td>
+<td>2</td>
+<td>4</td>
+<td>22</td>
+<td>100.0</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">198</th>
+<td>_DSC0170_2_1_5.tif</td>
+<td>2</td>
+<td>4</td>
+<td>12</td>
+<td>54.5</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+<div id="3e74ad68" class="cell" data-execution_count="9">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2.5</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="co"># The oracle can only rise as members are added, so before reading anything into 89.67%:</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="co"># how much of it is pool size? Two checks. First, what the oracle would be if the same</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="co"># models failed independently of one another. Second, other pools cut to the same n.</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">0</span>)</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>orc <span class="op">=</span> <span class="kw">lambda</span> P: <span class="bu">float</span>((P <span class="op">==</span> ye[<span class="va">None</span>, :]).<span class="bu">any</span>(<span class="dv">0</span>).mean())</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>p_i <span class="op">=</span> (He <span class="op">==</span> ye[<span class="va">None</span>, :]).mean(<span class="dv">1</span>)</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"observed oracle </span><span class="sc">{</span>orc(He)<span class="sc">:.4f}</span><span class="ss">; if the </span><span class="sc">{</span>nC<span class="sc">}</span><span class="ss"> failed independently </span><span class="sc">{</span><span class="dv">1</span> <span class="op">-</span> np<span class="sc">.</span>prod(<span class="dv">1</span> <span class="op">-</span> p_i)<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> n <span class="kw">in</span> (<span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">12</span>, <span class="dv">22</span>):</span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>    obs <span class="op">=</span> np.mean([orc(He[rng.choice(nC, n, replace<span class="op">=</span><span class="va">False</span>)]) <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">200</span>)])</span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  n=</span><span class="sc">{</span>n<span class="sc">:2d}</span><span class="ss">: observed </span><span class="sc">{</span>obs<span class="sc">:.4f}</span><span class="ss">   independent </span><span class="sc">{</span><span class="dv">1</span> <span class="op">-</span> (<span class="dv">1</span> <span class="op">-</span> p_i.mean()) <span class="op">**</span> n<span class="sc">:.4f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>observed oracle 0.8967; if the 22 failed independently 1.0000
+  n= 2: observed 0.7175   independent 0.8527
+  n= 3: observed 0.7618   independent 0.9435
+  n= 5: observed 0.8087   independent 0.9917
+  n=12: observed 0.8709   independent 1.0000
+  n=22: observed 0.8967   independent 1.0000</code></pre>
+</div>
+</div>
+<hr>
+</section>
+<section id="the-three-rules" class="level2">
+<h2 class="anchored" data-anchor-id="the-three-rules">3. The three rules</h2>
+<div id="255b7d64" class="cell" data-execution_count="10">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3.1</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>RULES <span class="op">=</span> {</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Best single model"</span>: (He[best_i], Ht[best_i]),</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Plurality vote"</span>: (vote(He), vote(Ht)),</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Mean softmax"</span>: (mean_softmax(Qe), mean_softmax(Qt)),</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>tab <span class="op">=</span> pd.DataFrame([</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>    {<span class="st">"rule"</span>: k,</span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>     <span class="st">"ensemble exact"</span>: exact(pe, ye),</span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>     <span class="st">"test exact"</span>: exact(pt, yt),</span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>     <span class="st">"test near-miss"</span>: near(pt, yt),</span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>     <span class="st">"test MAE"</span>: mae(pt, yt)}</span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> k, (pe, pt) <span class="kw">in</span> RULES.items()])</span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a>tab.<span class="bu">round</span>(<span class="dv">4</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display" data-execution_count="10">
+<div>
+
+
+<table class="dataframe caption-top table table-sm table-striped small" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">rule</th>
+<th data-quarto-table-cell-role="th">ensemble exact</th>
+<th data-quarto-table-cell-role="th">test exact</th>
+<th data-quarto-table-cell-role="th">test near-miss</th>
+<th data-quarto-table-cell-role="th">test MAE</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">0</th>
+<td>Best single model</td>
+<td>0.6396</td>
+<td>0.6461</td>
+<td>0.9773</td>
+<td>0.3766</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">1</th>
+<td>Plurality vote</td>
+<td>0.6330</td>
+<td>0.6494</td>
+<td>0.9870</td>
+<td>0.3636</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">2</th>
+<td>Mean softmax</td>
+<td>0.6374</td>
+<td>0.6461</td>
+<td>0.9903</td>
+<td>0.3636</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+<div id="baf94329" class="cell" data-execution_count="11">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3.2</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Each rule against the best single model, on the same 308 test crops.</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>base <span class="op">=</span> RULES[<span class="st">"Best single model"</span>][<span class="dv">1</span>]</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> k, (_, pt) <span class="kw">in</span> <span class="bu">list</span>(RULES.items())[<span class="dv">1</span>:]:</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>    d, lo, hi, p <span class="op">=</span> paired(pt, base)</span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>k<span class="sc">:18s}</span><span class="ss"> </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> d<span class="sc">:+6.2f}</span><span class="ss"> pp   95% CI [</span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> lo<span class="sc">:+.2f}</span><span class="ss">, </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> hi<span class="sc">:+.2f}</span><span class="ss">]   p = </span><span class="sc">{</span>p<span class="sc">:.3f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Plurality vote      +0.32 pp   95% CI [-2.60, +3.25]   p = 0.930
+Mean softmax        +0.00 pp   95% CI [-2.92, +2.92]   p = 1.000</code></pre>
+</div>
+</div>
+<hr>
+</section>
+<section id="across-model-families" class="level2">
+<h2 class="anchored" data-anchor-id="across-model-families">4. Across model families</h2>
+<div id="bad2d727" class="cell" data-execution_count="12">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.1</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Four families are available. The 22 CNNs share an architecture AND a training set, so a</span></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="co"># shared mistake is expected. The others vary one thing or both:</span></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a><span class="co">#   ViT                 different architecture, same crops</span></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a><span class="co">#   CNN (Geometric Augmentation)     same architecture, different crops (models/07 trains from the</span></span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a><span class="co">#                       augmented pool; its tie is ranked on avg_vaf_orig, accuracy on the</span></span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a><span class="co">#                       ORIGINAL crops in the fold, since its plain avg_vaf is measured</span></span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a><span class="co">#                       over a fold containing augmented copies)</span></span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a><span class="co">#   Ordinal Regression  neither: 12 hand-built features, one polr fit (analyses/03)</span></span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>GRIDS <span class="op">=</span> {<span class="st">"ViT"</span>: (<span class="st">"models/04_Medoid_ViT_RandomSearch/01_Categorical_Loss"</span>, <span class="st">"vit"</span>, <span class="st">"avg_vaf"</span>),</span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>         <span class="st">"CNN (Geometric Augmentation)"</span>: (<span class="st">"models/07_Medoid_CNN_GeomAug/01_MatchLargestClass"</span>, <span class="st">"geo"</span>,</span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>                                          <span class="st">"avg_vaf_orig"</span>),</span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a>         }</span>
+<span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a><span class="co"># The cGAN-augmented grid is deliberately absent. Ranked the way every other family is, on</span></span>
+<span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a><span class="co"># accuracy over the original crops, its best configuration reaches 61.04% on test against</span></span>
+<span id="cb21-16"><a href="#cb21-16" aria-hidden="true" tabindex="-1"></a><span class="co"># 61.69% for the plain CNN trained on the smaller unaugmented set, so the augmentation does</span></span>
+<span id="cb21-17"><a href="#cb21-17" aria-hidden="true" tabindex="-1"></a><span class="co"># not earn a place among the families being combined. It could not be included on equal</span></span>
+<span id="cb21-18"><a href="#cb21-18" aria-hidden="true" tabindex="-1"></a><span class="co"># terms in any case: its 10 configurations tied on avg_vaf_orig rank 1,129th to 4,111th on</span></span>
+<span id="cb21-19"><a href="#cb21-19" aria-hidden="true" tabindex="-1"></a><span class="co"># plain avg_vaf, and TopNStore keeps only the top 100 by avg_vaf, so none of them was</span></span>
+<span id="cb21-20"><a href="#cb21-20" aria-hidden="true" tabindex="-1"></a><span class="co"># written to disk. The only cGAN weights that exist are the 100 selected on a validation</span></span>
+<span id="cb21-21"><a href="#cb21-21" aria-hidden="true" tabindex="-1"></a><span class="co"># fold dominated by generated crops, which average 51.30% on test alone. Including that set</span></span>
+<span id="cb21-22"><a href="#cb21-22" aria-hidden="true" tabindex="-1"></a><span class="co"># put a cell 13 pp below everything else on the heatmap and compressed the range the other</span></span>
+<span id="cb21-23"><a href="#cb21-23" aria-hidden="true" tabindex="-1"></a><span class="co"># families occupy. Its predictions remain in pred_cache/probs.npz under the "cgan" key.</span></span>
+<span id="cb21-24"><a href="#cb21-24" aria-hidden="true" tabindex="-1"></a>FAM <span class="op">=</span> {<span class="st">"CNN"</span>: (Qe, Qt)}</span>
+<span id="cb21-25"><a href="#cb21-25" aria-hidden="true" tabindex="-1"></a>FAM_IDS <span class="op">=</span> {<span class="st">"CNN"</span>: Z[<span class="st">"cnn_ids"</span>][keep]}</span>
+<span id="cb21-26"><a href="#cb21-26" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, (base_dir, tag, col) <span class="kw">in</span> GRIDS.items():</span>
+<span id="cb21-27"><a href="#cb21-27" aria-hidden="true" tabindex="-1"></a>    g <span class="op">=</span> ROOT <span class="op">/</span> base_dir</span>
+<span id="cb21-28"><a href="#cb21-28" aria-hidden="true" tabindex="-1"></a>    r <span class="op">=</span> pd.concat([pd.read_csv(g <span class="op">/</span> <span class="st">"random_search_results.csv"</span>)]</span>
+<span id="cb21-29"><a href="#cb21-29" aria-hidden="true" tabindex="-1"></a>                  <span class="op">+</span> [pd.read_csv(q) <span class="cf">for</span> q <span class="kw">in</span> (g <span class="op">/</span> <span class="st">"parts"</span>).glob(<span class="st">"*.csv"</span>)],</span>
+<span id="cb21-30"><a href="#cb21-30" aria-hidden="true" tabindex="-1"></a>                  ignore_index<span class="op">=</span><span class="va">True</span>).drop_duplicates(<span class="st">"model_id"</span>).set_index(<span class="st">"model_id"</span>)</span>
+<span id="cb21-31"><a href="#cb21-31" aria-hidden="true" tabindex="-1"></a>    w <span class="op">=</span> r[col].dropna()</span>
+<span id="cb21-32"><a href="#cb21-32" aria-hidden="true" tabindex="-1"></a>    tie <span class="op">=</span> <span class="bu">set</span>(w[w <span class="op">&gt;=</span> w.<span class="bu">max</span>() <span class="op">-</span> <span class="bu">float</span>(np.sqrt(w.<span class="bu">max</span>() <span class="op">*</span> (<span class="dv">1</span> <span class="op">-</span> w.<span class="bu">max</span>()) <span class="op">/</span> <span class="dv">2289</span>))].index)</span>
+<span id="cb21-33"><a href="#cb21-33" aria-hidden="true" tabindex="-1"></a>    idx <span class="op">=</span> [i <span class="cf">for</span> i, m <span class="kw">in</span> <span class="bu">enumerate</span>(Z[<span class="ss">f"</span><span class="sc">{</span>tag<span class="sc">}</span><span class="ss">_ids"</span>]) <span class="cf">if</span> m <span class="kw">in</span> tie]</span>
+<span id="cb21-34"><a href="#cb21-34" aria-hidden="true" tabindex="-1"></a>    FAM[name] <span class="op">=</span> (Z[<span class="ss">f"</span><span class="sc">{</span>tag<span class="sc">}</span><span class="ss">_e"</span>][idx], Z[<span class="ss">f"</span><span class="sc">{</span>tag<span class="sc">}</span><span class="ss">_t"</span>][idx])</span>
+<span id="cb21-35"><a href="#cb21-35" aria-hidden="true" tabindex="-1"></a>    FAM_IDS[name] <span class="op">=</span> Z[<span class="ss">f"</span><span class="sc">{</span>tag<span class="sc">}</span><span class="ss">_ids"</span>][idx]</span>
+<span id="cb21-36"><a href="#cb21-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-37"><a href="#cb21-37" aria-hidden="true" tabindex="-1"></a><span class="co"># The ordinal regression's class probabilities, exported by analyses/03 from the same</span></span>
+<span id="cb21-38"><a href="#cb21-38" aria-hidden="true" tabindex="-1"></a><span class="co"># train+val fit for both held-out splits.</span></span>
+<span id="cb21-39"><a href="#cb21-39" aria-hidden="true" tabindex="-1"></a>PC <span class="op">=</span> [<span class="ss">f"p</span><span class="sc">{</span>k<span class="sc">}</span><span class="ss">"</span> <span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>)]</span>
+<span id="cb21-40"><a href="#cb21-40" aria-hidden="true" tabindex="-1"></a>nd <span class="op">=</span> pd.read_csv(ROOT <span class="op">/</span> <span class="st">"analyses/03_feature_classifiers/model_cache/nondl_heldout_predictions.csv"</span>)</span>
+<span id="cb21-41"><a href="#cb21-41" aria-hidden="true" tabindex="-1"></a>fe <span class="op">=</span> [<span class="bu">str</span>(f).replace(<span class="st">".tif"</span>, <span class="st">""</span>) <span class="cf">for</span> f <span class="kw">in</span> Z[<span class="st">"files_e"</span>]]</span>
+<span id="cb21-42"><a href="#cb21-42" aria-hidden="true" tabindex="-1"></a>ft <span class="op">=</span> [<span class="bu">str</span>(f).replace(<span class="st">".tif"</span>, <span class="st">""</span>) <span class="cf">for</span> f <span class="kw">in</span> Z[<span class="st">"files_t"</span>]]</span>
+<span id="cb21-43"><a href="#cb21-43" aria-hidden="true" tabindex="-1"></a>ne <span class="op">=</span> nd[nd.split <span class="op">==</span> <span class="st">"ensemble"</span>].set_index(<span class="st">"image_id"</span>).reindex(fe)</span>
+<span id="cb21-44"><a href="#cb21-44" aria-hidden="true" tabindex="-1"></a>nt <span class="op">=</span> nd[nd.split <span class="op">==</span> <span class="st">"test"</span>].set_index(<span class="st">"image_id"</span>).reindex(ft)</span>
+<span id="cb21-45"><a href="#cb21-45" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> (ne[<span class="st">"true"</span>].to_numpy() <span class="op">==</span> ye).<span class="bu">all</span>() <span class="kw">and</span> (nt[<span class="st">"true"</span>].to_numpy() <span class="op">==</span> yt).<span class="bu">all</span>()</span>
+<span id="cb21-46"><a href="#cb21-46" aria-hidden="true" tabindex="-1"></a>FAM[<span class="st">"Ordinal Regression"</span>] <span class="op">=</span> (ne[PC].to_numpy(<span class="bu">float</span>)[<span class="va">None</span>], nt[PC].to_numpy(<span class="bu">float</span>)[<span class="va">None</span>])</span>
+<span id="cb21-47"><a href="#cb21-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-48"><a href="#cb21-48" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> k, (qe, qt) <span class="kw">in</span> FAM.items():</span>
+<span id="cb21-49"><a href="#cb21-49" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>k<span class="sc">:20s}</span><span class="ss"> </span><span class="sc">{</span><span class="bu">len</span>(qe)<span class="sc">:3d}</span><span class="ss"> members   ensemble </span><span class="sc">{</span>(qe.argmax(<span class="dv">2</span>) <span class="op">==</span> ye[<span class="va">None</span>, :])<span class="sc">.</span>mean()<span class="sc">:.4f}</span><span class="ss">   "</span></span>
+<span id="cb21-50"><a href="#cb21-50" aria-hidden="true" tabindex="-1"></a>          <span class="ss">f"test </span><span class="sc">{</span>(qt.argmax(<span class="dv">2</span>) <span class="op">==</span> yt[<span class="va">None</span>, :])<span class="sc">.</span>mean()<span class="sc">:.4f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>CNN                   22 members   ensemble 0.6162   test 0.6231
+ViT                   51 members   ensemble 0.6168   test 0.6277
+CNN (Geometric Augmentation)  17 members   ensemble 0.6535   test 0.6446
+Ordinal Regression     1 members   ensemble 0.6242   test 0.6331</code></pre>
+</div>
+</div>
+<div id="667d44cf" class="cell" data-execution_count="13">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.2</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Do two families make errors on DIFFERENT crops? Measured three ways.</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a><span class="co">#   double fault d   Kuncheva &amp; Whitaker (2003) pairwise measure: the share of crops both</span></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a><span class="co">#                    get wrong. Not corrected for the two having different accuracies.</span></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a><span class="co">#   Yule's Q         (ad - bc) / (ad + bc) on the hit/miss table. 0 = errors unrelated,</span></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a><span class="co">#                    1 = maximally shared. Chance-corrected, and the measure to quote.</span></span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a><span class="co">#   d / independent  d over what it would be if the errors were unrelated. 1 = unrelated.</span></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a><span class="co">#                    Not a named measure; kept because it reads directly and orders the</span></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a><span class="co">#                    pairs the same way Q does.</span></span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> pair_stats(A, B, same):</span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>    out <span class="op">=</span> []</span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(A)):</span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(B)):</span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> same <span class="kw">and</span> j <span class="op">&lt;=</span> i:</span>
+<span id="cb23-15"><a href="#cb23-15" aria-hidden="true" tabindex="-1"></a>                <span class="cf">continue</span></span>
+<span id="cb23-16"><a href="#cb23-16" aria-hidden="true" tabindex="-1"></a>            oa, ob <span class="op">=</span> A[i] <span class="op">==</span> ye, B[j] <span class="op">==</span> ye</span>
+<span id="cb23-17"><a href="#cb23-17" aria-hidden="true" tabindex="-1"></a>            a <span class="op">=</span> (oa <span class="op">&amp;</span> ob).mean()<span class="op">;</span> b <span class="op">=</span> (<span class="op">~</span>oa <span class="op">&amp;</span> ob).mean()<span class="op">;</span> c <span class="op">=</span> (oa <span class="op">&amp;</span> <span class="op">~</span>ob).mean()<span class="op">;</span> d <span class="op">=</span> (<span class="op">~</span>oa <span class="op">&amp;</span> <span class="op">~</span>ob).mean()</span>
+<span id="cb23-18"><a href="#cb23-18" aria-hidden="true" tabindex="-1"></a>            out.append((d, (a <span class="op">*</span> d <span class="op">-</span> b <span class="op">*</span> c) <span class="op">/</span> (a <span class="op">*</span> d <span class="op">+</span> b <span class="op">*</span> c), d <span class="op">/</span> ((<span class="dv">1</span> <span class="op">-</span> oa.mean()) <span class="op">*</span> (<span class="dv">1</span> <span class="op">-</span> ob.mean()))))</span>
+<span id="cb23-19"><a href="#cb23-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.array(out)</span>
+<span id="cb23-20"><a href="#cb23-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-21"><a href="#cb23-21" aria-hidden="true" tabindex="-1"></a>H <span class="op">=</span> {k: v[<span class="dv">0</span>].argmax(<span class="dv">2</span>) <span class="cf">for</span> k, v <span class="kw">in</span> FAM.items()}</span>
+<span id="cb23-22"><a href="#cb23-22" aria-hidden="true" tabindex="-1"></a>names <span class="op">=</span> <span class="bu">list</span>(FAM)</span>
+<span id="cb23-23"><a href="#cb23-23" aria-hidden="true" tabindex="-1"></a>rows <span class="op">=</span> []</span>
+<span id="cb23-24"><a href="#cb23-24" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, x <span class="kw">in</span> <span class="bu">enumerate</span>(names):</span>
+<span id="cb23-25"><a href="#cb23-25" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> y <span class="kw">in</span> names[i:]:</span>
+<span id="cb23-26"><a href="#cb23-26" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> x <span class="op">==</span> y <span class="kw">and</span> <span class="bu">len</span>(H[x]) <span class="op">&lt;</span> <span class="dv">2</span>:</span>
+<span id="cb23-27"><a href="#cb23-27" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span></span>
+<span id="cb23-28"><a href="#cb23-28" aria-hidden="true" tabindex="-1"></a>        m <span class="op">=</span> pair_stats(H[x], H[y], x <span class="op">==</span> y)</span>
+<span id="cb23-29"><a href="#cb23-29" aria-hidden="true" tabindex="-1"></a>        rows.append({<span class="st">"pair"</span>: <span class="ss">f"</span><span class="sc">{</span>x<span class="sc">}</span><span class="ss"> (within)"</span> <span class="cf">if</span> x <span class="op">==</span> y <span class="cf">else</span> <span class="ss">f"</span><span class="sc">{</span>x<span class="sc">}</span><span class="ss"> + </span><span class="sc">{</span>y<span class="sc">}</span><span class="ss">"</span>,</span>
+<span id="cb23-30"><a href="#cb23-30" aria-hidden="true" tabindex="-1"></a>                     <span class="st">"kind"</span>: <span class="st">"within"</span> <span class="cf">if</span> x <span class="op">==</span> y <span class="cf">else</span> <span class="st">"across"</span>, <span class="st">"pairs"</span>: <span class="bu">len</span>(m),</span>
+<span id="cb23-31"><a href="#cb23-31" aria-hidden="true" tabindex="-1"></a>                     <span class="st">"double fault d"</span>: m[:, <span class="dv">0</span>].mean(), <span class="st">"Yule Q"</span>: m[:, <span class="dv">1</span>].mean(),</span>
+<span id="cb23-32"><a href="#cb23-32" aria-hidden="true" tabindex="-1"></a>                     <span class="st">"d / independent"</span>: m[:, <span class="dv">2</span>].mean()})</span>
+<span id="cb23-33"><a href="#cb23-33" aria-hidden="true" tabindex="-1"></a>div <span class="op">=</span> pd.DataFrame(rows).sort_values(<span class="st">"Yule Q"</span>)</span>
+<span id="cb23-34"><a href="#cb23-34" aria-hidden="true" tabindex="-1"></a>div.<span class="bu">round</span>(<span class="dv">3</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display" data-execution_count="13">
+<div>
+
+
+<table class="dataframe caption-top table table-sm table-striped small" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">pair</th>
+<th data-quarto-table-cell-role="th">kind</th>
+<th data-quarto-table-cell-role="th">pairs</th>
+<th data-quarto-table-cell-role="th">double fault d</th>
+<th data-quarto-table-cell-role="th">Yule Q</th>
+<th data-quarto-table-cell-role="th">d / independent</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">3</th>
+<td>CNN + Ordinal Regression</td>
+<td>across</td>
+<td>22</td>
+<td>0.253</td>
+<td>0.771</td>
+<td>1.759</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">1</th>
+<td>CNN + ViT</td>
+<td>across</td>
+<td>1122</td>
+<td>0.257</td>
+<td>0.772</td>
+<td>1.754</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">8</th>
+<td>CNN (Geometric Augmentation) + Ordinal Regression</td>
+<td>across</td>
+<td>17</td>
+<td>0.237</td>
+<td>0.776</td>
+<td>1.820</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">6</th>
+<td>ViT + Ordinal Regression</td>
+<td>across</td>
+<td>51</td>
+<td>0.256</td>
+<td>0.783</td>
+<td>1.779</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">5</th>
+<td>ViT + CNN (Geometric Augmentation)</td>
+<td>across</td>
+<td>867</td>
+<td>0.246</td>
+<td>0.801</td>
+<td>1.859</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">2</th>
+<td>CNN + CNN (Geometric Augmentation)</td>
+<td>across</td>
+<td>374</td>
+<td>0.253</td>
+<td>0.826</td>
+<td>1.909</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">4</th>
+<td>ViT (within)</td>
+<td>within</td>
+<td>1275</td>
+<td>0.272</td>
+<td>0.831</td>
+<td>1.856</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">0</th>
+<td>CNN (within)</td>
+<td>within</td>
+<td>231</td>
+<td>0.284</td>
+<td>0.867</td>
+<td>1.933</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">7</th>
+<td>CNN (Geometric Augmentation) (within)</td>
+<td>within</td>
+<td>136</td>
+<td>0.260</td>
+<td>0.902</td>
+<td>2.176</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+<div id="b55bb7f5" class="cell" data-execution_count="14">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.3</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Every pair of families, and all four. Each family is averaged internally first, then</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a><span class="co"># across families, so 51 ViTs do not outvote 1 ordinal regression on member count alone.</span></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> itertools</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> combine(keys, which):</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.stack([FAM[k][which].mean(<span class="dv">0</span>) <span class="cf">for</span> k <span class="kw">in</span> keys]).mean(<span class="dv">0</span>).argmax(<span class="dv">1</span>)</span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> keys <span class="kw">in</span> <span class="bu">list</span>(itertools.combinations(names, <span class="dv">2</span>)) <span class="op">+</span> [<span class="bu">tuple</span>(names)]:</span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a>    label <span class="op">=</span> <span class="st">" + "</span>.join(keys) <span class="cf">if</span> <span class="bu">len</span>(keys) <span class="op">&lt;</span> <span class="bu">len</span>(names) <span class="cf">else</span> <span class="st">"All families"</span></span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>    RULES[label] <span class="op">=</span> (combine(keys, <span class="dv">0</span>), combine(keys, <span class="dv">1</span>))</span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a>tab2 <span class="op">=</span> pd.DataFrame([</span>
+<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a>    {<span class="st">"rule"</span>: k, <span class="st">"ensemble exact"</span>: exact(pe, ye), <span class="st">"test exact"</span>: exact(pt, yt),</span>
+<span id="cb24-14"><a href="#cb24-14" aria-hidden="true" tabindex="-1"></a>     <span class="st">"test near-miss"</span>: near(pt, yt), <span class="st">"test MAE"</span>: mae(pt, yt)}</span>
+<span id="cb24-15"><a href="#cb24-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> k, (pe, pt) <span class="kw">in</span> RULES.items()]).sort_values(<span class="st">"test exact"</span>, ascending<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb24-16"><a href="#cb24-16" aria-hidden="true" tabindex="-1"></a>tab2.<span class="bu">round</span>(<span class="dv">4</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display" data-execution_count="14">
+<div>
+
+
+<table class="dataframe caption-top table table-sm table-striped small" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">rule</th>
+<th data-quarto-table-cell-role="th">ensemble exact</th>
+<th data-quarto-table-cell-role="th">test exact</th>
+<th data-quarto-table-cell-role="th">test near-miss</th>
+<th data-quarto-table-cell-role="th">test MAE</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">8</th>
+<td>CNN (Geometric Augmentation) + Ordinal Regression</td>
+<td>0.6813</td>
+<td>0.6916</td>
+<td>0.9838</td>
+<td>0.3247</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">6</th>
+<td>ViT + CNN (Geometric Augmentation)</td>
+<td>0.6791</td>
+<td>0.6851</td>
+<td>0.9870</td>
+<td>0.3279</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">5</th>
+<td>CNN + Ordinal Regression</td>
+<td>0.6330</td>
+<td>0.6818</td>
+<td>0.9773</td>
+<td>0.3442</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">3</th>
+<td>CNN + ViT</td>
+<td>0.6396</td>
+<td>0.6786</td>
+<td>0.9838</td>
+<td>0.3377</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">7</th>
+<td>ViT + Ordinal Regression</td>
+<td>0.6571</td>
+<td>0.6786</td>
+<td>0.9773</td>
+<td>0.3474</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">9</th>
+<td>All families</td>
+<td>0.6549</td>
+<td>0.6688</td>
+<td>0.9838</td>
+<td>0.3474</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">4</th>
+<td>CNN + CNN (Geometric Augmentation)</td>
+<td>0.6637</td>
+<td>0.6526</td>
+<td>0.9903</td>
+<td>0.3571</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">1</th>
+<td>Plurality vote</td>
+<td>0.6330</td>
+<td>0.6494</td>
+<td>0.9870</td>
+<td>0.3636</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">0</th>
+<td>Best single model</td>
+<td>0.6396</td>
+<td>0.6461</td>
+<td>0.9773</td>
+<td>0.3766</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">2</th>
+<td>Mean softmax</td>
+<td>0.6374</td>
+<td>0.6461</td>
+<td>0.9903</td>
+<td>0.3636</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+<div id="217f1026" class="cell" data-execution_count="15">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.4</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Lower triangle only: the matrix is symmetric, so the upper half repeats it.</span></span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a><span class="co"># A plain linear Normalize, not TwoSlopeNorm: centring the colour on the best single model</span></span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a><span class="co"># would map the 1.3 pp below it onto the same colour span as the 4.6 pp above.</span></span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a><span class="co"># RdBu_r is trimmed at both ends so the extreme cells are not near-white or near-black.</span></span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> matplotlib.collections <span class="im">import</span> LineCollection</span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> matplotlib.colors <span class="im">import</span> LinearSegmentedColormap</span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>_b <span class="op">=</span> plt.get_cmap(<span class="st">"RdBu_r"</span>)</span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>CMAP <span class="op">=</span> LinearSegmentedColormap.from_list(<span class="st">"RdBu_r_t"</span>, _b(np.linspace(<span class="fl">0.10</span>, <span class="fl">0.90</span>, <span class="dv">256</span>)))</span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a>TM <span class="op">=</span> np.full((<span class="bu">len</span>(names), <span class="bu">len</span>(names)), np.nan)</span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a>EM <span class="op">=</span> np.full((<span class="bu">len</span>(names), <span class="bu">len</span>(names)), np.nan)</span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, a <span class="kw">in</span> <span class="bu">enumerate</span>(names):</span>
+<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a>    TM[i, i] <span class="op">=</span> exact(FAM[a][<span class="dv">1</span>].mean(<span class="dv">0</span>).argmax(<span class="dv">1</span>), yt)</span>
+<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a>    EM[i, i] <span class="op">=</span> exact(FAM[a][<span class="dv">0</span>].mean(<span class="dv">0</span>).argmax(<span class="dv">1</span>), ye)</span>
+<span id="cb25-16"><a href="#cb25-16" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, j <span class="kw">in</span> itertools.combinations(<span class="bu">range</span>(<span class="bu">len</span>(names)), <span class="dv">2</span>):</span>
+<span id="cb25-17"><a href="#cb25-17" aria-hidden="true" tabindex="-1"></a>    key <span class="op">=</span> <span class="ss">f"</span><span class="sc">{</span>names[i]<span class="sc">}</span><span class="ss"> + </span><span class="sc">{</span>names[j]<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb25-18"><a href="#cb25-18" aria-hidden="true" tabindex="-1"></a>    TM[i, j] <span class="op">=</span> TM[j, i] <span class="op">=</span> exact(RULES[key][<span class="dv">1</span>], yt)</span>
+<span id="cb25-19"><a href="#cb25-19" aria-hidden="true" tabindex="-1"></a>    EM[i, j] <span class="op">=</span> EM[j, i] <span class="op">=</span> exact(RULES[key][<span class="dv">0</span>], ye)</span>
+<span id="cb25-20"><a href="#cb25-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-21"><a href="#cb25-21" aria-hidden="true" tabindex="-1"></a>LBL <span class="op">=</span> [x.replace(<span class="st">" (Geometric Augmentation)"</span>, <span class="st">"</span><span class="ch">\n</span><span class="st">(Geometric</span><span class="ch">\n</span><span class="st">Augmentation)"</span>)</span>
+<span id="cb25-22"><a href="#cb25-22" aria-hidden="true" tabindex="-1"></a>        .replace(<span class="st">" (cGAN Augmentation)"</span>, <span class="st">"</span><span class="ch">\n</span><span class="st">(cGAN</span><span class="ch">\n</span><span class="st">Augmentation)"</span>)</span>
+<span id="cb25-23"><a href="#cb25-23" aria-hidden="true" tabindex="-1"></a>        .replace(<span class="st">"Ordinal Regression"</span>, <span class="st">"Ordinal</span><span class="ch">\n</span><span class="st">Regression"</span>) <span class="cf">for</span> x <span class="kw">in</span> names]</span>
+<span id="cb25-24"><a href="#cb25-24" aria-hidden="true" tabindex="-1"></a>V <span class="op">=</span> np.where(np.tril(np.ones_like(TM), <span class="dv">0</span>) <span class="op">==</span> <span class="dv">1</span>, <span class="dv">100</span> <span class="op">*</span> TM, np.nan)</span>
+<span id="cb25-25"><a href="#cb25-25" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="fl">6.6</span>, <span class="fl">5.4</span>))</span>
+<span id="cb25-26"><a href="#cb25-26" aria-hidden="true" tabindex="-1"></a>im <span class="op">=</span> ax.imshow(V, cmap<span class="op">=</span>CMAP, vmin<span class="op">=</span>np.nanmin(V), vmax<span class="op">=</span>np.nanmax(V))</span>
+<span id="cb25-27"><a href="#cb25-27" aria-hidden="true" tabindex="-1"></a>ax.set_xticks(<span class="bu">range</span>(<span class="bu">len</span>(names)), LBL, fontsize<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb25-28"><a href="#cb25-28" aria-hidden="true" tabindex="-1"></a>ax.set_yticks(<span class="bu">range</span>(<span class="bu">len</span>(names)), LBL, fontsize<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb25-29"><a href="#cb25-29" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> sp <span class="kw">in</span> ax.spines.values():</span>
+<span id="cb25-30"><a href="#cb25-30" aria-hidden="true" tabindex="-1"></a>    sp.set_visible(<span class="va">False</span>)</span>
+<span id="cb25-31"><a href="#cb25-31" aria-hidden="true" tabindex="-1"></a>ax.tick_params(length<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb25-32"><a href="#cb25-32" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(names)):</span>
+<span id="cb25-33"><a href="#cb25-33" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(i <span class="op">+</span> <span class="dv">1</span>):</span>
+<span id="cb25-34"><a href="#cb25-34" aria-hidden="true" tabindex="-1"></a>        r, g, b, _ <span class="op">=</span> im.cmap(im.norm(V[i, j]))</span>
+<span id="cb25-35"><a href="#cb25-35" aria-hidden="true" tabindex="-1"></a>        c <span class="op">=</span> <span class="st">"white"</span> <span class="cf">if</span> (<span class="fl">0.299</span> <span class="op">*</span> r <span class="op">+</span> <span class="fl">0.587</span> <span class="op">*</span> g <span class="op">+</span> <span class="fl">0.114</span> <span class="op">*</span> b) <span class="op">&lt;</span> <span class="fl">0.5</span> <span class="cf">else</span> <span class="st">"black"</span></span>
+<span id="cb25-36"><a href="#cb25-36" aria-hidden="true" tabindex="-1"></a>        ax.text(j, i <span class="op">-</span> <span class="fl">0.10</span>, <span class="ss">f"</span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> TM[i, j]<span class="sc">:.2f}</span><span class="ss">"</span>, ha<span class="op">=</span><span class="st">"center"</span>, va<span class="op">=</span><span class="st">"center"</span>,</span>
+<span id="cb25-37"><a href="#cb25-37" aria-hidden="true" tabindex="-1"></a>                fontsize<span class="op">=</span><span class="dv">10</span>, color<span class="op">=</span>c)</span>
+<span id="cb25-38"><a href="#cb25-38" aria-hidden="true" tabindex="-1"></a>        ax.text(j, i <span class="op">+</span> <span class="fl">0.26</span>, <span class="ss">f"(</span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> EM[i, j]<span class="sc">:.2f}</span><span class="ss">)"</span>, ha<span class="op">=</span><span class="st">"center"</span>, va<span class="op">=</span><span class="st">"center"</span>,</span>
+<span id="cb25-39"><a href="#cb25-39" aria-hidden="true" tabindex="-1"></a>                fontsize<span class="op">=</span><span class="fl">7.5</span>, color<span class="op">=</span>c)</span>
+<span id="cb25-40"><a href="#cb25-40" aria-hidden="true" tabindex="-1"></a><span class="co"># One stroke per edge. Rectangles per cell would paint every shared edge twice, which is</span></span>
+<span id="cb25-41"><a href="#cb25-41" aria-hidden="true" tabindex="-1"></a><span class="co"># why the earlier version had inner borders visibly heavier than outer ones.</span></span>
+<span id="cb25-42"><a href="#cb25-42" aria-hidden="true" tabindex="-1"></a>_edges <span class="op">=</span> <span class="bu">set</span>()</span>
+<span id="cb25-43"><a href="#cb25-43" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(names)):</span>
+<span id="cb25-44"><a href="#cb25-44" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(i <span class="op">+</span> <span class="dv">1</span>):</span>
+<span id="cb25-45"><a href="#cb25-45" aria-hidden="true" tabindex="-1"></a>        x0, y0 <span class="op">=</span> j <span class="op">-</span> <span class="fl">0.5</span>, i <span class="op">-</span> <span class="fl">0.5</span></span>
+<span id="cb25-46"><a href="#cb25-46" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> seg <span class="kw">in</span> (((x0, y0), (x0 <span class="op">+</span> <span class="dv">1</span>, y0)), ((x0, y0 <span class="op">+</span> <span class="dv">1</span>), (x0 <span class="op">+</span> <span class="dv">1</span>, y0 <span class="op">+</span> <span class="dv">1</span>)),</span>
+<span id="cb25-47"><a href="#cb25-47" aria-hidden="true" tabindex="-1"></a>                    ((x0, y0), (x0, y0 <span class="op">+</span> <span class="dv">1</span>)), ((x0 <span class="op">+</span> <span class="dv">1</span>, y0), (x0 <span class="op">+</span> <span class="dv">1</span>, y0 <span class="op">+</span> <span class="dv">1</span>))):</span>
+<span id="cb25-48"><a href="#cb25-48" aria-hidden="true" tabindex="-1"></a>            _edges.add(seg)</span>
+<span id="cb25-49"><a href="#cb25-49" aria-hidden="true" tabindex="-1"></a><span class="co"># clip_on=False: imshow sets the axes limits to the outer edge of the outer cells, so the</span></span>
+<span id="cb25-50"><a href="#cb25-50" aria-hidden="true" tabindex="-1"></a><span class="co"># boundary strokes sit exactly on the clip rectangle and half of each is cut away, which</span></span>
+<span id="cb25-51"><a href="#cb25-51" aria-hidden="true" tabindex="-1"></a><span class="co"># is why the left and bottom edges rendered at about half the width of the interior ones.</span></span>
+<span id="cb25-52"><a href="#cb25-52" aria-hidden="true" tabindex="-1"></a>ax.add_collection(LineCollection(<span class="bu">sorted</span>(_edges), colors<span class="op">=</span><span class="st">"black"</span>, linewidths<span class="op">=</span><span class="fl">0.8</span>,</span>
+<span id="cb25-53"><a href="#cb25-53" aria-hidden="true" tabindex="-1"></a>                                 capstyle<span class="op">=</span><span class="st">"projecting"</span>, snap<span class="op">=</span><span class="va">True</span>, zorder<span class="op">=</span><span class="dv">3</span>,</span>
+<span id="cb25-54"><a href="#cb25-54" aria-hidden="true" tabindex="-1"></a>                                 clip_on<span class="op">=</span><span class="va">False</span>))</span>
+<span id="cb25-55"><a href="#cb25-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-56"><a href="#cb25-56" aria-hidden="true" tabindex="-1"></a>cb <span class="op">=</span> fig.colorbar(im, ax<span class="op">=</span>ax, fraction<span class="op">=</span><span class="fl">0.046</span>, pad<span class="op">=</span><span class="fl">0.03</span>)</span>
+<span id="cb25-57"><a href="#cb25-57" aria-hidden="true" tabindex="-1"></a>cb.set_label(<span class="st">"Test exact accuracy (%)"</span>, fontsize<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb25-58"><a href="#cb25-58" aria-hidden="true" tabindex="-1"></a>cb.ax.tick_params(labelsize<span class="op">=</span><span class="fl">7.5</span>)</span>
+<span id="cb25-59"><a href="#cb25-59" aria-hidden="true" tabindex="-1"></a>cb.outline.set_linewidth(<span class="fl">0.8</span>)</span>
+<span id="cb25-60"><a href="#cb25-60" aria-hidden="true" tabindex="-1"></a>fig.tight_layout()</span>
+<span id="cb25-61"><a href="#cb25-61" aria-hidden="true" tabindex="-1"></a>fig.savefig(THESIS_PLOTS <span class="op">/</span> <span class="st">"family_pairs.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb25-62"><a href="#cb25-62" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="ensembling_results_files/figure-html/cell-16-output-1.png" width="784" height="635" class="figure-img"></p>
+<figcaption>Exact accuracy of every family on its own (diagonal) and of every pair combined (off-diagonal). Large number is the test split, bracketed is the ensemble split used to choose. Colour runs linearly over the test range, so its midpoint is the midpoint of the data and carries no other meaning.</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<div id="53afd45a" class="cell" data-execution_count="16">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.5</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="co"># The ensemble is defined by its predictions, so a confusion matrix is the natural way to</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a><span class="co"># read what combining the two families changed. The rater matrix counts 917 judgements and</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a><span class="co"># the ensemble 308 predictions, so both are row-normalised before differencing and each</span></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a><span class="co"># cell of B is a change in row proportion.</span></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> matplotlib.patches <span class="im">import</span> Rectangle</span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>BEST_PAIR <span class="op">=</span> (<span class="st">"CNN (Geometric Augmentation)"</span>, <span class="st">"Ordinal Regression"</span>)</span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>ens_t <span class="op">=</span> RULES[<span class="st">" + "</span>.join(BEST_PAIR)][<span class="dv">1</span>]</span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a><span class="co"># The human matrix carries an eighth column, the tautological judgements Metric 3</span></span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a><span class="co"># removes. They must stay in the row totals: without them the denominator is 875 and</span></span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a><span class="co"># row-normalising gives a human diagonal of 72.23%, against the 68.92% Metric 3</span></span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a><span class="co"># reports over all 917. A model has no such category, so its matrix is padded with a</span></span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a><span class="co"># zero column and the two are then directly comparable.</span></span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a>hum <span class="op">=</span> pd.read_csv(ROOT <span class="op">/</span> <span class="st">"analyses/02_human_performance/thesis_plots/human_confusion_matrix.csv"</span>,</span>
+<span id="cb26-16"><a href="#cb26-16" aria-hidden="true" tabindex="-1"></a>                  index_col<span class="op">=</span><span class="dv">0</span>).to_numpy(<span class="bu">float</span>)</span>
+<span id="cb26-17"><a href="#cb26-17" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> hum.shape <span class="op">==</span> (<span class="dv">7</span>, <span class="dv">8</span>) <span class="kw">and</span> hum.<span class="bu">sum</span>() <span class="op">==</span> <span class="dv">917</span></span>
+<span id="cb26-18"><a href="#cb26-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-19"><a href="#cb26-19" aria-hidden="true" tabindex="-1"></a>cm <span class="op">=</span> np.zeros((<span class="dv">7</span>, <span class="dv">7</span>))</span>
+<span id="cb26-20"><a href="#cb26-20" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _t, _q <span class="kw">in</span> <span class="bu">zip</span>(yt, ens_t):</span>
+<span id="cb26-21"><a href="#cb26-21" aria-hidden="true" tabindex="-1"></a>    cm[<span class="bu">int</span>(_t), <span class="bu">int</span>(_q)] <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb26-22"><a href="#cb26-22" aria-hidden="true" tabindex="-1"></a>cm8 <span class="op">=</span> np.hstack([cm, np.zeros((<span class="dv">7</span>, <span class="dv">1</span>))])</span>
+<span id="cb26-23"><a href="#cb26-23" aria-hidden="true" tabindex="-1"></a>dif <span class="op">=</span> cm8 <span class="op">/</span> cm8.<span class="bu">sum</span>(<span class="dv">1</span>, keepdims<span class="op">=</span><span class="va">True</span>) <span class="op">-</span> hum <span class="op">/</span> hum.<span class="bu">sum</span>(<span class="dv">1</span>, keepdims<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb26-24"><a href="#cb26-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-25"><a href="#cb26-25" aria-hidden="true" tabindex="-1"></a>f1, a1 <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="fl">6.2</span>, <span class="fl">5.2</span>))</span>
+<span id="cb26-26"><a href="#cb26-26" aria-hidden="true" tabindex="-1"></a>i1 <span class="op">=</span> a1.imshow(cm, cmap<span class="op">=</span><span class="st">"Greens"</span>)</span>
+<span id="cb26-27"><a href="#cb26-27" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>):</span>
+<span id="cb26-28"><a href="#cb26-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>):</span>
+<span id="cb26-29"><a href="#cb26-29" aria-hidden="true" tabindex="-1"></a>        a1.text(j, i, <span class="bu">int</span>(cm[i, j]), ha<span class="op">=</span><span class="st">"center"</span>, va<span class="op">=</span><span class="st">"center"</span>, fontsize<span class="op">=</span><span class="dv">8</span>,</span>
+<span id="cb26-30"><a href="#cb26-30" aria-hidden="true" tabindex="-1"></a>                color<span class="op">=</span><span class="st">"white"</span> <span class="cf">if</span> cm[i, j] <span class="op">&gt;</span> <span class="fl">0.6</span> <span class="op">*</span> cm.<span class="bu">max</span>() <span class="cf">else</span> <span class="st">"black"</span>)</span>
+<span id="cb26-31"><a href="#cb26-31" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> i <span class="op">==</span> j:</span>
+<span id="cb26-32"><a href="#cb26-32" aria-hidden="true" tabindex="-1"></a>            a1.add_patch(Rectangle((j <span class="op">-</span> <span class="fl">.5</span>, i <span class="op">-</span> <span class="fl">.5</span>), <span class="dv">1</span>, <span class="dv">1</span>, fill<span class="op">=</span><span class="va">False</span>, edgecolor<span class="op">=</span><span class="st">"black"</span>, lw<span class="op">=</span>plt.rcParams[<span class="st">"axes.linewidth"</span>]))</span>
+<span id="cb26-33"><a href="#cb26-33" aria-hidden="true" tabindex="-1"></a>a1.set_xticks(<span class="bu">range</span>(<span class="dv">7</span>))<span class="op">;</span> a1.set_yticks(<span class="bu">range</span>(<span class="dv">7</span>))</span>
+<span id="cb26-34"><a href="#cb26-34" aria-hidden="true" tabindex="-1"></a>a1.set_xlabel(<span class="st">"Predicted score"</span>)<span class="op">;</span> a1.set_ylabel(<span class="st">"True score"</span>)</span>
+<span id="cb26-35"><a href="#cb26-35" aria-hidden="true" tabindex="-1"></a>f1.colorbar(i1, ax<span class="op">=</span>a1, fraction<span class="op">=</span><span class="fl">0.046</span>, label<span class="op">=</span><span class="st">"Test CDAs"</span>)</span>
+<span id="cb26-36"><a href="#cb26-36" aria-hidden="true" tabindex="-1"></a>f1.savefig(THESIS_PLOTS <span class="op">/</span> <span class="st">"ensemble_test_confusion.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb26-37"><a href="#cb26-37" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb26-38"><a href="#cb26-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-39"><a href="#cb26-39" aria-hidden="true" tabindex="-1"></a><span class="co"># The tautological column is not a predicted score, so it sits in its own axes with a gap</span></span>
+<span id="cb26-40"><a href="#cb26-40" aria-hidden="true" tabindex="-1"></a><span class="co"># rather than as an eighth column of the matrix. Both axes share one normalisation, so the</span></span>
+<span id="cb26-41"><a href="#cb26-41" aria-hidden="true" tabindex="-1"></a><span class="co"># colours are directly comparable across the gap.</span></span>
+<span id="cb26-42"><a href="#cb26-42" aria-hidden="true" tabindex="-1"></a>f2, (a2, a3) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="fl">7.4</span>, <span class="fl">5.2</span>),</span>
+<span id="cb26-43"><a href="#cb26-43" aria-hidden="true" tabindex="-1"></a>                            gridspec_kw<span class="op">=</span><span class="bu">dict</span>(width_ratios<span class="op">=</span>[<span class="dv">7</span>, <span class="dv">1</span>], wspace<span class="op">=</span><span class="fl">0.06</span>))</span>
+<span id="cb26-44"><a href="#cb26-44" aria-hidden="true" tabindex="-1"></a>vv <span class="op">=</span> np.<span class="bu">abs</span>(dif).<span class="bu">max</span>()</span>
+<span id="cb26-45"><a href="#cb26-45" aria-hidden="true" tabindex="-1"></a>norm <span class="op">=</span> plt.Normalize(<span class="op">-</span>vv, vv)</span>
+<span id="cb26-46"><a href="#cb26-46" aria-hidden="true" tabindex="-1"></a><span class="co"># A cell is labelled when the difference is worth reading OR when both sides actually put</span></span>
+<span id="cb26-47"><a href="#cb26-47" aria-hidden="true" tabindex="-1"></a><span class="co"># crops there. Leaving the second case blank would suggest neither side ever predicted it,</span></span>
+<span id="cb26-48"><a href="#cb26-48" aria-hidden="true" tabindex="-1"></a><span class="co"># when in fact they predicted it at the same rate.</span></span>
+<span id="cb26-49"><a href="#cb26-49" aria-hidden="true" tabindex="-1"></a>both <span class="op">=</span> (hum <span class="op">&gt;</span> <span class="dv">0</span>) <span class="op">&amp;</span> (cm8 <span class="op">&gt;</span> <span class="dv">0</span>)</span>
+<span id="cb26-50"><a href="#cb26-50" aria-hidden="true" tabindex="-1"></a>i2 <span class="op">=</span> a2.imshow(dif[:, :<span class="dv">7</span>], cmap<span class="op">=</span><span class="st">"RdBu_r"</span>, norm<span class="op">=</span>norm)</span>
+<span id="cb26-51"><a href="#cb26-51" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>):</span>
+<span id="cb26-52"><a href="#cb26-52" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>):</span>
+<span id="cb26-53"><a href="#cb26-53" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">abs</span>(dif[i, j]) <span class="op">&gt;</span> <span class="fl">0.005</span> <span class="kw">or</span> both[i, j]:</span>
+<span id="cb26-54"><a href="#cb26-54" aria-hidden="true" tabindex="-1"></a>            a2.text(j, i, <span class="ss">f"</span><span class="sc">{</span>dif[i, j]<span class="sc">:+.2f}</span><span class="ss">"</span>, ha<span class="op">=</span><span class="st">"center"</span>, va<span class="op">=</span><span class="st">"center"</span>, fontsize<span class="op">=</span><span class="dv">7</span>,</span>
+<span id="cb26-55"><a href="#cb26-55" aria-hidden="true" tabindex="-1"></a>                    color<span class="op">=</span><span class="st">"white"</span> <span class="cf">if</span> <span class="bu">abs</span>(dif[i, j]) <span class="op">&gt;</span> <span class="fl">0.6</span> <span class="op">*</span> vv <span class="cf">else</span> <span class="st">"black"</span>)</span>
+<span id="cb26-56"><a href="#cb26-56" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> i <span class="op">==</span> j:</span>
+<span id="cb26-57"><a href="#cb26-57" aria-hidden="true" tabindex="-1"></a>            a2.add_patch(Rectangle((j <span class="op">-</span> <span class="fl">.5</span>, i <span class="op">-</span> <span class="fl">.5</span>), <span class="dv">1</span>, <span class="dv">1</span>, fill<span class="op">=</span><span class="va">False</span>, edgecolor<span class="op">=</span><span class="st">"black"</span>, lw<span class="op">=</span>plt.rcParams[<span class="st">"axes.linewidth"</span>]))</span>
+<span id="cb26-58"><a href="#cb26-58" aria-hidden="true" tabindex="-1"></a>a2.set_xticks(<span class="bu">range</span>(<span class="dv">7</span>))<span class="op">;</span> a2.set_yticks(<span class="bu">range</span>(<span class="dv">7</span>))</span>
+<span id="cb26-59"><a href="#cb26-59" aria-hidden="true" tabindex="-1"></a>a2.set_xlabel(<span class="st">"Predicted score"</span>)<span class="op">;</span> a2.set_ylabel(<span class="st">"True score"</span>)</span>
+<span id="cb26-60"><a href="#cb26-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-61"><a href="#cb26-61" aria-hidden="true" tabindex="-1"></a><span class="co"># Both axes keep imshow's equal aspect and share the y axis, so a cell is square in both</span></span>
+<span id="cb26-62"><a href="#cb26-62" aria-hidden="true" tabindex="-1"></a><span class="co"># and its side is set by the shared axes height / 7. That makes the strip cell identical</span></span>
+<span id="cb26-63"><a href="#cb26-63" aria-hidden="true" tabindex="-1"></a><span class="co"># in size to a matrix cell by construction. aspect="auto" here instead would stretch the</span></span>
+<span id="cb26-64"><a href="#cb26-64" aria-hidden="true" tabindex="-1"></a><span class="co"># strip to fill its own box, which is what made it the wrong width.</span></span>
+<span id="cb26-65"><a href="#cb26-65" aria-hidden="true" tabindex="-1"></a>a3.imshow(dif[:, <span class="dv">7</span>:<span class="dv">8</span>], cmap<span class="op">=</span><span class="st">"RdBu_r"</span>, norm<span class="op">=</span>norm)</span>
+<span id="cb26-66"><a href="#cb26-66" aria-hidden="true" tabindex="-1"></a>a3.sharey(a2)</span>
+<span id="cb26-67"><a href="#cb26-67" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>):</span>
+<span id="cb26-68"><a href="#cb26-68" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">abs</span>(dif[i, <span class="dv">7</span>]) <span class="op">&gt;</span> <span class="fl">0.005</span> <span class="kw">or</span> both[i, <span class="dv">7</span>]:</span>
+<span id="cb26-69"><a href="#cb26-69" aria-hidden="true" tabindex="-1"></a>        a3.text(<span class="dv">0</span>, i, <span class="ss">f"</span><span class="sc">{</span>dif[i, <span class="dv">7</span>]<span class="sc">:+.2f}</span><span class="ss">"</span>, ha<span class="op">=</span><span class="st">"center"</span>, va<span class="op">=</span><span class="st">"center"</span>, fontsize<span class="op">=</span><span class="dv">7</span>,</span>
+<span id="cb26-70"><a href="#cb26-70" aria-hidden="true" tabindex="-1"></a>                color<span class="op">=</span><span class="st">"white"</span> <span class="cf">if</span> <span class="bu">abs</span>(dif[i, <span class="dv">7</span>]) <span class="op">&gt;</span> <span class="fl">0.6</span> <span class="op">*</span> vv <span class="cf">else</span> <span class="st">"black"</span>)</span>
+<span id="cb26-71"><a href="#cb26-71" aria-hidden="true" tabindex="-1"></a>a3.set_xticks([<span class="dv">0</span>], [<span class="st">"Tautological"</span>], rotation<span class="op">=</span><span class="dv">90</span>, fontsize<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb26-72"><a href="#cb26-72" aria-hidden="true" tabindex="-1"></a>a3.set_yticks([])</span>
+<span id="cb26-73"><a href="#cb26-73" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-74"><a href="#cb26-74" aria-hidden="true" tabindex="-1"></a>f2.colorbar(i2, ax<span class="op">=</span>[a2, a3], fraction<span class="op">=</span><span class="fl">0.046</span>, pad<span class="op">=</span><span class="fl">0.04</span>,</span>
+<span id="cb26-75"><a href="#cb26-75" aria-hidden="true" tabindex="-1"></a>            label<span class="op">=</span><span class="st">"Ensemble minus human (row proportion)"</span>)</span>
+<span id="cb26-76"><a href="#cb26-76" aria-hidden="true" tabindex="-1"></a>f2.savefig(THESIS_PLOTS <span class="op">/</span> <span class="st">"ensemble_confusion_vs_human.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb26-77"><a href="#cb26-77" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb26-78"><a href="#cb26-78" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-79"><a href="#cb26-79" aria-hidden="true" tabindex="-1"></a><span class="co"># Per-score recall against the best single model, which is what the overall 2.28 pp is</span></span>
+<span id="cb26-80"><a href="#cb26-80" aria-hidden="true" tabindex="-1"></a><span class="co"># made of. b_chap indexes the chapter's selected model inside the CNN pool ordering; here</span></span>
+<span id="cb26-81"><a href="#cb26-81" aria-hidden="true" tabindex="-1"></a><span class="co"># it is taken directly from the augmented family.</span></span>
+<span id="cb26-82"><a href="#cb26-82" aria-hidden="true" tabindex="-1"></a>_gk <span class="op">=</span> <span class="st">"CNN (Geometric Augmentation)"</span></span>
+<span id="cb26-83"><a href="#cb26-83" aria-hidden="true" tabindex="-1"></a>best_single <span class="op">=</span> FAM[_gk][<span class="dv">1</span>][<span class="bu">int</span>(np.where(FAM_IDS[_gk] <span class="op">==</span> <span class="dv">6848</span>)[<span class="dv">0</span>][<span class="dv">0</span>])].argmax(<span class="dv">1</span>)</span>
+<span id="cb26-84"><a href="#cb26-84" aria-hidden="true" tabindex="-1"></a>rec <span class="op">=</span> <span class="kw">lambda</span> q: np.array([np.mean(q[yt <span class="op">==</span> k] <span class="op">==</span> k) <span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>)])</span>
+<span id="cb26-85"><a href="#cb26-85" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"per-score recall, score 0 to 6"</span>)</span>
+<span id="cb26-86"><a href="#cb26-86" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  best single 6848:"</span>, rec(best_single).<span class="bu">round</span>(<span class="dv">3</span>).tolist())</span>
+<span id="cb26-87"><a href="#cb26-87" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  best ensemble   :"</span>, rec(ens_t).<span class="bu">round</span>(<span class="dv">3</span>).tolist())</span>
+<span id="cb26-88"><a href="#cb26-88" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  the two differ on </span><span class="sc">{</span><span class="bu">int</span>((ens_t <span class="op">!=</span> best_single).<span class="bu">sum</span>())<span class="sc">}</span><span class="ss"> of </span><span class="sc">{</span><span class="bu">len</span>(yt)<span class="sc">}</span><span class="ss"> crops"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="ensembling_results_files/figure-html/cell-17-output-1.png" width="658" height="556" class="figure-img"></p>
+<figcaption>The best ensemble on the 308 test CDAs. Confusion matrix as counts (A), and the same matrix minus the human rater matrix after both are row-normalised (B). Red means the ensemble puts more of that true score in that column than the raters do.</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="ensembling_results_files/figure-html/cell-17-output-2.png" width="759" height="598" class="figure-img"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>per-score recall, score 0 to 6
+  best single 6848: [0.909, 0.568, 0.591, 0.659, 0.659, 0.364, 0.932]
+  best ensemble   : [0.841, 0.591, 0.636, 0.705, 0.727, 0.545, 0.795]
+  the two differ on 42 of 308 crops</code></pre>
+</div>
+</div>
+<div id="aa660f57" class="cell" data-execution_count="17">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.7</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="co"># What "just use one model" gives, over the whole pool of tied members from all four</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a><span class="co"># families. Selecting the single best on the ensemble split is what someone would do with</span></span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a><span class="co"># held-out data and no ensemble; it is the comparison the chapter's paragraph 16 makes.</span></span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>POOL_T <span class="op">=</span> np.concatenate([FAM[n][<span class="dv">1</span>] <span class="cf">for</span> n <span class="kw">in</span> names])</span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>POOL_E <span class="op">=</span> np.concatenate([FAM[n][<span class="dv">0</span>] <span class="cf">for</span> n <span class="kw">in</span> names])</span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>pool_e <span class="op">=</span> (POOL_E.argmax(<span class="dv">2</span>) <span class="op">==</span> ye[<span class="va">None</span>, :]).mean(<span class="dv">1</span>)</span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>pool_t <span class="op">=</span> (POOL_T.argmax(<span class="dv">2</span>) <span class="op">==</span> yt[<span class="va">None</span>, :]).mean(<span class="dv">1</span>)</span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>b_ens <span class="op">=</span> <span class="bu">int</span>(np.argmax(pool_e))</span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>chap <span class="op">=</span> FAM[<span class="st">"CNN (Geometric Augmentation)"</span>][<span class="dv">1</span>][</span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>    <span class="bu">int</span>(np.where(FAM_IDS[<span class="st">"CNN (Geometric Augmentation)"</span>] <span class="op">==</span> <span class="dv">6848</span>)[<span class="dv">0</span>][<span class="dv">0</span>])].argmax(<span class="dv">1</span>)</span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="bu">len</span>(pool_t)<span class="sc">}</span><span class="ss"> tied members across the four families"</span>)</span>
+<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  single models on test span </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> pool_t<span class="sc">.</span><span class="bu">min</span>()<span class="sc">:.2f}</span><span class="ss">% to </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> pool_t<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.2f}</span><span class="ss">%"</span>)</span>
+<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  best on the ensemble split: </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> pool_e[b_ens]<span class="sc">:.2f}</span><span class="ss">% there, "</span></span>
+<span id="cb28-15"><a href="#cb28-15" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> exact(POOL_T.argmax(<span class="dv">2</span>)[b_ens], yt)<span class="sc">:.2f}</span><span class="ss">% on test"</span>)</span>
+<span id="cb28-16"><a href="#cb28-16" aria-hidden="true" tabindex="-1"></a>d, lo, hi, pv <span class="op">=</span> paired(POOL_T.argmax(<span class="dv">2</span>)[b_ens], chap)</span>
+<span id="cb28-17"><a href="#cb28-17" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  against the chapter's selected model (6848, </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> exact(chap, yt)<span class="sc">:.2f}</span><span class="ss">% test): "</span></span>
+<span id="cb28-18"><a href="#cb28-18" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> d<span class="sc">:+.2f}</span><span class="ss"> pp  95% CI [</span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> lo<span class="sc">:+.2f}</span><span class="ss">, </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> hi<span class="sc">:+.2f}</span><span class="ss">]  p = </span><span class="sc">{</span>pv<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb28-19"><a href="#cb28-19" aria-hidden="true" tabindex="-1"></a>rules_only <span class="op">=</span> tab2.loc[tab2.rule <span class="op">!=</span> <span class="st">"Best single model"</span>, <span class="st">"test exact"</span>]</span>
+<span id="cb28-20"><a href="#cb28-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  every combining rule lands between </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> rules_only<span class="sc">.</span><span class="bu">min</span>()<span class="sc">:.2f}</span><span class="ss">% and "</span></span>
+<span id="cb28-21"><a href="#cb28-21" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> rules_only<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.2f}</span><span class="ss">%"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>91 tied members across the four families
+  single models on test span 56.82% to 67.53%
+  best on the ensemble split: 70.33% there, 62.34% on test
+  against the chapter's selected model (6848, 66.88% test): -4.55 pp  95% CI [-8.77, -0.32]  p = 0.040
+  every combining rule lands between 64.61% and 69.16%</code></pre>
+</div>
+</div>
+<div id="00017796" class="cell" data-execution_count="18">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.6</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Each against the best single CNN, on the same 308 test crops.</span></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> k, (_, pt) <span class="kw">in</span> RULES.items():</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> k <span class="op">==</span> <span class="st">"Best single model"</span>:</span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">continue</span></span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>    d, lo, hi, pv <span class="op">=</span> paired(pt, base)</span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>k<span class="sc">:34s}</span><span class="ss"> </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> d<span class="sc">:+6.2f}</span><span class="ss"> pp   [</span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> lo<span class="sc">:+6.2f}</span><span class="ss">, </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> hi<span class="sc">:+6.2f}</span><span class="ss">]   p = </span><span class="sc">{</span>pv<span class="sc">:.3f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Plurality vote                      +0.32 pp   [ -2.60,  +3.25]   p = 0.930
+Mean softmax                        +0.00 pp   [ -2.92,  +2.92]   p = 1.000
+CNN + ViT                           +3.25 pp   [ -0.65,  +7.14]   p = 0.136
+CNN + CNN (Geometric Augmentation)  +0.65 pp   [ -3.25,  +4.55]   p = 0.813
+CNN + Ordinal Regression            +3.57 pp   [ -0.65,  +7.79]   p = 0.125
+ViT + CNN (Geometric Augmentation)  +3.90 pp   [ -0.32,  +8.12]   p = 0.084
+ViT + Ordinal Regression            +3.25 pp   [ -1.95,  +8.44]   p = 0.228
+CNN (Geometric Augmentation) + Ordinal Regression  +4.55 pp   [ +0.00,  +9.09]   p = 0.063
+All families                        +2.27 pp   [ -1.62,  +6.17]   p = 0.287</code></pre>
+</div>
+</div>
+<hr>
+</section>
+<section id="interpretation-and-discussion" class="level2">
+<h2 class="anchored" data-anchor-id="interpretation-and-discussion">5. Interpretation and Discussion</h2>
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 5.1  Pulled from the tables above so the text cannot drift from the results.</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>mv <span class="op">=</span> tab.set_index(<span class="st">"rule"</span>)</span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"- **The 89.67% is not spare accuracy.** </span><span class="sc">{</span><span class="bu">int</span>(gap.<span class="bu">sum</span>())<span class="sc">}</span><span class="ss"> crops sit between it and the "</span></span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"vote, and on </span><span class="sc">{</span>(n_right_e[gap] <span class="op">&lt;</span> nC <span class="op">/</span> <span class="dv">2</span>)<span class="sc">.</span>mean()<span class="sc">:.1%}</span><span class="ss"> of them fewer than half the members "</span></span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"are right, a median of </span><span class="sc">{</span>np<span class="sc">.</span>median(n_right_e[gap])<span class="sc">:.1f}</span><span class="ss"> of </span><span class="sc">{</span>nC<span class="sc">}</span><span class="ss">. A vote returns the "</span></span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"majority answer, so the correct score being a minority opinion puts those crops out "</span></span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"of reach of any unweighted rule.</span><span class="ch">\n</span><span class="ss">"</span>)</span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"- **Neither rule raises exact accuracy.** Vote "</span></span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span>mv<span class="sc">.</span>loc[<span class="st">'Plurality vote'</span>, <span class="st">'test exact'</span>]<span class="sc">:.4f}</span><span class="ss"> and mean softmax "</span></span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span>mv<span class="sc">.</span>loc[<span class="st">'Mean softmax'</span>, <span class="st">'test exact'</span>]<span class="sc">:.4f}</span><span class="ss"> against "</span></span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span>mv<span class="sc">.</span>loc[<span class="st">'Best single model'</span>, <span class="st">'test exact'</span>]<span class="sc">:.4f}</span><span class="ss"> for the best single model. Both "</span></span>
+<span id="cb32-12"><a href="#cb32-12" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"bootstrap intervals span zero.</span><span class="ch">\n</span><span class="ss">"</span>)</span>
+<span id="cb32-13"><a href="#cb32-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"- **Both rules cut the large errors.** Near-miss rises from "</span></span>
+<span id="cb32-14"><a href="#cb32-14" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span>mv<span class="sc">.</span>loc[<span class="st">'Best single model'</span>, <span class="st">'test near-miss'</span>]<span class="sc">:.4f}</span><span class="ss"> to "</span></span>
+<span id="cb32-15"><a href="#cb32-15" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span>mv<span class="sc">.</span>loc[<span class="st">'Mean softmax'</span>, <span class="st">'test near-miss'</span>]<span class="sc">:.4f}</span><span class="ss"> and mean error falls from "</span></span>
+<span id="cb32-16"><a href="#cb32-16" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span>mv<span class="sc">.</span>loc[<span class="st">'Best single model'</span>, <span class="st">'test MAE'</span>]<span class="sc">:.3f}</span><span class="ss"> to "</span></span>
+<span id="cb32-17"><a href="#cb32-17" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span>mv<span class="sc">.</span>loc[<span class="st">'Mean softmax'</span>, <span class="st">'test MAE'</span>]<span class="sc">:.3f}</span><span class="ss">. Averaging removes some of the errors that "</span></span>
+<span id="cb32-18"><a href="#cb32-18" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"are 2 or more scores out; it does not turn a near miss into a hit.</span><span class="ch">\n</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<ul>
+<li><p><strong>The 89.67% is not spare accuracy.</strong> 120 crops sit between it and the vote, and on 97.5% of them fewer than half the members are right, a median of 4.5 of 22. A vote returns the majority answer, so the correct score being a minority opinion puts those crops out of reach of any unweighted rule.</p></li>
+<li><p><strong>Neither rule raises exact accuracy.</strong> Vote 0.6494 and mean softmax 0.6461 against 0.6461 for the best single model. Both bootstrap intervals span zero.</p></li>
+<li><p><strong>Both rules cut the large errors.</strong> Near-miss rises from 0.9773 to 0.9903 and mean error falls from 0.377 to 0.364. Averaging removes some of the errors that are 2 or more scores out; it does not turn a near miss into a hit.</p></li>
+<li><p><strong>Within one family, the reason it fails is that the members shift together.</strong> They disagree by one score and almost never by more, so when they are wrong they have all moved the same way. Averaging errors scattered around the truth recovers the middle; averaging errors that have all moved in one direction returns the shift.</p></li>
+</ul>
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 5.2  The cross-family results, pulled from §4 so the text cannot drift.</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>dv <span class="op">=</span> div.set_index(<span class="st">"pair"</span>)</span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>t2 <span class="op">=</span> tab2.set_index(<span class="st">"rule"</span>)</span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>acr <span class="op">=</span> div[div.kind <span class="op">==</span> <span class="st">"across"</span>][<span class="st">"Yule Q"</span>]</span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>wit <span class="op">=</span> div[div.kind <span class="op">==</span> <span class="st">"within"</span>][<span class="st">"Yule Q"</span>]</span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"- **Errors are less related across families than within one.** Yule's Q runs "</span></span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span>acr<span class="sc">.</span><span class="bu">min</span>()<span class="sc">:.3f}</span><span class="ss">-</span><span class="sc">{</span>acr<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.3f}</span><span class="ss"> across families and </span><span class="sc">{</span>wit<span class="sc">.</span><span class="bu">min</span>()<span class="sc">:.3f}</span><span class="ss">-</span><span class="sc">{</span>wit<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.3f}</span><span class="ss"> "</span></span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"within. The one exception is CNN + CNN (Geometric Augmentation) at "</span></span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span>dv<span class="sc">.</span>loc[<span class="st">'CNN + CNN (Geometric Augmentation)'</span>, <span class="st">'Yule Q'</span>]<span class="sc">:.3f}</span><span class="ss">, which sits with the within-family "</span></span>
+<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"group: a different training set does not decorrelate a shared architecture the way "</span></span>
+<span id="cb33-11"><a href="#cb33-11" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"a different architecture does.</span><span class="ch">\n</span><span class="ss">"</span>)</span>
+<span id="cb33-12"><a href="#cb33-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Among the families whose members are individually competent, lower Q goes with higher</span></span>
+<span id="cb33-13"><a href="#cb33-13" aria-hidden="true" tabindex="-1"></a><span class="co"># combined accuracy. The cGAN family is the counterexample and is treated separately.</span></span>
+<span id="cb33-14"><a href="#cb33-14" aria-hidden="true" tabindex="-1"></a>gp <span class="op">=</span> [(<span class="ss">f"</span><span class="sc">{</span>x<span class="sc">}</span><span class="ss"> + </span><span class="sc">{</span>y<span class="sc">}</span><span class="ss">"</span>, dv.loc[<span class="ss">f"</span><span class="sc">{</span>x<span class="sc">}</span><span class="ss"> + </span><span class="sc">{</span>y<span class="sc">}</span><span class="ss">"</span>, <span class="st">"Yule Q"</span>], t2.loc[<span class="ss">f"</span><span class="sc">{</span>x<span class="sc">}</span><span class="ss"> + </span><span class="sc">{</span>y<span class="sc">}</span><span class="ss">"</span>, <span class="st">"test exact"</span>])</span>
+<span id="cb33-15"><a href="#cb33-15" aria-hidden="true" tabindex="-1"></a>      <span class="cf">for</span> i, x <span class="kw">in</span> <span class="bu">enumerate</span>(names) <span class="cf">for</span> y <span class="kw">in</span> names[i <span class="op">+</span> <span class="dv">1</span>:]]</span>
+<span id="cb33-16"><a href="#cb33-16" aria-hidden="true" tabindex="-1"></a>gp.sort(key<span class="op">=</span><span class="kw">lambda</span> r: r[<span class="dv">1</span>])</span>
+<span id="cb33-17"><a href="#cb33-17" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.stats <span class="im">import</span> spearmanr</span>
+<span id="cb33-18"><a href="#cb33-18" aria-hidden="true" tabindex="-1"></a>rho <span class="op">=</span> spearmanr([q <span class="cf">for</span> _, q, _ <span class="kw">in</span> gp], [v <span class="cf">for</span> _, _, v <span class="kw">in</span> gp]).statistic</span>
+<span id="cb33-19"><a href="#cb33-19" aria-hidden="true" tabindex="-1"></a>best_pair <span class="op">=</span> <span class="bu">max</span>(gp, key<span class="op">=</span><span class="kw">lambda</span> r: r[<span class="dv">2</span>])</span>
+<span id="cb33-20"><a href="#cb33-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"- **Less-related errors go with a better ensemble, loosely.** Over the </span><span class="sc">{</span><span class="bu">len</span>(gp)<span class="sc">}</span><span class="ss"> "</span></span>
+<span id="cb33-21"><a href="#cb33-21" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"pairs the rank correlation between Yule's Q and test accuracy is </span><span class="sc">{</span>rho<span class="sc">:+.2f}</span><span class="ss">. The "</span></span>
+<span id="cb33-22"><a href="#cb33-22" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"lowest-Q pair, </span><span class="sc">{</span>gp[<span class="dv">0</span>][<span class="dv">0</span>]<span class="sc">}</span><span class="ss"> at </span><span class="sc">{</span>gp[<span class="dv">0</span>][<span class="dv">1</span>]<span class="sc">:.3f}</span><span class="ss">, reaches </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> gp[<span class="dv">0</span>][<span class="dv">2</span>]<span class="sc">:.2f}</span><span class="ss">%, and the "</span></span>
+<span id="cb33-23"><a href="#cb33-23" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"highest, </span><span class="sc">{</span>gp[<span class="op">-</span><span class="dv">1</span>][<span class="dv">0</span>]<span class="sc">}</span><span class="ss"> at </span><span class="sc">{</span>gp[<span class="op">-</span><span class="dv">1</span>][<span class="dv">1</span>]<span class="sc">:.3f}</span><span class="ss">, only </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> gp[<span class="op">-</span><span class="dv">1</span>][<span class="dv">2</span>]<span class="sc">:.2f}</span><span class="ss">%. The strongest "</span></span>
+<span id="cb33-24"><a href="#cb33-24" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"on test is </span><span class="sc">{</span>best_pair[<span class="dv">0</span>]<span class="sc">}</span><span class="ss"> at </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> best_pair[<span class="dv">2</span>]<span class="sc">:.2f}</span><span class="ss">%, second-lowest on Q at "</span></span>
+<span id="cb33-25"><a href="#cb33-25" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span>best_pair[<span class="dv">1</span>]<span class="sc">:.3f}</span><span class="ss">, so Q orders the pairs without picking the winner outright.</span><span class="ch">\n</span><span class="ss">"</span>)</span>
+<span id="cb33-26"><a href="#cb33-26" aria-hidden="true" tabindex="-1"></a>best2 <span class="op">=</span> best_pair[<span class="dv">0</span>]</span>
+<span id="cb33-27"><a href="#cb33-27" aria-hidden="true" tabindex="-1"></a>d_, lo_, hi_, p_ <span class="op">=</span> paired(RULES[best2][<span class="dv">1</span>], base)</span>
+<span id="cb33-28"><a href="#cb33-28" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"- **It is still not separable on 308 crops.** </span><span class="sc">{</span>best2<span class="sc">}</span><span class="ss"> is </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> d_<span class="sc">:+.2f}</span><span class="ss"> pp against the "</span></span>
+<span id="cb33-29"><a href="#cb33-29" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"best single model, 95% CI </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> lo_<span class="sc">:+.2f}</span><span class="ss"> to </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> hi_<span class="sc">:+.2f}</span><span class="ss">, p = </span><span class="sc">{</span>p_<span class="sc">:.3f}</span><span class="ss">. It does "</span></span>
+<span id="cb33-30"><a href="#cb33-30" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"top the ensemble split as well (</span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> t2<span class="sc">.</span>loc[best2, <span class="st">'ensemble exact'</span>]<span class="sc">:.2f}</span><span class="ss">%), so it is "</span></span>
+<span id="cb33-31"><a href="#cb33-31" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"not a test-set pick, and it clears the human raters' 68.92%.</span><span class="ch">\n</span><span class="ss">"</span>)</span>
+<span id="cb33-32"><a href="#cb33-32" aria-hidden="true" tabindex="-1"></a>_pairs <span class="op">=</span> [r <span class="cf">for</span> r <span class="kw">in</span> t2.index <span class="cf">if</span> <span class="st">" + "</span> <span class="kw">in</span> r <span class="kw">and</span> r <span class="op">!=</span> <span class="st">"All families"</span>]</span>
+<span id="cb33-33"><a href="#cb33-33" aria-hidden="true" tabindex="-1"></a>_beaten <span class="op">=</span> <span class="bu">sum</span>(t2.loc[r, <span class="st">"test exact"</span>] <span class="op">&gt;</span> t2.loc[<span class="st">"All families"</span>, <span class="st">"test exact"</span>] <span class="cf">for</span> r <span class="kw">in</span> _pairs)</span>
+<span id="cb33-34"><a href="#cb33-34" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"- **More families is not better.** All </span><span class="sc">{</span><span class="bu">len</span>(names)<span class="sc">}</span><span class="ss"> together give "</span></span>
+<span id="cb33-35"><a href="#cb33-35" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> t2<span class="sc">.</span>loc[<span class="st">'All families'</span>, <span class="st">'test exact'</span>]<span class="sc">:.2f}</span><span class="ss">%, below </span><span class="sc">{</span>_beaten<span class="sc">}</span><span class="ss"> of the "</span></span>
+<span id="cb33-36"><a href="#cb33-36" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span><span class="bu">len</span>(_pairs)<span class="sc">}</span><span class="ss"> pairs. Averaging weak or highly correlated families in dilutes the "</span></span>
+<span id="cb33-37"><a href="#cb33-37" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"strong, weakly correlated ones.</span><span class="ch">\n</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<ul>
+<li><p><strong>Errors are less related across families than within one.</strong> Yule’s Q runs 0.771-0.826 across families and 0.831-0.902 within. The one exception is CNN + CNN (Geometric Augmentation) at 0.826, which sits with the within-family group: a different training set does not decorrelate a shared architecture the way a different architecture does.</p></li>
+<li><p><strong>Less-related errors go with a better ensemble, loosely.</strong> Over the 6 pairs the rank correlation between Yule’s Q and test accuracy is -0.32. The lowest-Q pair, CNN + Ordinal Regression at 0.771, reaches 68.18%, and the highest, CNN + CNN (Geometric Augmentation) at 0.826, only 65.26%. The strongest on test is CNN (Geometric Augmentation) + Ordinal Regression at 69.16%, second-lowest on Q at 0.776, so Q orders the pairs without picking the winner outright.</p></li>
+<li><p><strong>It is still not separable on 308 crops.</strong> CNN (Geometric Augmentation) + Ordinal Regression is +4.55 pp against the best single model, 95% CI +0.00 to +9.09, p = 0.063. It does top the ensemble split as well (68.13%), so it is not a test-set pick, and it clears the human raters’ 68.92%.</p></li>
+<li><p><strong>More families is not better.</strong> All 4 together give 66.88%, below 5 of the 6 pairs. Averaging weak or highly correlated families in dilutes the strong, weakly correlated ones.</p></li>
+</ul>
+<section id="caveats" class="level3">
+<h3 class="anchored" data-anchor-id="caveats">Caveats</h3>
+<ul>
+<li>Test is 308 crops, so one standard error is 2.72 pp.&nbsp;Two rules within about 5 pp of each other are not separable here.</li>
+<li>The best single model is chosen on the ensemble split, not on test.</li>
+</ul>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

@@ -1,0 +1,1611 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.38">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>The top-100 CNNs as a committee: per-image difficulty, model diversity, and ensembles</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js" integrity="sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2" crossorigin="anonymous"></script><script src="test_image_difficulty_files/libs/clipboard/clipboard.min.js"></script>
+<script src="test_image_difficulty_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="test_image_difficulty_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="test_image_difficulty_files/libs/quarto-html/popper.min.js"></script>
+<script src="test_image_difficulty_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="test_image_difficulty_files/libs/quarto-html/anchor.min.js"></script>
+<link href="test_image_difficulty_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="test_image_difficulty_files/libs/quarto-html/quarto-syntax-highlighting-15634bcf2e68342d4ad2dfa704d543f6.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="test_image_difficulty_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="test_image_difficulty_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="test_image_difficulty_files/libs/bootstrap/bootstrap-138a6193a3bd40baf1e627da441a4734.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script src="https://cdn.jsdelivr.net/npm/requirejs@2.3.6/require.min.js" integrity="sha384-c9c+LnTbwQ3aujuU7ULEPVvgLs+Fn6fJUvIGTsuu1ZcCf11fiEubah0ttpca4ntM sha384-6V1/AdqZRWk1KAlWbKBlGhN7VG4iE/yAZcO6NZPMF8od0vukrvr0tg4qY6NSrItx" crossorigin="anonymous"></script>
+
+<script type="application/javascript">define('jquery', [],function() {return window.jQuery;})</script>
+
+
+</head>
+
+<body class="quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#gohrep" id="toc-gohrep" class="nav-link active" data-scroll-target="#gohrep">GOHREP</a></li>
+  <li><a href="#setup" id="toc-setup" class="nav-link" data-scroll-target="#setup">1. Setup</a>
+  <ul class="collapse">
+  <li><a href="#packages" id="toc-packages" class="nav-link" data-scroll-target="#packages">1.1 Packages</a></li>
+  <li><a href="#score-every-held-out-image-with-every-kept-model-cached" id="toc-score-every-held-out-image-with-every-kept-model-cached" class="nav-link" data-scroll-target="#score-every-held-out-image-with-every-kept-model-cached">1.2 Score every held-out image with every kept model (cached)</a></li>
+  <li><a href="#validation-does-the-inference-reproduce-the-grid-searchs-own-numbers" id="toc-validation-does-the-inference-reproduce-the-grid-searchs-own-numbers" class="nav-link" data-scroll-target="#validation-does-the-inference-reproduce-the-grid-searchs-own-numbers">1.3 Validation: does the inference reproduce the grid search’s own numbers?</a></li>
+  <li><a href="#metrics-and-committee-statistics-defined-before-use" id="toc-metrics-and-committee-statistics-defined-before-use" class="nav-link" data-scroll-target="#metrics-and-committee-statistics-defined-before-use">1.4 Metrics and committee statistics (defined before use)</a></li>
+  </ul></li>
+  <li><a href="#where-scoring-breaks-down-by-severity-score" id="toc-where-scoring-breaks-down-by-severity-score" class="nav-link" data-scroll-target="#where-scoring-breaks-down-by-severity-score">2. Where scoring breaks down — by severity score</a></li>
+  <li><a href="#do-the-models-fail-on-the-same-images-or-different-ones" id="toc-do-the-models-fail-on-the-same-images-or-different-ones" class="nav-link" data-scroll-target="#do-the-models-fail-on-the-same-images-or-different-ones">3. Do the models fail on the <em>same</em> images, or different ones?</a></li>
+  <li><a href="#candidate-label-errors" id="toc-candidate-label-errors" class="nav-link" data-scroll-target="#candidate-label-errors">4. Candidate label errors</a></li>
+  <li><a href="#b.-agreement-across-model-families" id="toc-b.-agreement-across-model-families" class="nav-link" data-scroll-target="#b.-agreement-across-model-families">4b. Agreement across model families</a></li>
+  <li><a href="#b-ii.-where-the-best-cnn-departs-from-the-raters" id="toc-b-ii.-where-the-best-cnn-departs-from-the-raters" class="nav-link" data-scroll-target="#b-ii.-where-the-best-cnn-departs-from-the-raters">4b-ii. Where the best CNN departs from the raters</a></li>
+  <li><a href="#c.-agreement-inside-one-grid-against-across-grids" id="toc-c.-agreement-inside-one-grid-against-across-grids" class="nav-link" data-scroll-target="#c.-agreement-inside-one-grid-against-across-grids">4c. Agreement inside one grid against across grids</a></li>
+  <li><a href="#d.-the-noise-floor-score-by-score" id="toc-d.-the-noise-floor-score-by-score" class="nav-link" data-scroll-target="#d.-the-noise-floor-score-by-score">4d. The noise floor score by score</a>
+  <ul class="collapse">
+  <li><a href="#d.2-the-same-agreement-heatmap-score-by-score" id="toc-d.2-the-same-agreement-heatmap-score-by-score" class="nav-link" data-scroll-target="#d.2-the-same-agreement-heatmap-score-by-score">4d.2 The same agreement heatmap, score by score</a></li>
+  </ul></li>
+  <li><a href="#ensembling-moved-to-analyses14_ensembling" id="toc-ensembling-moved-to-analyses14_ensembling" class="nav-link" data-scroll-target="#ensembling-moved-to-analyses14_ensembling">5. Ensembling — moved to <code>analyses/14_ensembling</code></a></li>
+  <li><a href="#interpretation-and-discussion" id="toc-interpretation-and-discussion" class="nav-link" data-scroll-target="#interpretation-and-discussion">6. Interpretation and Discussion</a></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">The top-100 CNNs as a committee: per-image difficulty, model diversity, and ensembles</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p>Date: 18/07/2026</p>
+<section id="gohrep" class="level2">
+<h2 class="anchored" data-anchor-id="gohrep">GOHREP</h2>
+<p><strong>Goal:</strong></p>
+<p>Score every held-out image with all 100 kept CNNs (the global top-100 of the Base-CNN grid search) and use the committee to answer two questions: (1) <em>where</em> does scoring break down — which severity scores, and which individual images (candidate <strong>label errors</strong>); and (2) do the 100 models fail on the <em>same</em> images or <em>different</em> ones (model <strong>diversity</strong>). Whether that diversity can be turned into a better scorer is the subject of <code>analyses/14_ensembling</code>, which builds on the matrices this document verifies.</p>
+<p><strong>Hypothesis:</strong></p>
+<p>Errors concentrate on the middle scores (adjacent-severity confusion, the ceiling <code>analyses/08_accuracy_noise_floor</code> §6 identified) and on a few genuinely mislabelled crops. The 100 models are all top-100 configs, so they are correlated, but not identical — they should miss <em>different</em> images, which is the raw material any committee rule would have to work with.</p>
+<p><strong>Rationale:</strong></p>
+<p>100 independently trained models are a natural committee. Per-score and confusion views show <em>where</em> it fails; the spread of per-image agreement shows whether the failures are shared or idiosyncratic; and the gap between “at least one model is right” (an oracle) and “the vote is right” bounds the diversity a committee could in principle exploit.</p>
+<hr>
+</section>
+<section id="setup" class="level2">
+<h2 class="anchored" data-anchor-id="setup">1. Setup</h2>
+<section id="packages" class="level3">
+<h3 class="anchored" data-anchor-id="packages">1.1 Packages</h3>
+<div id="47975479" class="cell" data-execution_count="1">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.1</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> re</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> sys</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> PIL <span class="im">import</span> Image</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Figures reused by the thesis are written here as well as shown inline.</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>THESIS_PLOTS <span class="op">=</span> Path(<span class="st">"thesis_plots"</span>)</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>THESIS_PLOTS.mkdir(exist_ok<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>plt.rcParams.update({<span class="st">"figure.dpi"</span>: <span class="dv">120</span>})</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Diverging 0-&gt;6 palette (blue=healthy .. red=dead), reused for severity throughout.</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>SEV <span class="op">=</span> [<span class="st">"#2c7bb6"</span>, <span class="st">"#66c2a5"</span>, <span class="st">"#abdda4"</span>, <span class="st">"#ffcc66"</span>, <span class="st">"#fdae61"</span>, <span class="st">"#f46d43"</span>, <span class="st">"#d7191c"</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+</div>
+</section>
+<section id="score-every-held-out-image-with-every-kept-model-cached" class="level3">
+<h3 class="anchored" data-anchor-id="score-every-held-out-image-with-every-kept-model-cached">1.2 Score every held-out image with every kept model (cached)</h3>
+<p>Each of the 100 kept models is the <strong>best cross-validation fold</strong> of a top-100 config, saved to <code>results/&lt;avg_vaf&gt;_&lt;model_id&gt;/model.keras</code> by the grid search. Here every model is reloaded and run over the two held-out splits — <code>ensemble</code> (455 images) and <code>test</code> (308) — that were set aside from training (the models were trained on <code>train</code>+<code>val</code> only, so both splits are genuinely unseen). A model’s prediction for an image is the <code>argmax</code> of its softmax output (the most-probable severity score). The result is two prediction matrices <code>P[model, image]</code>; because inference over 100 tiny CNNs is the only slow step, both matrices are cached to <code>pred_cache/predictions.npz</code> and only the first render loads TensorFlow.</p>
+<div id="f0df1b4c" class="cell" data-execution_count="2">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.2</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> find_repo_root(start: Path) <span class="op">-&gt;</span> Path:</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> p <span class="kw">in</span> [start, <span class="op">*</span>start.parents]:</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> (p <span class="op">/</span> <span class="st">"data"</span> <span class="op">/</span> <span class="st">"datasets"</span> <span class="op">/</span> <span class="st">"medoid_64"</span> <span class="op">/</span> <span class="st">"medoid_64.csv"</span>).exists():</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> p</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">FileNotFoundError</span>(<span class="st">"repo root not found"</span>)</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>ROOT <span class="op">=</span> find_repo_root(Path.cwd())</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>RESULTS <span class="op">=</span> ROOT <span class="op">/</span> <span class="st">"models"</span> <span class="op">/</span> <span class="st">"03_Medoid_CNN_RandomSearch"</span> <span class="op">/</span> <span class="st">"01_Categorical_Loss"</span> <span class="op">/</span> <span class="st">"results"</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>CACHE <span class="op">=</span> Path(<span class="st">"pred_cache"</span>)</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>CACHE.mkdir(exist_ok<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>NPZ <span class="op">=</span> CACHE <span class="op">/</span> <span class="st">"predictions.npz"</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>model_dirs <span class="op">=</span> <span class="bu">sorted</span>((p <span class="cf">for</span> p <span class="kw">in</span> RESULTS.iterdir() <span class="cf">if</span> (p <span class="op">/</span> <span class="st">"model.keras"</span>).exists()),</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>                    key<span class="op">=</span><span class="kw">lambda</span> p: p.name)</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="kw">not</span> model_dirs:</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">FileNotFoundError</span>(<span class="ss">f"No model.keras under </span><span class="sc">{</span>RESULTS<span class="sc">}</span><span class="ss">. Sync the top-100 models down first."</span>)</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>fingerprint <span class="op">=</span> <span class="st">"v2|"</span> <span class="op">+</span> <span class="st">","</span>.join(d.name <span class="cf">for</span> d <span class="kw">in</span> model_dirs)</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> build():</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    sys.path.append(<span class="bu">str</span>(ROOT <span class="op">/</span> <span class="st">"src"</span>))</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>    <span class="im">import</span> base_dataset</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>    <span class="im">import</span> tensorflow <span class="im">as</span> tf</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>    ds <span class="op">=</span> base_dataset.load_dataset(<span class="bu">str</span>(ROOT <span class="op">/</span> <span class="st">"data"</span> <span class="op">/</span> <span class="st">"datasets"</span> <span class="op">/</span> <span class="st">"medoid_64"</span> <span class="op">/</span> <span class="st">"medoid_64.npy"</span>))</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>    Xe, ye <span class="op">=</span> np.asarray(ds[<span class="st">"ensemble_images"</span>]), np.asarray(ds[<span class="st">"ensemble_labels"</span>]).astype(<span class="bu">int</span>)</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>    Xt, yt <span class="op">=</span> np.asarray(ds[<span class="st">"test_images"</span>]), np.asarray(ds[<span class="st">"test_labels"</span>]).astype(<span class="bu">int</span>)</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>    files_t <span class="op">=</span> np.array([Path(<span class="bu">str</span>(f)).name <span class="cf">for</span> f <span class="kw">in</span> np.asarray(ds[<span class="st">"test_filepaths"</span>]).tolist()])</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>    Pe <span class="op">=</span> np.zeros((<span class="bu">len</span>(model_dirs), <span class="bu">len</span>(ye)), np.int16)</span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>    Pt <span class="op">=</span> np.zeros((<span class="bu">len</span>(model_dirs), <span class="bu">len</span>(yt)), np.int16)</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>    ids, vafs <span class="op">=</span> [], []</span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i, d <span class="kw">in</span> <span class="bu">enumerate</span>(model_dirs):</span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>        avg_vaf, model_id <span class="op">=</span> d.name.split(<span class="st">"_"</span>, <span class="dv">1</span>)</span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>        m <span class="op">=</span> tf.keras.models.load_model(d <span class="op">/</span> <span class="st">"model.keras"</span>, <span class="bu">compile</span><span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>        Pe[i] <span class="op">=</span> np.argmax(m.predict(Xe, verbose<span class="op">=</span><span class="dv">0</span>), axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>        Pt[i] <span class="op">=</span> np.argmax(m.predict(Xt, verbose<span class="op">=</span><span class="dv">0</span>), axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a>        tf.keras.backend.clear_session()</span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a>        ids.append(model_id)<span class="op">;</span> vafs.append(<span class="bu">float</span>(avg_vaf))</span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">dict</span>(Pe<span class="op">=</span>Pe, ye<span class="op">=</span>ye, Pt<span class="op">=</span>Pt, yt<span class="op">=</span>yt, files_t<span class="op">=</span>files_t,</span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a>                model_ids<span class="op">=</span>np.array(ids), avg_vaf<span class="op">=</span>np.array(vafs), fingerprint<span class="op">=</span>fingerprint)</span>
+<span id="cb2-40"><a href="#cb2-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-41"><a href="#cb2-41" aria-hidden="true" tabindex="-1"></a>art <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb2-42"><a href="#cb2-42" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> NPZ.exists():</span>
+<span id="cb2-43"><a href="#cb2-43" aria-hidden="true" tabindex="-1"></a>    d <span class="op">=</span> np.load(NPZ, allow_pickle<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb2-44"><a href="#cb2-44" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="st">"Pe"</span> <span class="kw">in</span> d.files <span class="kw">and</span> <span class="bu">str</span>(d[<span class="st">"fingerprint"</span>]) <span class="op">==</span> fingerprint:</span>
+<span id="cb2-45"><a href="#cb2-45" aria-hidden="true" tabindex="-1"></a>        art <span class="op">=</span> {k: d[k] <span class="cf">for</span> k <span class="kw">in</span> d.files}</span>
+<span id="cb2-46"><a href="#cb2-46" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> art <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb2-47"><a href="#cb2-47" aria-hidden="true" tabindex="-1"></a>    art <span class="op">=</span> build()</span>
+<span id="cb2-48"><a href="#cb2-48" aria-hidden="true" tabindex="-1"></a>    np.savez(NPZ, <span class="op">**</span>art)</span>
+<span id="cb2-49"><a href="#cb2-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-50"><a href="#cb2-50" aria-hidden="true" tabindex="-1"></a>Pe, ye <span class="op">=</span> art[<span class="st">"Pe"</span>].astype(<span class="bu">int</span>), art[<span class="st">"ye"</span>].astype(<span class="bu">int</span>)   <span class="co"># ensemble split: build/tune combiners here</span></span>
+<span id="cb2-51"><a href="#cb2-51" aria-hidden="true" tabindex="-1"></a>Pt, yt <span class="op">=</span> art[<span class="st">"Pt"</span>].astype(<span class="bu">int</span>), art[<span class="st">"yt"</span>].astype(<span class="bu">int</span>)   <span class="co"># test split: reported only, never tuned on</span></span>
+<span id="cb2-52"><a href="#cb2-52" aria-hidden="true" tabindex="-1"></a>files_t <span class="op">=</span> <span class="bu">list</span>(art[<span class="st">"files_t"</span>])</span>
+<span id="cb2-53"><a href="#cb2-53" aria-hidden="true" tabindex="-1"></a>model_ids <span class="op">=</span> <span class="bu">list</span>(art[<span class="st">"model_ids"</span>])</span>
+<span id="cb2-54"><a href="#cb2-54" aria-hidden="true" tabindex="-1"></a>avg_vaf <span class="op">=</span> art[<span class="st">"avg_vaf"</span>].astype(<span class="bu">float</span>)</span>
+<span id="cb2-55"><a href="#cb2-55" aria-hidden="true" tabindex="-1"></a>n_models <span class="op">=</span> Pt.shape[<span class="dv">0</span>]</span>
+<span id="cb2-56"><a href="#cb2-56" aria-hidden="true" tabindex="-1"></a>CLASSES <span class="op">=</span> np.arange(<span class="dv">7</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+</div>
+<div id="8e2f7a27" class="cell" data-execution_count="3">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.2b</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>n_models<span class="sc">}</span><span class="ss"> models | ensemble split </span><span class="sc">{</span>Pe<span class="sc">.</span>shape[<span class="dv">1</span>]<span class="sc">}</span><span class="ss"> images | test split </span><span class="sc">{</span>Pt<span class="sc">.</span>shape[<span class="dv">1</span>]<span class="sc">}</span><span class="ss"> images"</span>)</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"class balance (test):"</span>, np.bincount(yt).tolist(), <span class="st">"| (ensemble):"</span>, np.bincount(ye).tolist())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>100 models | ensemble split 455 images | test split 308 images
+class balance (test): [44, 44, 44, 44, 44, 44, 44] | (ensemble): [65, 65, 65, 65, 65, 65, 65]</code></pre>
+</div>
+</div>
+<p>The splits are class-balanced (equal images per score), which matters for §1.4: on balanced data exact accuracy equals balanced accuracy, and a majority-class guess scores only 1/7.</p>
+</section>
+<section id="validation-does-the-inference-reproduce-the-grid-searchs-own-numbers" class="level3">
+<h3 class="anchored" data-anchor-id="validation-does-the-inference-reproduce-the-grid-searchs-own-numbers">1.3 Validation: does the inference reproduce the grid search’s own numbers?</h3>
+<p>Before trusting any of it, the inference is checked against an <strong>independent record of the same quantity</strong>: the grid search already evaluated each kept model on this exact test split and wrote its accuracy to <code>test_acc</code> in <code>random_search_results.csv</code>. If the committee matrix is built correctly, each model’s test accuracy computed here from <code>Pt</code> must equal that recorded value. (Two of the 100 models’ rows are still in the un-merged <code>parts/</code>, so those are folded in for a complete join.)</p>
+<div id="6a80245d" class="cell" data-execution_count="4">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.3</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>res <span class="op">=</span> pd.concat(</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    [pd.read_csv(RESULTS.parent <span class="op">/</span> <span class="st">"random_search_results.csv"</span>)]</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> [pd.read_csv(p) <span class="cf">for</span> p <span class="kw">in</span> (RESULTS.parent <span class="op">/</span> <span class="st">"parts"</span>).glob(<span class="st">"*.csv"</span>)],</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    ignore_index<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>).drop_duplicates(<span class="st">"model_id"</span>)</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>recorded <span class="op">=</span> res.assign(model_id<span class="op">=</span>res.model_id.astype(<span class="bu">str</span>)).set_index(<span class="st">"model_id"</span>)[<span class="st">"test_acc"</span>]</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>mine <span class="op">=</span> (Pt <span class="op">==</span> yt[<span class="va">None</span>, :]).mean(<span class="dv">1</span>)                                   <span class="co"># per-model test accuracy, here</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>rec <span class="op">=</span> np.array([recorded.get(<span class="bu">str</span>(mid), np.nan) <span class="cf">for</span> mid <span class="kw">in</span> model_ids])</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>matched <span class="op">=</span> <span class="op">~</span>np.isnan(rec)</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Matched </span><span class="sc">{</span>matched<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">}</span><span class="ss">/</span><span class="sc">{</span>n_models<span class="sc">}</span><span class="ss"> models to a recorded test_acc."</span>)</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Max |here - recorded| = </span><span class="sc">{</span>np<span class="sc">.</span><span class="bu">max</span>(np.<span class="bu">abs</span>(mine[matched] <span class="op">-</span> rec[matched]))<span class="sc">:.5f}</span><span class="ss">  "</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"(0 =&gt; the inference exactly reproduces the grid search's own evaluation)."</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Matched 100/100 models to a recorded test_acc.
+Max |here - recorded| = 0.00000  (0 =&gt; the inference exactly reproduces the grid search's own evaluation).</code></pre>
+</div>
+</div>
+<p>A maximum difference of zero means the prediction matrix is not a black box: it reproduces, model for model, the accuracies the grid search recorded when it trained them. Everything below is built on this verified matrix.</p>
+</section>
+<section id="metrics-and-committee-statistics-defined-before-use" class="level3">
+<h3 class="anchored" data-anchor-id="metrics-and-committee-statistics-defined-before-use">1.4 Metrics and committee statistics (defined before use)</h3>
+<p>Accuracy is reported two ways, following the project convention (<code>analyses/03</code> §6): <strong>exact</strong> (predicted score = true score) and <strong>near-miss</strong> (within ±1, i.e.&nbsp;the standard ±1 tolerance). Because the splits are class-balanced, exact accuracy also equals <strong>balanced</strong> accuracy. For each image the committee gives three counts that partition the 100 models — <code>n_right</code> (exact), <code>n_near</code> (off by exactly 1), <code>n_wrong</code> (off by ≥2) — plus the <strong>modal prediction</strong> (the single score the most models vote for) and its <strong>agreement</strong> (how many of the 100 voted it). The <strong>majority vote</strong> is that modal score; the <strong>oracle</strong> is “≥1 of the 100 models is exactly right”, an upper bound on what any committee rule could achieve.</p>
+<div id="2f73d9a9" class="cell" data-execution_count="5">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.4</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> exact(pred, y):</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">float</span>(np.mean(pred <span class="op">==</span> y))</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> nearmiss(pred, y):</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">float</span>(np.mean(np.<span class="bu">abs</span>(pred <span class="op">-</span> y) <span class="op">&lt;=</span> <span class="dv">1</span>))</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> majority_vote(P):</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.array([np.bincount(P[:, j], minlength<span class="op">=</span><span class="dv">7</span>).argmax() <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(P.shape[<span class="dv">1</span>])])</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>err_t <span class="op">=</span> np.<span class="bu">abs</span>(Pt <span class="op">-</span> yt[<span class="va">None</span>, :])</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>n_right <span class="op">=</span> (err_t <span class="op">==</span> <span class="dv">0</span>).<span class="bu">sum</span>(<span class="dv">0</span>)</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>n_near <span class="op">=</span> (err_t <span class="op">==</span> <span class="dv">1</span>).<span class="bu">sum</span>(<span class="dv">0</span>)</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>n_wrong <span class="op">=</span> (err_t <span class="op">&gt;=</span> <span class="dv">2</span>).<span class="bu">sum</span>(<span class="dv">0</span>)</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>modal_pred, modal_agree <span class="op">=</span> np.zeros(<span class="bu">len</span>(yt), <span class="bu">int</span>), np.zeros(<span class="bu">len</span>(yt), <span class="bu">int</span>)</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(yt)):</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    counts <span class="op">=</span> np.bincount(Pt[:, j], minlength<span class="op">=</span><span class="dv">7</span>)</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    modal_pred[j], modal_agree[j] <span class="op">=</span> counts.argmax(), counts.<span class="bu">max</span>()</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>v_t <span class="op">=</span> majority_vote(Pt)</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Sanity: vote == modal prediction for every image: </span><span class="sc">{</span>np<span class="sc">.</span>array_equal(v_t, modal_pred)<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Sanity: vote == modal prediction for every image: True</code></pre>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="where-scoring-breaks-down-by-severity-score" class="level2">
+<h2 class="anchored" data-anchor-id="where-scoring-breaks-down-by-severity-score">2. Where scoring breaks down — by severity score</h2>
+<p>The first question is <em>which scores</em> the committee gets wrong. The stacked bar below splits each true score’s images into exact / off-by-1 / off-by-≥2 (so each bar sums to 1), and the confusion matrix shows exactly which scores are mistaken for which. Both use the majority vote on the test split.</p>
+<div id="03d72d10" class="cell" data-execution_count="6">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2.1</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>comp <span class="op">=</span> np.array([[np.mean(np.<span class="bu">abs</span>(v_t[yt <span class="op">==</span> c] <span class="op">-</span> c) <span class="op">==</span> k) <span class="cf">if</span> k <span class="op">&lt;</span> <span class="dv">2</span> <span class="cf">else</span> np.mean(np.<span class="bu">abs</span>(v_t[yt <span class="op">==</span> c] <span class="op">-</span> c) <span class="op">&gt;=</span> <span class="dv">2</span>)</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>                  <span class="cf">for</span> c <span class="kw">in</span> CLASSES] <span class="cf">for</span> k <span class="kw">in</span> (<span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">2</span>)])   <span class="co"># rows: exact, off1, off&gt;=2</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="fl">4.5</span>))</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>bottom <span class="op">=</span> np.zeros(<span class="dv">7</span>)</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> row, lab, col <span class="kw">in</span> <span class="bu">zip</span>(comp, [<span class="st">"exact"</span>, <span class="st">"off by 1"</span>, <span class="st">"off by ≥2"</span>], [<span class="st">"#1a9850"</span>, <span class="st">"#fdae61"</span>, <span class="st">"#d73027"</span>]):</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    ax.bar(CLASSES, row, <span class="fl">0.7</span>, bottom<span class="op">=</span>bottom, label<span class="op">=</span>lab, color<span class="op">=</span>col)</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    bottom <span class="op">+=</span> row</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>ax.set_xticks(CLASSES)<span class="op">;</span> ax.set_xlabel(<span class="st">"True severity score"</span>)<span class="op">;</span> ax.set_ylabel(<span class="st">"Fraction of images"</span>)</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>ax.set_ylim(<span class="dv">0</span>, <span class="dv">1</span>)<span class="op">;</span> ax.set_title(<span class="st">"Vote outcome composition by score (test)"</span>)</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>ax.legend(ncol<span class="op">=</span><span class="dv">3</span>, loc<span class="op">=</span><span class="st">"lower center"</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()<span class="op">;</span> plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="test_image_difficulty_files/figure-html/cell-7-output-1.png" width="1066" height="527" class="figure-img"></p>
+<figcaption>Vote outcome by true score (test): each bar splits that score’s images into exact (green), off-by-1 (amber) and off-by-≥2 (red). Bar height up to the amber top is near-miss accuracy. The middle scores lose most of their height to off-by-1; gross (≥2) errors are rare everywhere.</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<div id="37a3a609" class="cell" data-execution_count="7">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2.2</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>cm <span class="op">=</span> np.zeros((<span class="dv">7</span>, <span class="dv">7</span>), <span class="bu">int</span>)</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> t, p <span class="kw">in</span> <span class="bu">zip</span>(yt, v_t):</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    cm[t, p] <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="fl">6.4</span>, <span class="fl">5.4</span>))</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>im <span class="op">=</span> ax.imshow(cm, cmap<span class="op">=</span><span class="st">"Blues"</span>)</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> CLASSES:</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> j <span class="kw">in</span> CLASSES:</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> cm[i, j]:</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>            ax.text(j, i, cm[i, j], ha<span class="op">=</span><span class="st">"center"</span>, va<span class="op">=</span><span class="st">"center"</span>,</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>                    color<span class="op">=</span><span class="st">"white"</span> <span class="cf">if</span> cm[i, j] <span class="op">&gt;</span> cm.<span class="bu">max</span>() <span class="op">/</span> <span class="dv">2</span> <span class="cf">else</span> <span class="st">"black"</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>ax.set_xticks(CLASSES)<span class="op">;</span> ax.set_yticks(CLASSES)</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"Predicted (vote)"</span>)<span class="op">;</span> ax.set_ylabel(<span class="st">"True score"</span>)</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="ss">f"Vote confusion (test): exact </span><span class="sc">{</span>exact(v_t, yt)<span class="sc">:.2f}</span><span class="ss">, near-miss </span><span class="sc">{</span>nearmiss(v_t, yt)<span class="sc">:.2f}</span><span class="ss">"</span>)</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>plt.colorbar(im, fraction<span class="op">=</span><span class="fl">0.046</span>, pad<span class="op">=</span><span class="fl">0.04</span>)</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()<span class="op">;</span> plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="test_image_difficulty_files/figure-html/cell-8-output-1.png" width="691" height="635" class="figure-img"></p>
+<figcaption>Confusion matrix of the majority vote (test). A tight band-diagonal — every error is to a neighbouring score, with score 5 spilling into 4 and 6.</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>Scores 0 and 6 are scored correctly ~80–86% of the time; the middle scores drop to ~0.43–0.66 (score 5 worst), but their lost accuracy goes almost entirely to the <em>adjacent</em> score — near-miss stays ≥0.95 across all scores and gross errors are rare. The committee has essentially solved “how much cell death, roughly”, and stumbles only on separating neighbouring severities.</p>
+<hr>
+</section>
+<section id="do-the-models-fail-on-the-same-images-or-different-ones" class="level2">
+<h2 class="anchored" data-anchor-id="do-the-models-fail-on-the-same-images-or-different-ones">3. Do the models fail on the <em>same</em> images, or different ones?</h2>
+<p>If the 100 models were interchangeable they would fail on identical images — every image would be scored right by either all 100 or none of them. The distribution of <code>n_right</code> tests that directly: a pile-up at 0 and 100 would mean no diversity, while a spread in between means different models miss different images.</p>
+<div id="b3a2efc0" class="cell" data-execution_count="8">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3.1</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>per_image <span class="op">=</span> pd.DataFrame({</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"filename"</span>: files_t, <span class="st">"true_label"</span>: yt, <span class="st">"n_right"</span>: n_right, <span class="st">"n_near"</span>: n_near,</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"n_wrong"</span>: n_wrong, <span class="st">"modal_pred"</span>: modal_pred, <span class="st">"modal_agreement"</span>: modal_agree,</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>}).sort_values([<span class="st">"n_right"</span>, <span class="st">"n_wrong"</span>], ascending<span class="op">=</span>[<span class="va">True</span>, <span class="va">False</span>]).reset_index(drop<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>per_image.to_csv(CACHE <span class="op">/</span> <span class="st">"per_image_difficulty.csv"</span>, index<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>unan_right <span class="op">=</span> <span class="bu">int</span>((n_right <span class="op">==</span> n_models).<span class="bu">sum</span>())</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>unan_wrong <span class="op">=</span> <span class="bu">int</span>((n_right <span class="op">==</span> <span class="dv">0</span>).<span class="bu">sum</span>())</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>split <span class="op">=</span> <span class="bu">int</span>(((n_right <span class="op">&gt;</span> <span class="dv">0</span>) <span class="op">&amp;</span> (n_right <span class="op">&lt;</span> n_models)).<span class="bu">sum</span>())</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Of </span><span class="sc">{</span><span class="bu">len</span>(yt)<span class="sc">}</span><span class="ss"> test images: </span><span class="sc">{</span>unan_right<span class="sc">}</span><span class="ss"> unanimously correct, "</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span>unan_wrong<span class="sc">}</span><span class="ss"> unanimously wrong, </span><span class="sc">{</span>split<span class="sc">}</span><span class="ss"> SPLIT (some models right, some wrong)."</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Of 308 test images: 50 unanimously correct, 21 unanimously wrong, 237 SPLIT (some models right, some wrong).</code></pre>
+</div>
+</div>
+<div id="f8dea27f" class="cell" data-execution_count="9">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3.2</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="dv">4</span>))</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>ax.hist(n_right, bins<span class="op">=</span>np.arange(<span class="dv">0</span>, n_models <span class="op">+</span> <span class="dv">2</span>) <span class="op">-</span> <span class="fl">0.5</span>, color<span class="op">=</span><span class="st">"#4C72B0"</span>)</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"Number of the 100 models scoring the image exactly right"</span>)</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"Number of test images"</span>)</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="ss">f"</span><span class="sc">{</span>split<span class="sc">}</span><span class="ss">/</span><span class="sc">{</span><span class="bu">len</span>(yt)<span class="sc">}</span><span class="ss"> test images are split decisions"</span>)</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()<span class="op">;</span> fig.savefig(THESIS_PLOTS <span class="op">/</span> <span class="st">"per_image_agreement_histogram.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="test_image_difficulty_files/figure-html/cell-10-output-1.png" width="1066" height="467" class="figure-img"></p>
+<figcaption>How many of the 100 models score each test image exactly right. Interchangeable models would pile up at 0 and 100; instead most images sit in between — different models miss different images.</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>The spread confirms diversity: only a minority of images are unanimous. Two views of <em>where</em> that diversity sits follow — by severity score, and by source <strong>project</strong>.</p>
+<div id="5fee15d1" class="cell" data-execution_count="10">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3.3</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>frac <span class="op">=</span> n_right <span class="op">/</span> n_models</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="fl">4.5</span>))</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>ax.boxplot([frac[yt <span class="op">==</span> c] <span class="cf">for</span> c <span class="kw">in</span> CLASSES], positions<span class="op">=</span>CLASSES, widths<span class="op">=</span><span class="fl">0.6</span>,</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>           patch_artist<span class="op">=</span><span class="va">True</span>, boxprops<span class="op">=</span><span class="bu">dict</span>(facecolor<span class="op">=</span><span class="st">"#8FB8DE"</span>),</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>           medianprops<span class="op">=</span><span class="bu">dict</span>(color<span class="op">=</span><span class="st">"black"</span>), flierprops<span class="op">=</span><span class="bu">dict</span>(marker<span class="op">=</span><span class="st">"."</span>, markersize<span class="op">=</span><span class="dv">3</span>))</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"True severity score"</span>)<span class="op">;</span> ax.set_ylabel(<span class="st">"Fraction of 100 models correct"</span>)</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>ax.set_ylim(<span class="op">-</span><span class="fl">0.02</span>, <span class="fl">1.02</span>)<span class="op">;</span> ax.set_title(<span class="st">"Per-image model agreement, by score"</span>)</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()<span class="op">;</span> plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="test_image_difficulty_files/figure-html/cell-11-output-1.png" width="1066" height="527" class="figure-img"></p>
+<figcaption>Per-image fraction of the 100 models correct, grouped by true score. The middle scores (esp.&nbsp;5) both score lowest and disagree most; 0 and 6 are near-unanimous.</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>A <strong>project</strong> is one of the eight upstream experiments (Projects A–H) the images were originally sourced from — each a <em>group of many source images</em> (different plants, dates, labs, imaging conditions), the level <code>uv-agroinfiltration-dataset</code>’s <code>04_project_level_analysis</code> treats as the real batch. Project membership is the authoritative <code>image_info.csv</code> mapping (vendored to <code>data/</code>): a crop’s source <code>Basename</code> (filename with the trailing <code>_Row_Col_Pos</code> stripped) is looked up to its source folder, whose top level is the project, then mapped to the anonymised A–H label. Grouping the per-image fraction-correct by project tests whether difficulty is a <em>batch</em> property (imaging conditions shared across a whole experiment) rather than per-crop.</p>
+<div id="a75784f8" class="cell" data-execution_count="11">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3.4  Map each test crop to its project (A-H) via the authoritative image_info.csv.</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>info <span class="op">=</span> pd.read_csv(ROOT <span class="op">/</span> <span class="st">"data"</span> <span class="op">/</span> <span class="st">"image_info.csv"</span>)</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>info[<span class="st">"Path"</span>] <span class="op">=</span> info[<span class="st">"Path"</span>].ffill()                                  <span class="co"># Path is filled downwards</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>key <span class="op">=</span> pd.read_csv(ROOT <span class="op">/</span> <span class="st">"data"</span> <span class="op">/</span> <span class="st">"project_anonymisation_key.csv"</span>)</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>anon <span class="op">=</span> <span class="bu">dict</span>(<span class="bu">zip</span>(key[<span class="st">"Project"</span>], key[<span class="st">"Anon_Label"</span>]))</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>stem_to_project <span class="op">=</span> {</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>    re.sub(<span class="vs">r"</span><span class="pp">[.]</span><span class="kw">(</span><span class="vs">tif</span><span class="cf">|</span><span class="vs">TIF</span><span class="kw">)</span><span class="dv">$</span><span class="vs">"</span>, <span class="st">""</span>, img): anon.get(path.split(<span class="st">"/"</span>)[<span class="dv">0</span>], path.split(<span class="st">"/"</span>)[<span class="dv">0</span>])</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> img, path <span class="kw">in</span> <span class="bu">zip</span>(info[<span class="st">"Image"</span>], info[<span class="st">"Path"</span>])</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> crop_project(fn):</span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> stem_to_project.get(re.sub(<span class="vs">r"_</span><span class="dv">\d</span><span class="op">+</span><span class="vs">_</span><span class="dv">\d</span><span class="op">+</span><span class="vs">_</span><span class="dv">\d</span><span class="op">+</span><span class="dv">$</span><span class="vs">"</span>, <span class="st">""</span>, Path(fn).stem))</span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>project <span class="op">=</span> np.array([crop_project(f) <span class="cf">for</span> f <span class="kw">in</span> files_t], dtype<span class="op">=</span><span class="bu">object</span>)</span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Mapped </span><span class="sc">{</span>np<span class="sc">.</span><span class="bu">sum</span>(project <span class="op">!=</span> <span class="va">None</span>)<span class="sc">}</span><span class="ss">/</span><span class="sc">{</span><span class="bu">len</span>(project)<span class="sc">}</span><span class="ss"> test crops to a project; "</span>  <span class="co"># noqa: E711</span></span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"per-project counts: </span><span class="sc">{</span><span class="bu">dict</span>(pd.Series(project).value_counts().sort_index())<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Mapped 308/308 test crops to a project; per-project counts: {'Project A': 12, 'Project B': 116, 'Project C': 42, 'Project D': 46, 'Project E': 39, 'Project F': 16, 'Project G': 21, 'Project H': 16}</code></pre>
+</div>
+</div>
+<div id="a9f3cea2" class="cell" data-execution_count="12">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3.4b</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>proj_order <span class="op">=</span> <span class="bu">sorted</span>(<span class="bu">set</span>(project), key<span class="op">=</span><span class="kw">lambda</span> p: np.median(frac[project <span class="op">==</span> p]))</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="fl">4.5</span>))</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>ax.boxplot([frac[project <span class="op">==</span> p] <span class="cf">for</span> p <span class="kw">in</span> proj_order], positions<span class="op">=</span><span class="bu">range</span>(<span class="bu">len</span>(proj_order)),</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>           widths<span class="op">=</span><span class="fl">0.6</span>, patch_artist<span class="op">=</span><span class="va">True</span>, boxprops<span class="op">=</span><span class="bu">dict</span>(facecolor<span class="op">=</span><span class="st">"#B0C4DE"</span>),</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>           medianprops<span class="op">=</span><span class="bu">dict</span>(color<span class="op">=</span><span class="st">"black"</span>), flierprops<span class="op">=</span><span class="bu">dict</span>(marker<span class="op">=</span><span class="st">"."</span>, markersize<span class="op">=</span><span class="dv">3</span>))</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>ax.set_xticks(<span class="bu">range</span>(<span class="bu">len</span>(proj_order)))</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>ax.set_xticklabels([<span class="ss">f"</span><span class="sc">{</span>p<span class="sc">}</span><span class="ch">\n</span><span class="ss">(n=</span><span class="sc">{</span><span class="bu">int</span>((project <span class="op">==</span> p).<span class="bu">sum</span>())<span class="sc">}</span><span class="ss">)"</span> <span class="cf">for</span> p <span class="kw">in</span> proj_order], fontsize<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"Fraction of 100 models correct"</span>)<span class="op">;</span> ax.set_ylim(<span class="op">-</span><span class="fl">0.02</span>, <span class="fl">1.02</span>)</span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"Source project (ordered by median)"</span>)</span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">"Per-image model agreement, by project"</span>)</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()<span class="op">;</span> plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="test_image_difficulty_files/figure-html/cell-13-output-1.png" width="1066" height="527" class="figure-img"></p>
+<figcaption>Per-image fraction of models correct, grouped by the eight source projects (A–H, ordered by median). Whole projects sit systematically high or low — difficulty is partly a batch/imaging-condition property, not just per-crop.</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>The finer <strong>source-image</strong> level (one photographed leaf) is shown too, for the images with ≥4 test crops — difficulty also clusters at this level within projects.</p>
+<div id="cb575b6c" class="cell" data-execution_count="13">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3.4c</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>src <span class="op">=</span> np.array([re.sub(<span class="vs">r"_</span><span class="dv">\d</span><span class="op">+</span><span class="vs">_</span><span class="dv">\d</span><span class="op">+</span><span class="vs">_</span><span class="dv">\d</span><span class="op">+</span><span class="dv">$</span><span class="vs">"</span>, <span class="st">""</span>, Path(f).stem) <span class="cf">for</span> f <span class="kw">in</span> files_t])</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>src_ids, src_counts <span class="op">=</span> np.unique(src, return_counts<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>keep <span class="op">=</span> src_ids[src_counts <span class="op">&gt;=</span> <span class="dv">4</span>]</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>order <span class="op">=</span> <span class="bu">sorted</span>(keep, key<span class="op">=</span><span class="kw">lambda</span> p: np.median(frac[src <span class="op">==</span> p]))</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="bu">len</span>(src_ids)<span class="sc">}</span><span class="ss"> source images in test; </span><span class="sc">{</span><span class="bu">len</span>(keep)<span class="sc">}</span><span class="ss"> have &gt;=4 test crops (shown)."</span>)</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">11</span>, <span class="dv">4</span>))</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>ax.boxplot([frac[src <span class="op">==</span> p] <span class="cf">for</span> p <span class="kw">in</span> order], positions<span class="op">=</span><span class="bu">range</span>(<span class="bu">len</span>(order)), widths<span class="op">=</span><span class="fl">0.6</span>,</span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>           patch_artist<span class="op">=</span><span class="va">True</span>, boxprops<span class="op">=</span><span class="bu">dict</span>(facecolor<span class="op">=</span><span class="st">"#C7D7E8"</span>),</span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>           medianprops<span class="op">=</span><span class="bu">dict</span>(color<span class="op">=</span><span class="st">"black"</span>), flierprops<span class="op">=</span><span class="bu">dict</span>(marker<span class="op">=</span><span class="st">"."</span>, markersize<span class="op">=</span><span class="dv">3</span>))</span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>ax.set_xticks(<span class="bu">range</span>(<span class="bu">len</span>(order)))</span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>ax.set_xticklabels(order, rotation<span class="op">=</span><span class="dv">60</span>, ha<span class="op">=</span><span class="st">"right"</span>, fontsize<span class="op">=</span><span class="dv">7</span>)</span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"Fraction correct"</span>)<span class="op">;</span> ax.set_ylim(<span class="op">-</span><span class="fl">0.02</span>, <span class="fl">1.02</span>)</span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"Source image (≥4 test crops, ordered by median)"</span>)</span>
+<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">"Per-image model agreement, by source image"</span>)</span>
+<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()<span class="op">;</span> plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>153 source images in test; 14 have &gt;=4 test crops (shown).</code></pre>
+</div>
+<div class="cell-output cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="test_image_difficulty_files/figure-html/cell-14-output-2.png" width="1306" height="465" class="figure-img"></p>
+<figcaption>The same, at the finer source-image level (source images with ≥4 test crops, ordered by median). Crops from one leaf tend to be scored similarly.</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<div id="87930c24" class="cell" data-execution_count="14">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3.5</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>per_model_test <span class="op">=</span> (Pt <span class="op">==</span> yt[<span class="va">None</span>, :]).mean(<span class="dv">1</span>)</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>oracle <span class="op">=</span> <span class="bu">float</span>((Pt <span class="op">==</span> yt[<span class="va">None</span>, :]).<span class="bu">any</span>(<span class="dv">0</span>).mean())</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>bars <span class="op">=</span> {<span class="st">"single</span><span class="ch">\n</span><span class="st">(mean)"</span>: per_model_test.mean(), <span class="st">"single</span><span class="ch">\n</span><span class="st">(best)"</span>: per_model_test.<span class="bu">max</span>(),</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">"majority</span><span class="ch">\n</span><span class="st">vote"</span>: exact(v_t, yt), <span class="st">"oracle</span><span class="ch">\n</span><span class="st">(≥1 correct)"</span>: oracle}</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="fl">4.5</span>))</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>ax.bar(<span class="bu">list</span>(bars), <span class="bu">list</span>(bars.values()), color<span class="op">=</span>[<span class="st">"#B0B0B0"</span>, <span class="st">"#7f7f7f"</span>, <span class="st">"#4C72B0"</span>, <span class="st">"#55A868"</span>])</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, val <span class="kw">in</span> <span class="bu">enumerate</span>(bars.values()):</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>    ax.text(i, val <span class="op">+</span> <span class="fl">0.01</span>, <span class="ss">f"</span><span class="sc">{</span>val<span class="sc">:.2f}</span><span class="ss">"</span>, ha<span class="op">=</span><span class="st">"center"</span>, fontsize<span class="op">=</span><span class="dv">10</span>)</span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>ax.set_ylim(<span class="dv">0</span>, <span class="fl">1.0</span>)<span class="op">;</span> ax.set_ylabel(<span class="st">"Test exact accuracy"</span>)</span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">"Diversity exists (oracle ≈ 0.93) but the vote cannot harvest it"</span>)</span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()<span class="op">;</span> fig.savefig(THESIS_PLOTS <span class="op">/</span> <span class="st">"diversity_headroom.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> itertools</span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">0</span>)</span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true" tabindex="-1"></a>sample <span class="op">=</span> rng.choice(n_models, <span class="dv">25</span>, replace<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb20-18"><a href="#cb20-18" aria-hidden="true" tabindex="-1"></a>pair <span class="op">=</span> np.mean([(Pt[a] <span class="op">==</span> Pt[b]).mean() <span class="cf">for</span> a, b <span class="kw">in</span> itertools.combinations(sample, <span class="dv">2</span>)])</span>
+<span id="cb20-19"><a href="#cb20-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Mean pairwise agreement between models (test): </span><span class="sc">{</span>pair<span class="sc">:.3f}</span><span class="ss"> — correlated, not identical."</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="test_image_difficulty_files/figure-html/cell-15-output-1.png" width="947" height="527" class="figure-img"></p>
+<figcaption>The diversity headroom. ‘At least one of 100 correct’ (oracle) sits far above the vote or the best single model: the committee collectively covers most images, but its correlated errors on the hard ones stop the vote from harvesting that.</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Mean pairwise agreement between models (test): 0.779 — correlated, not identical.</code></pre>
+</div>
+</div>
+<p>The models are genuinely diverse — ~0.93 of test images are caught by <em>some</em> model, and mean pairwise agreement is only ~0.77 — which is why the vote is stable. But the diversity is not independent where it matters: on the hard middle-score images the models tend to be wrong <em>together</em>, so the vote cannot convert the 0.93 oracle headroom into accuracy.</p>
+<hr>
+</section>
+<section id="candidate-label-errors" class="level2">
+<h2 class="anchored" data-anchor-id="candidate-label-errors">4. Candidate label errors</h2>
+<p>An image the whole committee misses is either mislabelled or intrinsically hard. The discriminating signal is <strong>near-unanimity combined with distance</strong>: independently trained models rarely converge on the <em>same wrong</em> score by chance, so an image where a large majority agrees on a score <strong>&gt;=2 away</strong> from the recorded label is a strong mislabel candidate. An off-by-one majority, by contrast, is just adjacent-score ambiguity (section 2) and is <em>not</em> treated as a label error.</p>
+<p>The committee is every configuration that is statistically indistinguishable from the best in its own grid – within one standard error of that grid’s best validation accuracy – and it spans model families rather than being 100 CNNs from one grid. The augmented runs are ranked on validation accuracy over ORIGINAL crops, because their plain <code>avg_vaf</code> is measured over a fold containing augmented copies and is not the same quantity.</p>
+<div id="a044422e" class="cell" data-execution_count="15">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.0  Assemble the committee.</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> glob <span class="im">as</span> _glob</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>_SE <span class="op">=</span> <span class="kw">lambda</span> p: np.sqrt(p <span class="op">*</span> (<span class="dv">1</span> <span class="op">-</span> p) <span class="op">/</span> <span class="dv">2289</span>)</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>_parts, _labels <span class="op">=</span> [], []</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>_v <span class="op">=</span> np.asarray(avg_vaf)</span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>_parts.append(Pt[_v <span class="op">&gt;=</span> _v.<span class="bu">max</span>() <span class="op">-</span> _SE(_v.<span class="bu">max</span>())])<span class="op">;</span> _labels.append(<span class="st">"CNN"</span>)</span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>_pz <span class="op">=</span> np.load(ROOT <span class="op">/</span> <span class="st">"analyses/11_ordinal_decision_boundaries/prob_cache/probs.npz"</span>,</span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>              allow_pickle<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a>_vr <span class="op">=</span> pd.concat([pd.read_csv(ROOT <span class="op">/</span> <span class="st">"models/04_Medoid_ViT_RandomSearch/01_Categorical_Loss/random_search_results.csv"</span>)]</span>
+<span id="cb22-12"><a href="#cb22-12" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> [pd.read_csv(q) <span class="cf">for</span> q <span class="kw">in</span> _glob.glob(<span class="bu">str</span>(</span>
+<span id="cb22-13"><a href="#cb22-13" aria-hidden="true" tabindex="-1"></a>        ROOT <span class="op">/</span> <span class="st">"models/04_Medoid_ViT_RandomSearch/01_Categorical_Loss/parts/*.csv"</span>))],</span>
+<span id="cb22-14"><a href="#cb22-14" aria-hidden="true" tabindex="-1"></a>    ignore_index<span class="op">=</span><span class="va">True</span>).drop_duplicates(<span class="st">"model_id"</span>).set_index(<span class="st">"model_id"</span>)</span>
+<span id="cb22-15"><a href="#cb22-15" aria-hidden="true" tabindex="-1"></a>_vv <span class="op">=</span> _vr.loc[[<span class="bu">int</span>(m) <span class="cf">for</span> m <span class="kw">in</span> _pz[<span class="st">"vit_ids"</span>]], <span class="st">"avg_vaf"</span>].to_numpy()</span>
+<span id="cb22-16"><a href="#cb22-16" aria-hidden="true" tabindex="-1"></a>_parts.append(_pz[<span class="st">"vit"</span>].argmax(<span class="dv">2</span>)[_vv <span class="op">&gt;=</span> _vv.<span class="bu">max</span>() <span class="op">-</span> _SE(_vv.<span class="bu">max</span>())])<span class="op">;</span> _labels.append(<span class="st">"ViT"</span>)</span>
+<span id="cb22-17"><a href="#cb22-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-18"><a href="#cb22-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Geometric augmentation: only the tied models that were saved can be scored. The grid keeps</span></span>
+<span id="cb22-19"><a href="#cb22-19" aria-hidden="true" tabindex="-1"></a><span class="co"># the top 100 by avg_vaf, so a model tied on avg_vaf_orig but outside that 100 has no</span></span>
+<span id="cb22-20"><a href="#cb22-20" aria-hidden="true" tabindex="-1"></a><span class="co"># weights on disk; the count actually used is printed rather than assumed.</span></span>
+<span id="cb22-21"><a href="#cb22-21" aria-hidden="true" tabindex="-1"></a>_GC <span class="op">=</span> CACHE <span class="op">/</span> <span class="st">"geo_tied_predictions.npz"</span></span>
+<span id="cb22-22"><a href="#cb22-22" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> _GC.exists():</span>
+<span id="cb22-23"><a href="#cb22-23" aria-hidden="true" tabindex="-1"></a>    _geo <span class="op">=</span> np.load(_GC)[<span class="st">"P"</span>]</span>
+<span id="cb22-24"><a href="#cb22-24" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb22-25"><a href="#cb22-25" aria-hidden="true" tabindex="-1"></a>    _g <span class="op">=</span> pd.read_csv(ROOT <span class="op">/</span> <span class="st">"models/07_Medoid_CNN_GeomAug/01_MatchLargestClass/random_search_results.csv"</span></span>
+<span id="cb22-26"><a href="#cb22-26" aria-hidden="true" tabindex="-1"></a>                     ).drop_duplicates(<span class="st">"model_id"</span>).dropna(subset<span class="op">=</span>[<span class="st">"avg_vaf_orig"</span>])</span>
+<span id="cb22-27"><a href="#cb22-27" aria-hidden="true" tabindex="-1"></a>    _gb <span class="op">=</span> _g.avg_vaf_orig.<span class="bu">max</span>()</span>
+<span id="cb22-28"><a href="#cb22-28" aria-hidden="true" tabindex="-1"></a>    _gids <span class="op">=</span> <span class="bu">set</span>(_g[_g.avg_vaf_orig <span class="op">&gt;=</span> _gb <span class="op">-</span> _SE(_gb)].model_id.astype(<span class="bu">int</span>))</span>
+<span id="cb22-29"><a href="#cb22-29" aria-hidden="true" tabindex="-1"></a>    <span class="im">import</span> tensorflow <span class="im">as</span> _tf3</span>
+<span id="cb22-30"><a href="#cb22-30" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="st">"_Xt"</span> <span class="kw">not</span> <span class="kw">in</span> <span class="bu">dir</span>():</span>
+<span id="cb22-31"><a href="#cb22-31" aria-hidden="true" tabindex="-1"></a>        sys.path.append(<span class="bu">str</span>(ROOT <span class="op">/</span> <span class="st">"src"</span>))</span>
+<span id="cb22-32"><a href="#cb22-32" aria-hidden="true" tabindex="-1"></a>        <span class="im">import</span> base_dataset <span class="im">as</span> _bd3</span>
+<span id="cb22-33"><a href="#cb22-33" aria-hidden="true" tabindex="-1"></a>        _Xt <span class="op">=</span> np.asarray(_bd3.load_dataset(<span class="bu">str</span>(</span>
+<span id="cb22-34"><a href="#cb22-34" aria-hidden="true" tabindex="-1"></a>            ROOT <span class="op">/</span> <span class="st">"data/datasets/medoid_64/medoid_64.npy"</span>))[<span class="st">"test_images"</span>], dtype<span class="op">=</span><span class="st">"float32"</span>)</span>
+<span id="cb22-35"><a href="#cb22-35" aria-hidden="true" tabindex="-1"></a>    _rows <span class="op">=</span> []</span>
+<span id="cb22-36"><a href="#cb22-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _pth <span class="kw">in</span> <span class="bu">sorted</span>(_glob.glob(<span class="bu">str</span>(</span>
+<span id="cb22-37"><a href="#cb22-37" aria-hidden="true" tabindex="-1"></a>            ROOT <span class="op">/</span> <span class="st">"models/07_Medoid_CNN_GeomAug/01_MatchLargestClass/results/*/model.keras"</span>))):</span>
+<span id="cb22-38"><a href="#cb22-38" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">int</span>(Path(_pth).parent.name.split(<span class="st">"_"</span>)[<span class="op">-</span><span class="dv">1</span>]) <span class="kw">in</span> _gids:</span>
+<span id="cb22-39"><a href="#cb22-39" aria-hidden="true" tabindex="-1"></a>            _rows.append(np.argmax(_tf3.keras.models.load_model(_pth, <span class="bu">compile</span><span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb22-40"><a href="#cb22-40" aria-hidden="true" tabindex="-1"></a>                                   .predict(_Xt, verbose<span class="op">=</span><span class="dv">0</span>), <span class="dv">1</span>))</span>
+<span id="cb22-41"><a href="#cb22-41" aria-hidden="true" tabindex="-1"></a>            _tf3.keras.backend.clear_session()</span>
+<span id="cb22-42"><a href="#cb22-42" aria-hidden="true" tabindex="-1"></a>    _geo <span class="op">=</span> np.array(_rows)<span class="op">;</span> np.savez(_GC, P<span class="op">=</span>_geo)</span>
+<span id="cb22-43"><a href="#cb22-43" aria-hidden="true" tabindex="-1"></a>_parts.append(_geo)<span class="op">;</span> _labels.append(<span class="st">"CNN, geometric aug"</span>)</span>
+<span id="cb22-44"><a href="#cb22-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-45"><a href="#cb22-45" aria-hidden="true" tabindex="-1"></a>_nd2 <span class="op">=</span> pd.read_csv(ROOT <span class="op">/</span> <span class="st">"analyses/03_feature_classifiers/model_cache/nondl_test_predictions.csv"</span>)</span>
+<span id="cb22-46"><a href="#cb22-46" aria-hidden="true" tabindex="-1"></a>_nd2 <span class="op">=</span> _nd2.set_index(<span class="st">"image_id"</span>).loc[[f.replace(<span class="st">".tif"</span>, <span class="st">""</span>) <span class="cf">for</span> f <span class="kw">in</span> files_t]]</span>
+<span id="cb22-47"><a href="#cb22-47" aria-hidden="true" tabindex="-1"></a>_parts.append(_nd2.ordinal_regression.to_numpy()[<span class="va">None</span>, :])<span class="op">;</span> _labels.append(<span class="st">"ordinal regression"</span>)</span>
+<span id="cb22-48"><a href="#cb22-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-49"><a href="#cb22-49" aria-hidden="true" tabindex="-1"></a>COMMITTEE <span class="op">=</span> np.vstack(_parts)</span>
+<span id="cb22-50"><a href="#cb22-50" aria-hidden="true" tabindex="-1"></a>COMMITTEE_N <span class="op">=</span> <span class="bu">dict</span>(<span class="bu">zip</span>(_labels, [<span class="bu">len</span>(x) <span class="cf">for</span> x <span class="kw">in</span> _parts]))</span>
+<span id="cb22-51"><a href="#cb22-51" aria-hidden="true" tabindex="-1"></a>_cm_modal <span class="op">=</span> np.array([np.bincount(COMMITTEE[:, i], minlength<span class="op">=</span><span class="dv">7</span>).argmax()</span>
+<span id="cb22-52"><a href="#cb22-52" aria-hidden="true" tabindex="-1"></a>                      <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(COMMITTEE.shape[<span class="dv">1</span>])])</span>
+<span id="cb22-53"><a href="#cb22-53" aria-hidden="true" tabindex="-1"></a>_cm_agree <span class="op">=</span> np.array([np.bincount(COMMITTEE[:, i], minlength<span class="op">=</span><span class="dv">7</span>).<span class="bu">max</span>()</span>
+<span id="cb22-54"><a href="#cb22-54" aria-hidden="true" tabindex="-1"></a>                      <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(COMMITTEE.shape[<span class="dv">1</span>])])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+</div>
+<div id="122f2289" class="cell" data-execution_count="16">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.1</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"committee: "</span> <span class="op">+</span> <span class="st">", "</span>.join(<span class="ss">f"</span><span class="sc">{</span>k<span class="sc">}</span><span class="ss"> </span><span class="sc">{</span>v<span class="sc">}</span><span class="ss">"</span> <span class="cf">for</span> k, v <span class="kw">in</span> COMMITTEE_N.items())</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>      <span class="op">+</span> <span class="ss">f"  = </span><span class="sc">{</span><span class="bu">len</span>(COMMITTEE)<span class="sc">}</span><span class="ss"> models"</span>)</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>off <span class="op">=</span> np.<span class="bu">abs</span>(_cm_modal <span class="op">-</span> yt)</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>strong <span class="op">=</span> pd.DataFrame({<span class="st">"filename"</span>: files_t, <span class="st">"true_label"</span>: yt, <span class="st">"modal_pred"</span>: _cm_modal,</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>                       <span class="st">"modal_agreement"</span>: _cm_agree,</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>                       <span class="st">"pct"</span>: <span class="dv">100</span> <span class="op">*</span> _cm_agree <span class="op">/</span> <span class="bu">len</span>(COMMITTEE)})[off <span class="op">&gt;=</span> <span class="dv">2</span>]</span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>strong <span class="op">=</span> strong.sort_values(<span class="st">"modal_agreement"</span>, ascending<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="sc">{</span><span class="bu">len</span>(strong)<span class="sc">}</span><span class="ss"> crops have a committee modal score &gt;=2 from the recorded label."</span>)</span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"(</span><span class="sc">{</span><span class="bu">int</span>(((np.<span class="bu">abs</span>(_cm_modal <span class="op">-</span> yt) <span class="op">==</span> <span class="dv">1</span>) <span class="op">&amp;</span> (_cm_agree <span class="op">&gt;=</span> <span class="fl">0.6</span> <span class="op">*</span> <span class="bu">len</span>(COMMITTEE))).<span class="bu">sum</span>())<span class="sc">}</span><span class="ss"> "</span></span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"more have a &gt;=60% majority off by exactly 1 = adjacent-score ambiguity.)"</span>)</span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a>strong.<span class="bu">round</span>(<span class="dv">1</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>committee: CNN 22, ViT 51, CNN, geometric aug 17, ordinal regression 1  = 91 models
+
+5 crops have a committee modal score &gt;=2 from the recorded label.
+(76 more have a &gt;=60% majority off by exactly 1 = adjacent-score ambiguity.)</code></pre>
+</div>
+<div class="cell-output cell-output-display" data-execution_count="16">
+<div>
+
+
+<table class="dataframe caption-top table table-sm table-striped small" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">filename</th>
+<th data-quarto-table-cell-role="th">true_label</th>
+<th data-quarto-table-cell-role="th">modal_pred</th>
+<th data-quarto-table-cell-role="th">modal_agreement</th>
+<th data-quarto-table-cell-role="th">pct</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">267</th>
+<td>DSC_9237_3_3_2.tif</td>
+<td>2</td>
+<td>4</td>
+<td>91</td>
+<td>100.0</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">180</th>
+<td>DSC_8266_3_1_1.tif</td>
+<td>4</td>
+<td>6</td>
+<td>84</td>
+<td>92.3</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">10</th>
+<td>_DSC1805_3_4_6.tif</td>
+<td>1</td>
+<td>3</td>
+<td>70</td>
+<td>76.9</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">48</th>
+<td>_DSC0138_2_3_4.tif</td>
+<td>6</td>
+<td>4</td>
+<td>55</td>
+<td>60.4</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">25</th>
+<td>DSC_3613_3_3_3.tif</td>
+<td>3</td>
+<td>1</td>
+<td>49</td>
+<td>53.8</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+<div id="1ed85775" class="cell" data-execution_count="17">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.2</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> load_crop(fn, label):</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>    q <span class="op">=</span> ROOT <span class="op">/</span> <span class="st">"data"</span> <span class="op">/</span> <span class="st">"cropped_images_medoid"</span> <span class="op">/</span> <span class="bu">str</span>(<span class="bu">int</span>(label)) <span class="op">/</span> fn</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.asarray(Image.<span class="bu">open</span>(q)) <span class="cf">if</span> q.exists() <span class="cf">else</span> <span class="va">None</span></span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>show <span class="op">=</span> strong</span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>NCOL <span class="op">=</span> <span class="bu">min</span>(<span class="dv">4</span>, <span class="bu">max</span>(<span class="dv">1</span>, <span class="bu">len</span>(show)))</span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>NROW <span class="op">=</span> <span class="bu">int</span>(np.ceil(<span class="bu">len</span>(show) <span class="op">/</span> NCOL))</span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">len</span>(show):</span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>    fig, axes <span class="op">=</span> plt.subplots(NROW, NCOL, figsize<span class="op">=</span>(<span class="fl">2.1</span> <span class="op">*</span> NCOL, <span class="fl">2.45</span> <span class="op">*</span> NROW), squeeze<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> ax, (_, r) <span class="kw">in</span> <span class="bu">zip</span>(axes.ravel(), show.iterrows()):</span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a>        img <span class="op">=</span> load_crop(r[<span class="st">"filename"</span>], r[<span class="st">"true_label"</span>])</span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a>        ax.imshow(img) <span class="cf">if</span> img <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span> <span class="cf">else</span> ax.text(<span class="fl">0.5</span>, <span class="fl">0.5</span>, <span class="st">"(not found)"</span>, ha<span class="op">=</span><span class="st">"center"</span>)</span>
+<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a>        ax.set_title(<span class="ss">f"Recorded </span><span class="sc">{</span><span class="bu">int</span>(r.true_label)<span class="sc">}</span><span class="ss"> </span><span class="ch">\u2192</span><span class="ss"> </span><span class="sc">{</span><span class="bu">int</span>(r.modal_pred)<span class="sc">}</span><span class="ch">\n</span><span class="ss">"</span></span>
+<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a>                     <span class="ss">f"</span><span class="sc">{</span><span class="bu">int</span>(r.modal_agreement)<span class="sc">}</span><span class="ss">/</span><span class="sc">{</span><span class="bu">len</span>(COMMITTEE)<span class="sc">}</span><span class="ss"> agree"</span>, fontsize<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb25-16"><a href="#cb25-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> ax <span class="kw">in</span> axes.ravel():</span>
+<span id="cb25-17"><a href="#cb25-17" aria-hidden="true" tabindex="-1"></a>        ax.axis(<span class="st">"off"</span>)</span>
+<span id="cb25-18"><a href="#cb25-18" aria-hidden="true" tabindex="-1"></a>    plt.tight_layout()</span>
+<span id="cb25-19"><a href="#cb25-19" aria-hidden="true" tabindex="-1"></a>    fig.savefig(THESIS_PLOTS <span class="op">/</span> <span class="st">"candidate_label_errors.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb25-20"><a href="#cb25-20" aria-hidden="true" tabindex="-1"></a>    plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="test_image_difficulty_files/figure-html/cell-18-output-1.png" width="996" height="580" class="figure-img"></p>
+<figcaption>Every test crop whose committee modal score is at least two steps from the recorded label, ordered by how much of the committee agrees.</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="b.-agreement-across-model-families" class="level2">
+<h2 class="anchored" data-anchor-id="b.-agreement-across-model-families">4b. Agreement across model families</h2>
+<p>The committee above is 100 CNNs. This asks the wider question: do the best CNN, the best ViT and the two feature models agree about which test crops are hard, or do different families fail on different images? Pairwise agreement is the fraction of the 308 test crops on which two models give the <em>same</em> prediction, right or wrong.</p>
+<div id="3ec3a656" class="cell" data-execution_count="18">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4b.1</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Loading the two saved models and running them over the 308 test crops costs about 14 s,</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 12.5 s of it the ViT, on top of a 14 s TensorFlow import. Both prediction vectors are</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a><span class="co"># cached like the 100-model matrices above, and TensorFlow is imported only on a miss.</span></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Delete family_predictions.npz to rebuild.</span></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>_FAM <span class="op">=</span> CACHE <span class="op">/</span> <span class="st">"family_predictions.npz"</span></span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>_P <span class="op">=</span> {}</span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> _FAM.exists():</span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>    _fz <span class="op">=</span> np.load(_FAM)</span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a>    _P[<span class="st">"CNN"</span>], _P[<span class="st">"ViT"</span>] <span class="op">=</span> _fz[<span class="st">"cnn"</span>], _fz[<span class="st">"vit"</span>]</span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a>    <span class="im">import</span> glob <span class="im">as</span> _glob</span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a>    <span class="im">import</span> tensorflow <span class="im">as</span> _tf</span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a>    sys.path.append(<span class="bu">str</span>(ROOT <span class="op">/</span> <span class="st">"src"</span>))</span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a>    <span class="im">import</span> model_builders <span class="im">as</span> _mb  <span class="co"># noqa: F401  (registers ClassToken so the ViT loads)</span></span>
+<span id="cb26-16"><a href="#cb26-16" aria-hidden="true" tabindex="-1"></a>    <span class="im">import</span> base_dataset <span class="im">as</span> _bd</span>
+<span id="cb26-17"><a href="#cb26-17" aria-hidden="true" tabindex="-1"></a>    _ds <span class="op">=</span> _bd.load_dataset(<span class="bu">str</span>(ROOT <span class="op">/</span> <span class="st">"data"</span> <span class="op">/</span> <span class="st">"datasets"</span> <span class="op">/</span> <span class="st">"medoid_64"</span> <span class="op">/</span> <span class="st">"medoid_64.npy"</span>))</span>
+<span id="cb26-18"><a href="#cb26-18" aria-hidden="true" tabindex="-1"></a>    _Xt <span class="op">=</span> np.asarray(_ds[<span class="st">"test_images"</span>], dtype<span class="op">=</span><span class="st">"float32"</span>)</span>
+<span id="cb26-19"><a href="#cb26-19" aria-hidden="true" tabindex="-1"></a>    _P[<span class="st">"CNN"</span>] <span class="op">=</span> np.argmax(_tf.keras.models.load_model(_glob.glob(<span class="bu">str</span>(</span>
+<span id="cb26-20"><a href="#cb26-20" aria-hidden="true" tabindex="-1"></a>        ROOT <span class="op">/</span> <span class="st">"models/03_Medoid_CNN_RandomSearch/*/results/*_3606/model.keras"</span>))[<span class="dv">0</span>])</span>
+<span id="cb26-21"><a href="#cb26-21" aria-hidden="true" tabindex="-1"></a>        .predict(_Xt, verbose<span class="op">=</span><span class="dv">0</span>), <span class="dv">1</span>)</span>
+<span id="cb26-22"><a href="#cb26-22" aria-hidden="true" tabindex="-1"></a>    _P[<span class="st">"ViT"</span>] <span class="op">=</span> np.argmax(_tf.keras.models.load_model(_glob.glob(<span class="bu">str</span>(</span>
+<span id="cb26-23"><a href="#cb26-23" aria-hidden="true" tabindex="-1"></a>        ROOT <span class="op">/</span> <span class="st">"models/04_Medoid_ViT_RandomSearch/*/results/*_1426/model.keras"</span>))[<span class="dv">0</span>])</span>
+<span id="cb26-24"><a href="#cb26-24" aria-hidden="true" tabindex="-1"></a>        .predict(_Xt, verbose<span class="op">=</span><span class="dv">0</span>), <span class="dv">1</span>)</span>
+<span id="cb26-25"><a href="#cb26-25" aria-hidden="true" tabindex="-1"></a>    np.savez(_FAM, cnn<span class="op">=</span>_P[<span class="st">"CNN"</span>], vit<span class="op">=</span>_P[<span class="st">"ViT"</span>])</span>
+<span id="cb26-26"><a href="#cb26-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-27"><a href="#cb26-27" aria-hidden="true" tabindex="-1"></a><span class="co"># Aligned on files_t, the test filenames this analysis already carries, so the rows cannot</span></span>
+<span id="cb26-28"><a href="#cb26-28" aria-hidden="true" tabindex="-1"></a><span class="co"># drift out of order relative to yt.</span></span>
+<span id="cb26-29"><a href="#cb26-29" aria-hidden="true" tabindex="-1"></a>_nd <span class="op">=</span> pd.read_csv(ROOT <span class="op">/</span> <span class="st">"analyses/03_feature_classifiers/model_cache/nondl_test_predictions.csv"</span>)</span>
+<span id="cb26-30"><a href="#cb26-30" aria-hidden="true" tabindex="-1"></a>_nd <span class="op">=</span> _nd.set_index(<span class="st">"image_id"</span>).loc[[f.replace(<span class="st">".tif"</span>, <span class="st">""</span>) <span class="cf">for</span> f <span class="kw">in</span> files_t]]</span>
+<span id="cb26-31"><a href="#cb26-31" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> (_nd.true.to_numpy() <span class="op">==</span> yt).<span class="bu">all</span>(), <span class="st">"non-DL predictions are misaligned with yt"</span></span>
+<span id="cb26-32"><a href="#cb26-32" aria-hidden="true" tabindex="-1"></a>_P[<span class="st">"ordinal regression"</span>] <span class="op">=</span> _nd.ordinal_regression.to_numpy()</span>
+<span id="cb26-33"><a href="#cb26-33" aria-hidden="true" tabindex="-1"></a><span class="co"># The ordinal forest is dropped from the chapter: it is the weakest non-trivial model and</span></span>
+<span id="cb26-34"><a href="#cb26-34" aria-hidden="true" tabindex="-1"></a><span class="co"># nothing downstream uses it. Its predictions are still exported by analyses/03.</span></span>
+<span id="cb26-35"><a href="#cb26-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-36"><a href="#cb26-36" aria-hidden="true" tabindex="-1"></a><span class="co"># The two augmented-training CNNs, added so the comparison spans training regimes as well as</span></span>
+<span id="cb26-37"><a href="#cb26-37" aria-hidden="true" tabindex="-1"></a><span class="co"># model families. Cached alongside the others; delete aug_predictions.npz to rebuild.</span></span>
+<span id="cb26-38"><a href="#cb26-38" aria-hidden="true" tabindex="-1"></a>_AUG <span class="op">=</span> CACHE <span class="op">/</span> <span class="st">"aug_predictions.npz"</span></span>
+<span id="cb26-39"><a href="#cb26-39" aria-hidden="true" tabindex="-1"></a>_AUG_SRC <span class="op">=</span> {<span class="st">"CNN, geometric aug"</span>: ROOT <span class="op">/</span> <span class="st">"models/07_Medoid_CNN_GeomAug/01_MatchLargestClass/results/*_6848/model.keras"</span>,</span>
+<span id="cb26-40"><a href="#cb26-40" aria-hidden="true" tabindex="-1"></a>            <span class="st">"CNN, cGAN aug"</span>: ROOT <span class="op">/</span> <span class="st">"models/08_Medoid_CNN_CGANAug/01_MatchLargestClass/results/*_3590/model.keras"</span>}</span>
+<span id="cb26-41"><a href="#cb26-41" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> _AUG.exists():</span>
+<span id="cb26-42"><a href="#cb26-42" aria-hidden="true" tabindex="-1"></a>    _az <span class="op">=</span> np.load(_AUG)</span>
+<span id="cb26-43"><a href="#cb26-43" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _k <span class="kw">in</span> _AUG_SRC:</span>
+<span id="cb26-44"><a href="#cb26-44" aria-hidden="true" tabindex="-1"></a>        _P[_k] <span class="op">=</span> _az[_k]</span>
+<span id="cb26-45"><a href="#cb26-45" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb26-46"><a href="#cb26-46" aria-hidden="true" tabindex="-1"></a>    <span class="im">import</span> glob <span class="im">as</span> _g2, tensorflow <span class="im">as</span> _tf2</span>
+<span id="cb26-47"><a href="#cb26-47" aria-hidden="true" tabindex="-1"></a>    <span class="co"># _Xt is only built when the family-prediction cache misses, so load the crops here too.</span></span>
+<span id="cb26-48"><a href="#cb26-48" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="st">"_Xt"</span> <span class="kw">not</span> <span class="kw">in</span> <span class="bu">dir</span>():</span>
+<span id="cb26-49"><a href="#cb26-49" aria-hidden="true" tabindex="-1"></a>        sys.path.append(<span class="bu">str</span>(ROOT <span class="op">/</span> <span class="st">"src"</span>))</span>
+<span id="cb26-50"><a href="#cb26-50" aria-hidden="true" tabindex="-1"></a>        <span class="im">import</span> base_dataset <span class="im">as</span> _bd2</span>
+<span id="cb26-51"><a href="#cb26-51" aria-hidden="true" tabindex="-1"></a>        _Xt <span class="op">=</span> np.asarray(_bd2.load_dataset(</span>
+<span id="cb26-52"><a href="#cb26-52" aria-hidden="true" tabindex="-1"></a>            <span class="bu">str</span>(ROOT <span class="op">/</span> <span class="st">"data"</span> <span class="op">/</span> <span class="st">"datasets"</span> <span class="op">/</span> <span class="st">"medoid_64"</span> <span class="op">/</span> <span class="st">"medoid_64.npy"</span>))[<span class="st">"test_images"</span>],</span>
+<span id="cb26-53"><a href="#cb26-53" aria-hidden="true" tabindex="-1"></a>            dtype<span class="op">=</span><span class="st">"float32"</span>)</span>
+<span id="cb26-54"><a href="#cb26-54" aria-hidden="true" tabindex="-1"></a>    _got <span class="op">=</span> {}</span>
+<span id="cb26-55"><a href="#cb26-55" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _k, _pat <span class="kw">in</span> _AUG_SRC.items():</span>
+<span id="cb26-56"><a href="#cb26-56" aria-hidden="true" tabindex="-1"></a>        _hits <span class="op">=</span> _g2.glob(<span class="bu">str</span>(_pat))</span>
+<span id="cb26-57"><a href="#cb26-57" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> _hits:</span>
+<span id="cb26-58"><a href="#cb26-58" aria-hidden="true" tabindex="-1"></a>            _got[_k] <span class="op">=</span> np.argmax(_tf2.keras.models.load_model(_hits[<span class="dv">0</span>], <span class="bu">compile</span><span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb26-59"><a href="#cb26-59" aria-hidden="true" tabindex="-1"></a>                                 .predict(_Xt, verbose<span class="op">=</span><span class="dv">0</span>), <span class="dv">1</span>)</span>
+<span id="cb26-60"><a href="#cb26-60" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">len</span>(_got) <span class="op">==</span> <span class="bu">len</span>(_AUG_SRC):</span>
+<span id="cb26-61"><a href="#cb26-61" aria-hidden="true" tabindex="-1"></a>        np.savez(_AUG, <span class="op">**</span>_got)</span>
+<span id="cb26-62"><a href="#cb26-62" aria-hidden="true" tabindex="-1"></a>    _P.update(_got)</span>
+<span id="cb26-63"><a href="#cb26-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-64"><a href="#cb26-64" aria-hidden="true" tabindex="-1"></a>_names <span class="op">=</span> <span class="bu">list</span>(_P)</span>
+<span id="cb26-65"><a href="#cb26-65" aria-hidden="true" tabindex="-1"></a>_A <span class="op">=</span> np.array([[np.mean(_P[a] <span class="op">==</span> _P[b]) <span class="cf">for</span> b <span class="kw">in</span> _names] <span class="cf">for</span> a <span class="kw">in</span> _names])</span>
+<span id="cb26-66"><a href="#cb26-66" aria-hidden="true" tabindex="-1"></a>_ok <span class="op">=</span> pd.DataFrame({k: (v <span class="op">==</span> yt).astype(<span class="bu">int</span>) <span class="cf">for</span> k, v <span class="kw">in</span> _P.items()})</span>
+<span id="cb26-67"><a href="#cb26-67" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-68"><a href="#cb26-68" aria-hidden="true" tabindex="-1"></a><span class="co"># Stacked, not side by side: the heatmap is square and the bar chart is wide, so a 1x2</span></span>
+<span id="cb26-69"><a href="#cb26-69" aria-hidden="true" tabindex="-1"></a><span class="co"># row squashes both.</span></span>
+<span id="cb26-70"><a href="#cb26-70" aria-hidden="true" tabindex="-1"></a><span class="co"># Heatmap only. The companion bar chart (how many of the four score each crop correctly)</span></span>
+<span id="cb26-71"><a href="#cb26-71" aria-hidden="true" tabindex="-1"></a><span class="co"># was three numbers, which the prose carries instead.</span></span>
+<span id="cb26-72"><a href="#cb26-72" aria-hidden="true" tabindex="-1"></a>_fig, _ax0 <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="fl">5.4</span>, <span class="fl">4.6</span>))</span>
+<span id="cb26-73"><a href="#cb26-73" aria-hidden="true" tabindex="-1"></a>_ax <span class="op">=</span> [_ax0, _ax0]</span>
+<span id="cb26-74"><a href="#cb26-74" aria-hidden="true" tabindex="-1"></a>_im <span class="op">=</span> _ax[<span class="dv">0</span>].imshow(_A, cmap<span class="op">=</span><span class="st">"Blues"</span>, vmin<span class="op">=</span><span class="fl">0.4</span>, vmax<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb26-75"><a href="#cb26-75" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(_names)):</span>
+<span id="cb26-76"><a href="#cb26-76" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(_names)):</span>
+<span id="cb26-77"><a href="#cb26-77" aria-hidden="true" tabindex="-1"></a>        _ax[<span class="dv">0</span>].text(j, i, <span class="ss">f"</span><span class="sc">{</span>_A[i, j]<span class="sc">:.2f}</span><span class="ss">"</span>, ha<span class="op">=</span><span class="st">"center"</span>, va<span class="op">=</span><span class="st">"center"</span>, fontsize<span class="op">=</span><span class="dv">8</span>,</span>
+<span id="cb26-78"><a href="#cb26-78" aria-hidden="true" tabindex="-1"></a>                    color<span class="op">=</span><span class="st">"white"</span> <span class="cf">if</span> _A[i, j] <span class="op">&gt;</span> <span class="fl">0.75</span> <span class="cf">else</span> <span class="st">"black"</span>)</span>
+<span id="cb26-79"><a href="#cb26-79" aria-hidden="true" tabindex="-1"></a>_ax[<span class="dv">0</span>].set_xticks(<span class="bu">range</span>(<span class="bu">len</span>(_names)))<span class="op">;</span> _ax[<span class="dv">0</span>].set_xticklabels(_names, fontsize<span class="op">=</span><span class="dv">8</span>, rotation<span class="op">=</span><span class="dv">30</span>, ha<span class="op">=</span><span class="st">"right"</span>)</span>
+<span id="cb26-80"><a href="#cb26-80" aria-hidden="true" tabindex="-1"></a>_ax[<span class="dv">0</span>].set_yticks(<span class="bu">range</span>(<span class="bu">len</span>(_names)))<span class="op">;</span> _ax[<span class="dv">0</span>].set_yticklabels(_names, fontsize<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb26-81"><a href="#cb26-81" aria-hidden="true" tabindex="-1"></a>_ax[<span class="dv">0</span>].set_title(<span class="st">"Pairwise agreement on the prediction"</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
+<span id="cb26-82"><a href="#cb26-82" aria-hidden="true" tabindex="-1"></a>_fig.colorbar(_im, ax<span class="op">=</span>_ax[<span class="dv">0</span>], fraction<span class="op">=</span><span class="fl">0.046</span>)</span>
+<span id="cb26-83"><a href="#cb26-83" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-84"><a href="#cb26-84" aria-hidden="true" tabindex="-1"></a>_cnt <span class="op">=</span> _ok.<span class="bu">sum</span>(<span class="dv">1</span>).value_counts().reindex(<span class="bu">range</span>(<span class="bu">len</span>(_names) <span class="op">+</span> <span class="dv">1</span>), fill_value<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb26-85"><a href="#cb26-85" aria-hidden="true" tabindex="-1"></a>_fig.tight_layout()</span>
+<span id="cb26-86"><a href="#cb26-86" aria-hidden="true" tabindex="-1"></a>_fig.savefig(THESIS_PLOTS <span class="op">/</span> <span class="st">"cross_model_agreement.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb26-87"><a href="#cb26-87" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb26-88"><a href="#cb26-88" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-89"><a href="#cb26-89" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(pd.DataFrame(_A, index<span class="op">=</span>_names, columns<span class="op">=</span>_names).<span class="bu">round</span>(<span class="dv">3</span>).to_string())</span>
+<span id="cb26-90"><a href="#cb26-90" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">all four correct: </span><span class="sc">{</span><span class="bu">int</span>(_cnt.get(<span class="bu">len</span>(_names), <span class="dv">0</span>))<span class="sc">}</span><span class="ss"> crops; "</span></span>
+<span id="cb26-91"><a href="#cb26-91" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"none correct: </span><span class="sc">{</span><span class="bu">int</span>(_cnt.get(<span class="dv">0</span>, <span class="dv">0</span>))<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb26-92"><a href="#cb26-92" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> k, v <span class="kw">in</span> _P.items():</span>
+<span id="cb26-93"><a href="#cb26-93" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  </span><span class="sc">{</span>k<span class="sc">:20s}</span><span class="ss"> exact </span><span class="sc">{</span>np<span class="sc">.</span>mean(v <span class="op">==</span> yt)<span class="sc">:.4f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stderr">
+<pre><code>/var/folders/t2/x6n0myz97530m_6h9clj5ds4000fpx/T/ipykernel_75038/3472072806.py:84: Pandas4Warning: Starting with pandas version 4.0 all arguments of sum will be keyword-only.
+  _cnt = _ok.sum(1).value_counts().reindex(range(len(_names) + 1), fill_value=0)</code></pre>
+</div>
+<div class="cell-output cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="test_image_difficulty_files/figure-html/cell-19-output-2.png" width="660" height="543" class="figure-img"></p>
+<figcaption>Pairwise agreement between the best model of each family on the 308 test CDAs (A), and how many of the four score each crop correctly (B).</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                      CNN    ViT  ordinal regression  CNN, geometric aug  CNN, cGAN aug
+CNN                 1.000  0.698               0.675               0.740          0.649
+ViT                 0.698  1.000               0.740               0.786          0.581
+ordinal regression  0.675  0.740               1.000               0.724          0.558
+CNN, geometric aug  0.740  0.786               0.724               1.000          0.614
+CNN, cGAN aug       0.649  0.581               0.558               0.614          1.000
+
+all four correct: 91 crops; none correct: 39
+  CNN                  exact 0.6169
+  ViT                  exact 0.6429
+  ordinal regression   exact 0.6331
+  CNN, geometric aug   exact 0.6688
+  CNN, cGAN aug        exact 0.5487</code></pre>
+</div>
+</div>
+</section>
+<section id="b-ii.-where-the-best-cnn-departs-from-the-raters" class="level2">
+<h2 class="anchored" data-anchor-id="b-ii.-where-the-best-cnn-departs-from-the-raters">4b-ii. Where the best CNN departs from the raters</h2>
+<p>Section 3 of <code>analyses/03_feature_classifiers</code> does this for the best non-DL model. The same difference for the best CNN says whether the two model families go wrong in the same places. The rater matrix counts 917 judgements and the CNN 308 predictions, so both are row-normalised before differencing and each cell is a change in row proportion.</p>
+<div id="2299a791" class="cell" data-execution_count="19">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4b-ii.1</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> matplotlib.patches <span class="im">import</span> Rectangle <span class="im">as</span> _Rect</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a><span class="co"># The human matrix carries an eighth column, the tautological judgements Metric 3</span></span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a><span class="co"># removes. They must stay in the row totals: without them the denominator is 875 and</span></span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a><span class="co"># row-normalising gives a human diagonal of 72.23%, against the 68.92% Metric 3</span></span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a><span class="co"># reports over all 917. A model has no such category, so its matrix is padded with a</span></span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a><span class="co"># zero column and the two are then directly comparable.</span></span>
+<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a>_hum <span class="op">=</span> pd.read_csv(ROOT <span class="op">/</span> <span class="st">"analyses/02_human_performance/thesis_plots/human_confusion_matrix.csv"</span>,</span>
+<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a>                   index_col<span class="op">=</span><span class="dv">0</span>).to_numpy(dtype<span class="op">=</span><span class="bu">float</span>)</span>
+<span id="cb29-11"><a href="#cb29-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Model 6848 from models/07, the chapter's selected best model: rank 1 of 8,640 on</span></span>
+<span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a><span class="co"># validation accuracy over original crops and top of the ensemble split. NOT _P["CNN"],</span></span>
+<span id="cb29-13"><a href="#cb29-13" aria-hidden="true" tabindex="-1"></a><span class="co"># which is 3606, the top of the unaugmented grid.</span></span>
+<span id="cb29-14"><a href="#cb29-14" aria-hidden="true" tabindex="-1"></a>BEST_MODEL <span class="op">=</span> <span class="st">"CNN, geometric aug"</span></span>
+<span id="cb29-15"><a href="#cb29-15" aria-hidden="true" tabindex="-1"></a>_cnn_cm <span class="op">=</span> np.zeros((<span class="dv">7</span>, <span class="dv">7</span>))</span>
+<span id="cb29-16"><a href="#cb29-16" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _t, _q <span class="kw">in</span> <span class="bu">zip</span>(yt, _P[BEST_MODEL]):</span>
+<span id="cb29-17"><a href="#cb29-17" aria-hidden="true" tabindex="-1"></a>    _cnn_cm[<span class="bu">int</span>(_t), <span class="bu">int</span>(_q)] <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb29-18"><a href="#cb29-18" aria-hidden="true" tabindex="-1"></a>_cnn_cm8 <span class="op">=</span> np.hstack([_cnn_cm, np.zeros((<span class="dv">7</span>, <span class="dv">1</span>))])</span>
+<span id="cb29-19"><a href="#cb29-19" aria-hidden="true" tabindex="-1"></a>_hn <span class="op">=</span> _hum <span class="op">/</span> np.clip(_hum.<span class="bu">sum</span>(<span class="dv">1</span>, keepdims<span class="op">=</span><span class="va">True</span>), <span class="dv">1</span>, <span class="va">None</span>)</span>
+<span id="cb29-20"><a href="#cb29-20" aria-hidden="true" tabindex="-1"></a>_mn <span class="op">=</span> _cnn_cm8 <span class="op">/</span> np.clip(_cnn_cm8.<span class="bu">sum</span>(<span class="dv">1</span>, keepdims<span class="op">=</span><span class="va">True</span>), <span class="dv">1</span>, <span class="va">None</span>)</span>
+<span id="cb29-21"><a href="#cb29-21" aria-hidden="true" tabindex="-1"></a>_dif <span class="op">=</span> _mn <span class="op">-</span> _hn</span>
+<span id="cb29-22"><a href="#cb29-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-23"><a href="#cb29-23" aria-hidden="true" tabindex="-1"></a><span class="co"># The confusion matrix the grid search saves next to each model is the cross-validation</span></span>
+<span id="cb29-24"><a href="#cb29-24" aria-hidden="true" tabindex="-1"></a><span class="co"># matrix over the 2,289 train+val crops, not the test set, so the test one is built here.</span></span>
+<span id="cb29-25"><a href="#cb29-25" aria-hidden="true" tabindex="-1"></a>_f1, _a1 <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="fl">6.2</span>, <span class="fl">5.2</span>))</span>
+<span id="cb29-26"><a href="#cb29-26" aria-hidden="true" tabindex="-1"></a>_i1 <span class="op">=</span> _a1.imshow(_cnn_cm, cmap<span class="op">=</span><span class="st">"Greens"</span>)</span>
+<span id="cb29-27"><a href="#cb29-27" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>):</span>
+<span id="cb29-28"><a href="#cb29-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>):</span>
+<span id="cb29-29"><a href="#cb29-29" aria-hidden="true" tabindex="-1"></a>        _a1.text(j, i, <span class="bu">int</span>(_cnn_cm[i, j]), ha<span class="op">=</span><span class="st">"center"</span>, va<span class="op">=</span><span class="st">"center"</span>, fontsize<span class="op">=</span><span class="dv">8</span>,</span>
+<span id="cb29-30"><a href="#cb29-30" aria-hidden="true" tabindex="-1"></a>                 color<span class="op">=</span><span class="st">"white"</span> <span class="cf">if</span> _cnn_cm[i, j] <span class="op">&gt;</span> <span class="fl">0.6</span> <span class="op">*</span> _cnn_cm.<span class="bu">max</span>() <span class="cf">else</span> <span class="st">"black"</span>)</span>
+<span id="cb29-31"><a href="#cb29-31" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> i <span class="op">==</span> j:</span>
+<span id="cb29-32"><a href="#cb29-32" aria-hidden="true" tabindex="-1"></a>            _a1.add_patch(_Rect((j <span class="op">-</span> <span class="fl">0.5</span>, i <span class="op">-</span> <span class="fl">0.5</span>), <span class="dv">1</span>, <span class="dv">1</span>, fill<span class="op">=</span><span class="va">False</span>, edgecolor<span class="op">=</span><span class="st">"black"</span>, lw<span class="op">=</span><span class="dv">2</span>))</span>
+<span id="cb29-33"><a href="#cb29-33" aria-hidden="true" tabindex="-1"></a>_a1.set_xticks(<span class="bu">range</span>(<span class="dv">7</span>))<span class="op">;</span> _a1.set_yticks(<span class="bu">range</span>(<span class="dv">7</span>))</span>
+<span id="cb29-34"><a href="#cb29-34" aria-hidden="true" tabindex="-1"></a>_a1.set_xlabel(<span class="st">"Predicted score"</span>)<span class="op">;</span> _a1.set_ylabel(<span class="st">"True score"</span>)</span>
+<span id="cb29-35"><a href="#cb29-35" aria-hidden="true" tabindex="-1"></a>_f1.colorbar(_i1, ax<span class="op">=</span>_a1, fraction<span class="op">=</span><span class="fl">0.046</span>, label<span class="op">=</span><span class="st">"Test CDAs"</span>)</span>
+<span id="cb29-36"><a href="#cb29-36" aria-hidden="true" tabindex="-1"></a>_f1.savefig(THESIS_PLOTS <span class="op">/</span> <span class="st">"best_model_test_confusion.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb29-37"><a href="#cb29-37" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb29-38"><a href="#cb29-38" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"test confusion total </span><span class="sc">{</span><span class="bu">int</span>(_cnn_cm.<span class="bu">sum</span>())<span class="sc">}</span><span class="ss">, exact </span><span class="sc">{</span>np<span class="sc">.</span>trace(_cnn_cm) <span class="op">/</span> _cnn_cm<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb29-39"><a href="#cb29-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-40"><a href="#cb29-40" aria-hidden="true" tabindex="-1"></a>_f2, _a2 <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="fl">6.9</span>, <span class="fl">5.2</span>))</span>
+<span id="cb29-41"><a href="#cb29-41" aria-hidden="true" tabindex="-1"></a>_vv <span class="op">=</span> np.<span class="bu">abs</span>(_dif).<span class="bu">max</span>()</span>
+<span id="cb29-42"><a href="#cb29-42" aria-hidden="true" tabindex="-1"></a>_i2 <span class="op">=</span> _a2.imshow(_dif, cmap<span class="op">=</span><span class="st">"RdBu_r"</span>, vmin<span class="op">=-</span>_vv, vmax<span class="op">=</span>_vv)</span>
+<span id="cb29-43"><a href="#cb29-43" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>):</span>
+<span id="cb29-44"><a href="#cb29-44" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">8</span>):</span>
+<span id="cb29-45"><a href="#cb29-45" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">abs</span>(_dif[i, j]) <span class="op">&gt;</span> <span class="fl">0.005</span>:</span>
+<span id="cb29-46"><a href="#cb29-46" aria-hidden="true" tabindex="-1"></a>            _a2.text(j, i, <span class="ss">f"</span><span class="sc">{</span>_dif[i, j]<span class="sc">:+.2f}</span><span class="ss">"</span>, ha<span class="op">=</span><span class="st">"center"</span>, va<span class="op">=</span><span class="st">"center"</span>, fontsize<span class="op">=</span><span class="dv">7</span>,</span>
+<span id="cb29-47"><a href="#cb29-47" aria-hidden="true" tabindex="-1"></a>                     color<span class="op">=</span><span class="st">"white"</span> <span class="cf">if</span> <span class="bu">abs</span>(_dif[i, j]) <span class="op">&gt;</span> <span class="fl">0.6</span> <span class="op">*</span> _vv <span class="cf">else</span> <span class="st">"black"</span>)</span>
+<span id="cb29-48"><a href="#cb29-48" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> i <span class="op">==</span> j:</span>
+<span id="cb29-49"><a href="#cb29-49" aria-hidden="true" tabindex="-1"></a>            _a2.add_patch(_Rect((j <span class="op">-</span> <span class="fl">0.5</span>, i <span class="op">-</span> <span class="fl">0.5</span>), <span class="dv">1</span>, <span class="dv">1</span>, fill<span class="op">=</span><span class="va">False</span>, edgecolor<span class="op">=</span><span class="st">"black"</span>, lw<span class="op">=</span><span class="dv">2</span>))</span>
+<span id="cb29-50"><a href="#cb29-50" aria-hidden="true" tabindex="-1"></a>_a2.set_xticks(<span class="bu">range</span>(<span class="dv">8</span>), [<span class="op">*</span><span class="bu">range</span>(<span class="dv">7</span>), <span class="st">"taut."</span>])<span class="op">;</span> _a2.set_yticks(<span class="bu">range</span>(<span class="dv">7</span>))</span>
+<span id="cb29-51"><a href="#cb29-51" aria-hidden="true" tabindex="-1"></a>_a2.set_xlabel(<span class="st">"Predicted score"</span>)<span class="op">;</span> _a2.set_ylabel(<span class="st">"True score"</span>)</span>
+<span id="cb29-52"><a href="#cb29-52" aria-hidden="true" tabindex="-1"></a>_f2.colorbar(_i2, ax<span class="op">=</span>_a2, fraction<span class="op">=</span><span class="fl">0.046</span>, label<span class="op">=</span><span class="st">"Model minus human (row proportion)"</span>)</span>
+<span id="cb29-53"><a href="#cb29-53" aria-hidden="true" tabindex="-1"></a>_f2.savefig(THESIS_PLOTS <span class="op">/</span> <span class="st">"best_model_confusion_vs_human.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb29-54"><a href="#cb29-54" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb29-55"><a href="#cb29-55" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"diagonal change: </span><span class="sc">{</span>np<span class="sc">.</span>diag(_dif)<span class="sc">.</span><span class="bu">round</span>(<span class="dv">3</span>)<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="test_image_difficulty_files/figure-html/cell-20-output-1.png" width="658" height="556" class="figure-img"></p>
+<figcaption>Selected best model (geometric-augmentation CNN 6848) minus human raters, as a change in row proportion on the 308 test CDAs.</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>test confusion total 308, exact 0.6688</code></pre>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="test_image_difficulty_files/figure-html/cell-20-output-3.png" width="760" height="556" class="figure-img"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>diagonal change: [-0.052 -0.18   0.102  0.053  0.015 -0.167  0.077]</code></pre>
+</div>
+</div>
+<div id="f06015a8" class="cell" data-execution_count="20">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4b-ii.2</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a><span class="co"># The headline model-versus-human comparison the chapter reports. The human rate is a</span></span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a><span class="co"># per-judgement figure over 917 rater judgements (analyses/02) and the model's a per-crop</span></span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a><span class="co"># figure over 308 crops, so the two cannot be paired crop by crop. The model side is</span></span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a><span class="co"># bootstrapped over its 308 crops with the human rate held at its point estimate; the human</span></span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a><span class="co"># sampling error is reported separately by analyses/02 as its own bootstrap CI.</span></span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>HUMAN_EXACT, HUMAN_NEAR <span class="op">=</span> <span class="fl">0.6892</span>, <span class="fl">0.9280</span></span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a>_p <span class="op">=</span> np.asarray(_P[BEST_MODEL])</span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a>_B <span class="op">=</span> np.random.default_rng(<span class="dv">0</span>).integers(<span class="dv">0</span>, <span class="bu">len</span>(yt), (<span class="dv">20000</span>, <span class="bu">len</span>(yt)))</span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"model 6848: exact </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> (_p <span class="op">==</span> yt)<span class="sc">.</span>mean()<span class="sc">:.2f}</span><span class="ss">%, "</span></span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"near-miss </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> (np.<span class="bu">abs</span>(_p <span class="op">-</span> yt) <span class="op">&lt;=</span> <span class="dv">1</span>)<span class="sc">.</span>mean()<span class="sc">:.2f}</span><span class="ss">%"</span>)</span>
+<span id="cb32-12"><a href="#cb32-12" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _n, _ok, _h <span class="kw">in</span> [(<span class="st">"exact"</span>, (_p <span class="op">==</span> yt).astype(<span class="bu">float</span>), HUMAN_EXACT),</span>
+<span id="cb32-13"><a href="#cb32-13" aria-hidden="true" tabindex="-1"></a>                    (<span class="st">"near-miss"</span>, (np.<span class="bu">abs</span>(_p <span class="op">-</span> yt) <span class="op">&lt;=</span> <span class="dv">1</span>).astype(<span class="bu">float</span>), HUMAN_NEAR)]:</span>
+<span id="cb32-14"><a href="#cb32-14" aria-hidden="true" tabindex="-1"></a>    _d <span class="op">=</span> _ok[_B].mean(<span class="dv">1</span>) <span class="op">-</span> _h</span>
+<span id="cb32-15"><a href="#cb32-15" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  vs human </span><span class="sc">{</span>_n<span class="sc">:9s}</span><span class="ss">: </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> (_ok.mean() <span class="op">-</span> _h)<span class="sc">:+.2f}</span><span class="ss"> pp   95% CI "</span></span>
+<span id="cb32-16"><a href="#cb32-16" aria-hidden="true" tabindex="-1"></a>          <span class="ss">f"</span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> np<span class="sc">.</span>quantile(_d, <span class="fl">.025</span>)<span class="sc">:+.2f}</span><span class="ss"> to </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> np<span class="sc">.</span>quantile(_d, <span class="fl">.975</span>)<span class="sc">:+.2f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>model 6848: exact 66.88%, near-miss 99.03%
+  vs human exact    : -2.04 pp   95% CI -7.56 to +3.16
+  vs human near-miss: +6.23 pp   95% CI +4.93 to +7.20</code></pre>
+</div>
+</div>
+</section>
+<section id="c.-agreement-inside-one-grid-against-across-grids" class="level2">
+<h2 class="anchored" data-anchor-id="c.-agreement-inside-one-grid-against-across-grids">4c. Agreement inside one grid against across grids</h2>
+<p>Section 4b compares one model from each family. This asks the same question inside a single grid: among the configurations that are statistically tied on validation, do they agree with each other more than a model agrees with a different architecture? Both grids are shown, so the CNN and ViT plateaus are readable against each other and against the 0.70 mean of the cross-family comparison.</p>
+<div id="51269f77" class="cell" data-execution_count="21">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb34"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4c.1</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="co"># glob is imported inside the family-prediction cache-miss branch above, so it is not in</span></span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a><span class="co"># scope on a cache hit; import it here rather than depend on that branch having run.</span></span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> glob <span class="im">as</span> _glob</span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a>_se_v <span class="op">=</span> np.sqrt(<span class="fl">0.65</span> <span class="op">*</span> <span class="fl">0.35</span> <span class="op">/</span> <span class="dv">2289</span>)</span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a>_vafs <span class="op">=</span> np.asarray(avg_vaf)</span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a>_tied_idx <span class="op">=</span> np.where(_vafs <span class="op">&gt;=</span> _vafs.<span class="bu">max</span>() <span class="op">-</span> _se_v)[<span class="dv">0</span>]</span>
+<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a>_Ptied <span class="op">=</span> Pt[_tied_idx]</span>
+<span id="cb34-9"><a href="#cb34-9" aria-hidden="true" tabindex="-1"></a>_off <span class="op">=</span> np.array([[np.mean(_Ptied[i] <span class="op">==</span> _Ptied[j]) <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(_tied_idx))]</span>
+<span id="cb34-10"><a href="#cb34-10" aria-hidden="true" tabindex="-1"></a>                 <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(_tied_idx))])[np.triu_indices(<span class="bu">len</span>(_tied_idx), <span class="dv">1</span>)]</span>
+<span id="cb34-11"><a href="#cb34-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-12"><a href="#cb34-12" aria-hidden="true" tabindex="-1"></a><span class="co"># The ViT side comes from analyses/11, which cached the full softmax for 100 ViTs as well as</span></span>
+<span id="cb34-13"><a href="#cb34-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 100 CNNs; the tied set is defined the same way, on that grid's own best.</span></span>
+<span id="cb34-14"><a href="#cb34-14" aria-hidden="true" tabindex="-1"></a>_pz <span class="op">=</span> np.load(ROOT <span class="op">/</span> <span class="st">"analyses/11_ordinal_decision_boundaries/prob_cache/probs.npz"</span>,</span>
+<span id="cb34-15"><a href="#cb34-15" aria-hidden="true" tabindex="-1"></a>              allow_pickle<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb34-16"><a href="#cb34-16" aria-hidden="true" tabindex="-1"></a>_vit_pred <span class="op">=</span> _pz[<span class="st">"vit"</span>].argmax(<span class="dv">2</span>)</span>
+<span id="cb34-17"><a href="#cb34-17" aria-hidden="true" tabindex="-1"></a>_vit_res <span class="op">=</span> pd.concat(</span>
+<span id="cb34-18"><a href="#cb34-18" aria-hidden="true" tabindex="-1"></a>    [pd.read_csv(ROOT <span class="op">/</span> <span class="st">"models/04_Medoid_ViT_RandomSearch/01_Categorical_Loss/random_search_results.csv"</span>)]</span>
+<span id="cb34-19"><a href="#cb34-19" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> [pd.read_csv(q) <span class="cf">for</span> q <span class="kw">in</span> _glob.glob(<span class="bu">str</span>(</span>
+<span id="cb34-20"><a href="#cb34-20" aria-hidden="true" tabindex="-1"></a>        ROOT <span class="op">/</span> <span class="st">"models/04_Medoid_ViT_RandomSearch/01_Categorical_Loss/parts/*.csv"</span>))],</span>
+<span id="cb34-21"><a href="#cb34-21" aria-hidden="true" tabindex="-1"></a>    ignore_index<span class="op">=</span><span class="va">True</span>).drop_duplicates(<span class="st">"model_id"</span>).set_index(<span class="st">"model_id"</span>)</span>
+<span id="cb34-22"><a href="#cb34-22" aria-hidden="true" tabindex="-1"></a>_vit_vaf <span class="op">=</span> _vit_res.loc[[<span class="bu">int</span>(m) <span class="cf">for</span> m <span class="kw">in</span> _pz[<span class="st">"vit_ids"</span>]], <span class="st">"avg_vaf"</span>].to_numpy()</span>
+<span id="cb34-23"><a href="#cb34-23" aria-hidden="true" tabindex="-1"></a>_vt <span class="op">=</span> np.where(_vit_vaf <span class="op">&gt;=</span> _vit_vaf.<span class="bu">max</span>() <span class="op">-</span> _se_v)[<span class="dv">0</span>]</span>
+<span id="cb34-24"><a href="#cb34-24" aria-hidden="true" tabindex="-1"></a>_Pv <span class="op">=</span> _vit_pred[_vt]</span>
+<span id="cb34-25"><a href="#cb34-25" aria-hidden="true" tabindex="-1"></a>_offv <span class="op">=</span> np.array([[np.mean(_Pv[i] <span class="op">==</span> _Pv[j]) <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(_vt))]</span>
+<span id="cb34-26"><a href="#cb34-26" aria-hidden="true" tabindex="-1"></a>                  <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(_vt))])[np.triu_indices(<span class="bu">len</span>(_vt), <span class="dv">1</span>)]</span>
+<span id="cb34-27"><a href="#cb34-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-28"><a href="#cb34-28" aria-hidden="true" tabindex="-1"></a><span class="co"># Separate panels rather than an overlay: the ViT grid has 1,275 tied pairs against the</span></span>
+<span id="cb34-29"><a href="#cb34-29" aria-hidden="true" tabindex="-1"></a><span class="co"># CNN's 231, so on a shared count axis the CNN histogram is flattened to nothing.</span></span>
+<span id="cb34-30"><a href="#cb34-30" aria-hidden="true" tabindex="-1"></a>_bins <span class="op">=</span> np.linspace(<span class="bu">min</span>(_off.<span class="bu">min</span>(), _offv.<span class="bu">min</span>()) <span class="op">-</span> <span class="fl">0.01</span>,</span>
+<span id="cb34-31"><a href="#cb34-31" aria-hidden="true" tabindex="-1"></a>                    <span class="bu">max</span>(_off.<span class="bu">max</span>(), _offv.<span class="bu">max</span>()) <span class="op">+</span> <span class="fl">0.01</span>, <span class="dv">28</span>)</span>
+<span id="cb34-32"><a href="#cb34-32" aria-hidden="true" tabindex="-1"></a>_fig, _ax <span class="op">=</span> plt.subplots(<span class="dv">2</span>, <span class="dv">1</span>, figsize<span class="op">=</span>(<span class="fl">6.6</span>, <span class="fl">5.4</span>), sharex<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb34-33"><a href="#cb34-33" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _k, (_d, _c, _lab, _n) <span class="kw">in</span> <span class="bu">enumerate</span>([</span>
+<span id="cb34-34"><a href="#cb34-34" aria-hidden="true" tabindex="-1"></a>        (_off,  <span class="st">"#4C72B0"</span>, <span class="st">"CNN"</span>,  <span class="bu">len</span>(_tied_idx)),</span>
+<span id="cb34-35"><a href="#cb34-35" aria-hidden="true" tabindex="-1"></a>        (_offv, <span class="st">"#DD8452"</span>, <span class="st">"ViT"</span>,  <span class="bu">len</span>(_vt))]):</span>
+<span id="cb34-36"><a href="#cb34-36" aria-hidden="true" tabindex="-1"></a>    _ax[_k].hist(_d, bins<span class="op">=</span>_bins, color<span class="op">=</span>_c, alpha<span class="op">=</span><span class="fl">0.85</span>)</span>
+<span id="cb34-37"><a href="#cb34-37" aria-hidden="true" tabindex="-1"></a>    _ax[_k].axvline(np.median(_d), color<span class="op">=</span><span class="st">"#C44E52"</span>, ls<span class="op">=</span><span class="st">"--"</span>, lw<span class="op">=</span><span class="fl">1.3</span>,</span>
+<span id="cb34-38"><a href="#cb34-38" aria-hidden="true" tabindex="-1"></a>                    label<span class="op">=</span><span class="ss">f"Median </span><span class="sc">{</span>np<span class="sc">.</span>median(_d)<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb34-39"><a href="#cb34-39" aria-hidden="true" tabindex="-1"></a>    _ax[_k].set_ylabel(<span class="st">"Model pairs"</span>)</span>
+<span id="cb34-40"><a href="#cb34-40" aria-hidden="true" tabindex="-1"></a>    _ax[_k].set_title(<span class="ss">f"</span><span class="sc">{</span>_lab<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>_n<span class="sc">}</span><span class="ss"> tied configurations, </span><span class="sc">{</span><span class="bu">len</span>(_d)<span class="sc">}</span><span class="ss"> pairs"</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
+<span id="cb34-41"><a href="#cb34-41" aria-hidden="true" tabindex="-1"></a>    _ax[_k].legend(fontsize<span class="op">=</span><span class="dv">8</span>, frameon<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb34-42"><a href="#cb34-42" aria-hidden="true" tabindex="-1"></a>    _ax[_k].spines[[<span class="st">"top"</span>, <span class="st">"right"</span>]].set_visible(<span class="va">False</span>)</span>
+<span id="cb34-43"><a href="#cb34-43" aria-hidden="true" tabindex="-1"></a>_ax[<span class="dv">1</span>].set_xlabel(<span class="st">"Pairwise agreement"</span>)</span>
+<span id="cb34-44"><a href="#cb34-44" aria-hidden="true" tabindex="-1"></a>_fig.tight_layout()</span>
+<span id="cb34-45"><a href="#cb34-45" aria-hidden="true" tabindex="-1"></a>_fig.savefig(THESIS_PLOTS <span class="op">/</span> <span class="st">"tied_cnn_agreement.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb34-46"><a href="#cb34-46" aria-hidden="true" tabindex="-1"></a>_fig.canvas.draw()</span>
+<span id="cb34-47"><a href="#cb34-47" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _n2, _a2 <span class="kw">in</span> <span class="bu">zip</span>(<span class="st">"ab"</span>, _ax):</span>
+<span id="cb34-48"><a href="#cb34-48" aria-hidden="true" tabindex="-1"></a>    _bb2 <span class="op">=</span> _a2.get_tightbbox(_fig.canvas.get_renderer()).transformed(</span>
+<span id="cb34-49"><a href="#cb34-49" aria-hidden="true" tabindex="-1"></a>        _fig.dpi_scale_trans.inverted())</span>
+<span id="cb34-50"><a href="#cb34-50" aria-hidden="true" tabindex="-1"></a>    _fig.savefig(THESIS_PLOTS <span class="op">/</span> <span class="ss">f"tied_cnn_agreement_</span><span class="sc">{</span>_n2<span class="sc">}</span><span class="ss">.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span>_bb2)</span>
+<span id="cb34-51"><a href="#cb34-51" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb34-52"><a href="#cb34-52" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"CNN tied </span><span class="sc">{</span><span class="bu">len</span>(_tied_idx)<span class="sc">}</span><span class="ss">: median </span><span class="sc">{</span>np<span class="sc">.</span>median(_off)<span class="sc">:.3f}</span><span class="ss">, range </span><span class="sc">{</span>_off<span class="sc">.</span><span class="bu">min</span>()<span class="sc">:.3f}</span><span class="ss">-</span><span class="sc">{</span>_off<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb34-53"><a href="#cb34-53" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"ViT tied </span><span class="sc">{</span><span class="bu">len</span>(_vt)<span class="sc">}</span><span class="ss">: median </span><span class="sc">{</span>np<span class="sc">.</span>median(_offv)<span class="sc">:.3f}</span><span class="ss">, range </span><span class="sc">{</span>_offv<span class="sc">.</span><span class="bu">min</span>()<span class="sc">:.3f}</span><span class="ss">-</span><span class="sc">{</span>_offv<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.3f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="test_image_difficulty_files/figure-html/cell-22-output-1.png" width="778" height="635" class="figure-img"></p>
+<figcaption>Distribution of pairwise agreement on the prediction among the configurations tied within 1 SE of the best validation accuracy, for the CNN grid and the ViT grid.</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>CNN tied 22: median 0.799, range 0.698-0.893
+ViT tied 51: median 0.756, range 0.636-0.880</code></pre>
+</div>
+</div>
+</section>
+<section id="d.-the-noise-floor-score-by-score" class="level2">
+<h2 class="anchored" data-anchor-id="d.-the-noise-floor-score-by-score">4d. The noise floor score by score</h2>
+<p><code>analyses/08_accuracy_noise_floor</code> plots test against validation accuracy over the whole grid and marks the configurations tied within 1 SE. That is one number per model, pooled over all seven scores. This asks the same question per score: on the crops of a given true score, how much does test accuracy move across models that validation cannot separate?</p>
+<p>Two limits on what this can be. Only the 100 kept models have stored test predictions, so the cloud is the top-100 configurations rather than all 8,640 — the low-accuracy mass of the grid is absent by construction. And the x axis stays <em>overall</em> validation accuracy, because that is the quantity the search selects on; there is no per-score validation accuracy to rank by. Each panel therefore reads as: among models chosen by one pooled number, how far apart do they land on this score alone? Each panel has 44 test crops, so one crop is 2.3 percentage points.</p>
+<div id="f0ca8ab3" class="cell" data-execution_count="22">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb36"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4d.1</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>_hum_cm <span class="op">=</span> pd.read_csv(</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>    ROOT <span class="op">/</span> <span class="st">"analyses/02_human_performance/thesis_plots/human_confusion_matrix.csv"</span>,</span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>    index_col<span class="op">=</span><span class="dv">0</span>).to_numpy(dtype<span class="op">=</span><span class="bu">float</span>)</span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Row totals include the tautological column, so this is agreement over all 917</span></span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a><span class="co"># judgements, the same basis as the reported 68.92%.</span></span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a>_hum_per_score <span class="op">=</span> np.diag(_hum_cm[:, :<span class="dv">7</span>]) <span class="op">/</span> _hum_cm.<span class="bu">sum</span>(<span class="dv">1</span>)</span>
+<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-9"><a href="#cb36-9" aria-hidden="true" tabindex="-1"></a>_se_d <span class="op">=</span> np.sqrt(<span class="fl">0.65</span> <span class="op">*</span> <span class="fl">0.35</span> <span class="op">/</span> <span class="dv">2289</span>)</span>
+<span id="cb36-10"><a href="#cb36-10" aria-hidden="true" tabindex="-1"></a>_vaf_all <span class="op">=</span> np.asarray(avg_vaf)</span>
+<span id="cb36-11"><a href="#cb36-11" aria-hidden="true" tabindex="-1"></a>_tied_d <span class="op">=</span> _vaf_all <span class="op">&gt;=</span> _vaf_all.<span class="bu">max</span>() <span class="op">-</span> _se_d</span>
+<span id="cb36-12"><a href="#cb36-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-13"><a href="#cb36-13" aria-hidden="true" tabindex="-1"></a>_fig, _axs <span class="op">=</span> plt.subplots(<span class="dv">3</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="fl">9.0</span>, <span class="fl">8.2</span>), sharex<span class="op">=</span><span class="va">True</span>, sharey<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb36-14"><a href="#cb36-14" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _sc <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>):</span>
+<span id="cb36-15"><a href="#cb36-15" aria-hidden="true" tabindex="-1"></a>    _a <span class="op">=</span> _axs.ravel()[_sc]</span>
+<span id="cb36-16"><a href="#cb36-16" aria-hidden="true" tabindex="-1"></a>    _m <span class="op">=</span> yt <span class="op">==</span> _sc                                   <span class="co"># the 44 test crops of this score</span></span>
+<span id="cb36-17"><a href="#cb36-17" aria-hidden="true" tabindex="-1"></a>    _acc <span class="op">=</span> (Pt[:, _m] <span class="op">==</span> _sc).mean(<span class="dv">1</span>)                <span class="co"># per-model accuracy on them</span></span>
+<span id="cb36-18"><a href="#cb36-18" aria-hidden="true" tabindex="-1"></a>    _a.scatter(_vaf_all[<span class="op">~</span>_tied_d], _acc[<span class="op">~</span>_tied_d], s<span class="op">=</span><span class="dv">12</span>, alpha<span class="op">=</span><span class="fl">0.35</span>, color<span class="op">=</span><span class="st">"grey"</span>)</span>
+<span id="cb36-19"><a href="#cb36-19" aria-hidden="true" tabindex="-1"></a>    _a.scatter(_vaf_all[_tied_d], _acc[_tied_d], s<span class="op">=</span><span class="dv">26</span>, color<span class="op">=</span><span class="st">"#4C72B0"</span>,</span>
+<span id="cb36-20"><a href="#cb36-20" aria-hidden="true" tabindex="-1"></a>               edgecolor<span class="op">=</span><span class="st">"white"</span>, linewidth<span class="op">=</span><span class="fl">0.3</span>, zorder<span class="op">=</span><span class="dv">3</span>)</span>
+<span id="cb36-21"><a href="#cb36-21" aria-hidden="true" tabindex="-1"></a>    _a.axhline(_hum_per_score[_sc], color<span class="op">=</span><span class="st">"#C44E52"</span>, ls<span class="op">=</span><span class="st">"--"</span>, lw<span class="op">=</span><span class="fl">1.1</span>)</span>
+<span id="cb36-22"><a href="#cb36-22" aria-hidden="true" tabindex="-1"></a>    _a.set_title(<span class="ss">f"Score </span><span class="sc">{</span>_sc<span class="sc">}</span><span class="ss">  (n=</span><span class="sc">{</span>_m<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">}</span><span class="ss">, spread "</span></span>
+<span id="cb36-23"><a href="#cb36-23" aria-hidden="true" tabindex="-1"></a>                 <span class="ss">f"</span><span class="sc">{</span>_acc[_tied_d]<span class="sc">.</span><span class="bu">min</span>()<span class="sc">:.2f}</span><span class="ss">-</span><span class="sc">{</span>_acc[_tied_d]<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.2f}</span><span class="ss">)"</span>, fontsize<span class="op">=</span><span class="fl">8.5</span>)</span>
+<span id="cb36-24"><a href="#cb36-24" aria-hidden="true" tabindex="-1"></a>    _a.grid(alpha<span class="op">=</span><span class="fl">0.25</span>)</span>
+<span id="cb36-25"><a href="#cb36-25" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _a <span class="kw">in</span> _axs.ravel()[<span class="dv">7</span>:]:</span>
+<span id="cb36-26"><a href="#cb36-26" aria-hidden="true" tabindex="-1"></a>    _a.set_visible(<span class="va">False</span>)</span>
+<span id="cb36-27"><a href="#cb36-27" aria-hidden="true" tabindex="-1"></a>_axs[<span class="dv">2</span>, <span class="dv">0</span>].set_xlabel(<span class="st">"Validation accuracy (all scores)"</span>)</span>
+<span id="cb36-28"><a href="#cb36-28" aria-hidden="true" tabindex="-1"></a>_axs[<span class="dv">1</span>, <span class="dv">0</span>].set_ylabel(<span class="st">"Test accuracy on this score"</span>)</span>
+<span id="cb36-29"><a href="#cb36-29" aria-hidden="true" tabindex="-1"></a>_h <span class="op">=</span> [plt.Line2D([], [], marker<span class="op">=</span><span class="st">"o"</span>, ls<span class="op">=</span><span class="st">""</span>, color<span class="op">=</span><span class="st">"#4C72B0"</span>,</span>
+<span id="cb36-30"><a href="#cb36-30" aria-hidden="true" tabindex="-1"></a>                 label<span class="op">=</span><span class="ss">f"Tied within 1 SE (n=</span><span class="sc">{</span><span class="bu">int</span>(_tied_d.<span class="bu">sum</span>())<span class="sc">}</span><span class="ss">)"</span>),</span>
+<span id="cb36-31"><a href="#cb36-31" aria-hidden="true" tabindex="-1"></a>      plt.Line2D([], [], marker<span class="op">=</span><span class="st">"o"</span>, ls<span class="op">=</span><span class="st">""</span>, color<span class="op">=</span><span class="st">"grey"</span>, alpha<span class="op">=</span><span class="fl">0.5</span>,</span>
+<span id="cb36-32"><a href="#cb36-32" aria-hidden="true" tabindex="-1"></a>                 label<span class="op">=</span><span class="ss">f"Other kept models (n=</span><span class="sc">{</span><span class="bu">int</span>((<span class="op">~</span>_tied_d).<span class="bu">sum</span>())<span class="sc">}</span><span class="ss">)"</span>),</span>
+<span id="cb36-33"><a href="#cb36-33" aria-hidden="true" tabindex="-1"></a>      plt.Line2D([], [], ls<span class="op">=</span><span class="st">"--"</span>, color<span class="op">=</span><span class="st">"#C44E52"</span>, label<span class="op">=</span><span class="st">"Human raters, this score"</span>)]</span>
+<span id="cb36-34"><a href="#cb36-34" aria-hidden="true" tabindex="-1"></a>_fig.legend(handles<span class="op">=</span>_h, loc<span class="op">=</span><span class="st">"lower right"</span>, bbox_to_anchor<span class="op">=</span>(<span class="fl">0.97</span>, <span class="fl">0.08</span>),</span>
+<span id="cb36-35"><a href="#cb36-35" aria-hidden="true" tabindex="-1"></a>            frameon<span class="op">=</span><span class="va">False</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
+<span id="cb36-36"><a href="#cb36-36" aria-hidden="true" tabindex="-1"></a>_fig.tight_layout()</span>
+<span id="cb36-37"><a href="#cb36-37" aria-hidden="true" tabindex="-1"></a>_fig.savefig(THESIS_PLOTS <span class="op">/</span> <span class="st">"noise_floor_by_score.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb36-38"><a href="#cb36-38" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb36-39"><a href="#cb36-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-40"><a href="#cb36-40" aria-hidden="true" tabindex="-1"></a>_rows <span class="op">=</span> []</span>
+<span id="cb36-41"><a href="#cb36-41" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _sc <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>):</span>
+<span id="cb36-42"><a href="#cb36-42" aria-hidden="true" tabindex="-1"></a>    _m <span class="op">=</span> yt <span class="op">==</span> _sc</span>
+<span id="cb36-43"><a href="#cb36-43" aria-hidden="true" tabindex="-1"></a>    _acc <span class="op">=</span> (Pt[:, _m] <span class="op">==</span> _sc).mean(<span class="dv">1</span>)</span>
+<span id="cb36-44"><a href="#cb36-44" aria-hidden="true" tabindex="-1"></a>    _rows.append({<span class="st">"score"</span>: _sc, <span class="st">"human"</span>: <span class="bu">round</span>(_hum_per_score[_sc], <span class="dv">3</span>),</span>
+<span id="cb36-45"><a href="#cb36-45" aria-hidden="true" tabindex="-1"></a>                  <span class="st">"tied_min"</span>: <span class="bu">round</span>(_acc[_tied_d].<span class="bu">min</span>(), <span class="dv">3</span>),</span>
+<span id="cb36-46"><a href="#cb36-46" aria-hidden="true" tabindex="-1"></a>                  <span class="st">"tied_median"</span>: <span class="bu">round</span>(<span class="bu">float</span>(np.median(_acc[_tied_d])), <span class="dv">3</span>),</span>
+<span id="cb36-47"><a href="#cb36-47" aria-hidden="true" tabindex="-1"></a>                  <span class="st">"tied_max"</span>: <span class="bu">round</span>(_acc[_tied_d].<span class="bu">max</span>(), <span class="dv">3</span>),</span>
+<span id="cb36-48"><a href="#cb36-48" aria-hidden="true" tabindex="-1"></a>                  <span class="st">"tied_range_pp"</span>: <span class="bu">round</span>(<span class="dv">100</span> <span class="op">*</span> (_acc[_tied_d].<span class="bu">max</span>() <span class="op">-</span> _acc[_tied_d].<span class="bu">min</span>()), <span class="dv">1</span>)})</span>
+<span id="cb36-49"><a href="#cb36-49" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(pd.DataFrame(_rows).to_string(index<span class="op">=</span><span class="va">False</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="test_image_difficulty_files/figure-html/cell-23-output-1.png" width="1066" height="971" class="figure-img"></p>
+<figcaption>Test accuracy on the crops of each true score against overall validation accuracy, for the 100 kept models. The tied set is the configurations within 1 SE of the best validation accuracy; the dashed line is human exact agreement on that score.</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code> score  human  tied_min  tied_median  tied_max  tied_range_pp
+     0  0.961     0.727        0.864     0.909           18.2
+     1  0.748     0.273        0.500     0.636           36.4
+     2  0.489     0.477        0.580     0.727           25.0
+     3  0.606     0.455        0.625     0.750           29.5
+     4  0.644     0.364        0.602     0.795           43.2
+     5  0.530     0.295        0.466     0.636           34.1
+     6  0.855     0.636        0.807     0.909           27.3</code></pre>
+</div>
+</div>
+<section id="d.2-the-same-agreement-heatmap-score-by-score" class="level3">
+<h3 class="anchored" data-anchor-id="d.2-the-same-agreement-heatmap-score-by-score">4d.2 The same agreement heatmap, score by score</h3>
+<p>Section 4c’s heatmap pools all 308 test crops. This is the same 22 x 22 matrix computed on the 44 crops of one true score at a time, so a panel answers: on crops the raters called this score, how often do two tied models say the same thing? Each panel rests on 44 crops, so one crop is 2.3 percentage points and the per-cell noise is roughly three times that of the pooled version.</p>
+<div id="fd276706" class="cell" data-execution_count="23">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb38"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4d.2</span></span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>_fig, _axs <span class="op">=</span> plt.subplots(<span class="dv">3</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="fl">9.0</span>, <span class="fl">8.6</span>))</span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a>_ims <span class="op">=</span> []</span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _sc <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>):</span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a>    _a <span class="op">=</span> _axs.ravel()[_sc]</span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a>    _m <span class="op">=</span> yt <span class="op">==</span> _sc</span>
+<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a>    _As <span class="op">=</span> np.array([[np.mean(_Ptied[i][_m] <span class="op">==</span> _Ptied[j][_m])</span>
+<span id="cb38-8"><a href="#cb38-8" aria-hidden="true" tabindex="-1"></a>                     <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(_tied_idx))] <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(_tied_idx))])</span>
+<span id="cb38-9"><a href="#cb38-9" aria-hidden="true" tabindex="-1"></a>    <span class="co"># One colour scale across all seven panels, so a darker panel means more agreement</span></span>
+<span id="cb38-10"><a href="#cb38-10" aria-hidden="true" tabindex="-1"></a>    <span class="co"># rather than a different normalisation.</span></span>
+<span id="cb38-11"><a href="#cb38-11" aria-hidden="true" tabindex="-1"></a>    _ims.append(_a.imshow(_As, cmap<span class="op">=</span><span class="st">"Blues"</span>, vmin<span class="op">=</span><span class="fl">0.4</span>, vmax<span class="op">=</span><span class="dv">1</span>))</span>
+<span id="cb38-12"><a href="#cb38-12" aria-hidden="true" tabindex="-1"></a>    _o <span class="op">=</span> _As[np.triu_indices(<span class="bu">len</span>(_tied_idx), <span class="dv">1</span>)]</span>
+<span id="cb38-13"><a href="#cb38-13" aria-hidden="true" tabindex="-1"></a>    _a.set_title(<span class="ss">f"Score </span><span class="sc">{</span>_sc<span class="sc">}</span><span class="ss">  (median </span><span class="sc">{</span>np<span class="sc">.</span>median(_o)<span class="sc">:.2f}</span><span class="ss">)"</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
+<span id="cb38-14"><a href="#cb38-14" aria-hidden="true" tabindex="-1"></a>    _a.set_xticks(<span class="bu">range</span>(<span class="dv">0</span>, <span class="bu">len</span>(_tied_idx), <span class="dv">7</span>))<span class="op">;</span> _a.set_yticks(<span class="bu">range</span>(<span class="dv">0</span>, <span class="bu">len</span>(_tied_idx), <span class="dv">7</span>))</span>
+<span id="cb38-15"><a href="#cb38-15" aria-hidden="true" tabindex="-1"></a>    _a.tick_params(labelsize<span class="op">=</span><span class="dv">7</span>)</span>
+<span id="cb38-16"><a href="#cb38-16" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _a <span class="kw">in</span> _axs.ravel()[<span class="dv">7</span>:]:</span>
+<span id="cb38-17"><a href="#cb38-17" aria-hidden="true" tabindex="-1"></a>    _a.set_visible(<span class="va">False</span>)</span>
+<span id="cb38-18"><a href="#cb38-18" aria-hidden="true" tabindex="-1"></a>_axs[<span class="dv">1</span>, <span class="dv">0</span>].set_ylabel(<span class="st">"CNN configuration"</span>)<span class="op">;</span> _axs[<span class="dv">2</span>, <span class="dv">0</span>].set_xlabel(<span class="st">"CNN configuration"</span>)</span>
+<span id="cb38-19"><a href="#cb38-19" aria-hidden="true" tabindex="-1"></a>_fig.colorbar(_ims[<span class="dv">0</span>], ax<span class="op">=</span>_axs[<span class="dv">2</span>, <span class="dv">2</span>], fraction<span class="op">=</span><span class="fl">0.5</span>, label<span class="op">=</span><span class="st">"Pairwise agreement"</span>)</span>
+<span id="cb38-20"><a href="#cb38-20" aria-hidden="true" tabindex="-1"></a>_fig.tight_layout()</span>
+<span id="cb38-21"><a href="#cb38-21" aria-hidden="true" tabindex="-1"></a>_fig.savefig(THESIS_PLOTS <span class="op">/</span> <span class="st">"tied_cnn_agreement_by_score.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb38-22"><a href="#cb38-22" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb38-23"><a href="#cb38-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-24"><a href="#cb38-24" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _sc <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>):</span>
+<span id="cb38-25"><a href="#cb38-25" aria-hidden="true" tabindex="-1"></a>    _m <span class="op">=</span> yt <span class="op">==</span> _sc</span>
+<span id="cb38-26"><a href="#cb38-26" aria-hidden="true" tabindex="-1"></a>    _As <span class="op">=</span> np.array([[np.mean(_Ptied[i][_m] <span class="op">==</span> _Ptied[j][_m])</span>
+<span id="cb38-27"><a href="#cb38-27" aria-hidden="true" tabindex="-1"></a>                     <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(_tied_idx))] <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(_tied_idx))])</span>
+<span id="cb38-28"><a href="#cb38-28" aria-hidden="true" tabindex="-1"></a>    _o <span class="op">=</span> _As[np.triu_indices(<span class="bu">len</span>(_tied_idx), <span class="dv">1</span>)]</span>
+<span id="cb38-29"><a href="#cb38-29" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  score </span><span class="sc">{</span>_sc<span class="sc">}</span><span class="ss">: median </span><span class="sc">{</span>np<span class="sc">.</span>median(_o)<span class="sc">:.3f}</span><span class="ss">  range </span><span class="sc">{</span>_o<span class="sc">.</span><span class="bu">min</span>()<span class="sc">:.3f}</span><span class="ss">-</span><span class="sc">{</span>_o<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb38-30"><a href="#cb38-30" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  pooled over all 308: median </span><span class="sc">{</span>np<span class="sc">.</span>median(_off)<span class="sc">:.3f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="test_image_difficulty_files/figure-html/cell-24-output-1.png" width="1032" height="1019" class="figure-img"></p>
+<figcaption>Pairwise agreement among the 22 tied CNN configurations, computed separately on the 44 test crops of each true score.</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  score 0: median 0.932  range 0.795-1.000
+  score 1: median 0.795  range 0.568-0.955
+  score 2: median 0.795  range 0.636-0.932
+  score 3: median 0.795  range 0.591-0.909
+  score 4: median 0.705  range 0.500-0.909
+  score 5: median 0.795  range 0.477-0.932
+  score 6: median 0.841  range 0.682-1.000
+  pooled over all 308: median 0.799</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="ensembling-moved-to-analyses14_ensembling" class="level2">
+<h2 class="anchored" data-anchor-id="ensembling-moved-to-analyses14_ensembling">5. Ensembling — moved to <code>analyses/14_ensembling</code></h2>
+<p>The ensembling material that used to sit here optimised on the test split, drew an arbitrary number of top-ranked members, and used one model family throughout. It has been removed rather than patched. <code>analyses/14_ensembling</code> replaces it: seven ensemble designs, each stated as an observation about the models before it is built, every choice made on the 455-crop <code>ensemble</code> split and every number reported once on the 308-crop <code>test</code> split.</p>
+</section>
+<section id="interpretation-and-discussion" class="level2">
+<h2 class="anchored" data-anchor-id="interpretation-and-discussion">6. Interpretation and Discussion</h2>
+<ul>
+<li><p><strong>Errors are adjacent-score, concentrated on the middle (§2).</strong> The vote scores 0 and 6 at ~0.80–0.86 and the middle at ~0.43–0.66 (score 5 worst), but near-miss stays ≥0.95 across all scores and the confusion matrix is a tight band-diagonal. The committee has solved coarse severity and stumbles only on separating neighbours — the exact ceiling <code>analyses/03</code> §6 identified from near-miss saturation.</p></li>
+<li><p><strong>The models are diverse — they miss <em>different</em> images (§3).</strong> Only ~15% of test images are unanimous (either way); ~77% are split decisions. The <strong>oracle ≈ 0.93</strong> (some model gets almost every image right) against a best single of ~0.66 shows the models are far from interchangeable (pairwise agreement ~0.77). Difficulty is partly a <em>whole-project</em> property — source images sit high or low together (§3.4) — pointing at per-image conditions (lighting, staining) as a shared error cause.</p></li>
+<li><p><strong>Ensembling is answered in <code>analyses/14_ensembling</code>, not here (§5).</strong> That document tests seven ensemble designs against the diversity this one measures. Its finding: no combining rule is distinguishable from the best single model on 308 test crops, but the single model that looks best on the ensemble split falls 4.55 pp on test (p = 0.040), so what a committee buys is freedom from the selection lottery rather than accuracy.</p></li>
+<li><p><strong>A few images are likely mislabelled (§4).</strong> Only a handful are near-unanimous <em>and</em> off by ≥2 (e.g.&nbsp;a recorded 4 that all 100 models call 6); these are worth re-checking. The much larger off-by-one set is adjacent-score ambiguity, not bad labels.</p></li>
+<li><p><strong>The inference is verified, not assumed (§1.3).</strong> Every reported number rests on a prediction matrix whose per-model test accuracies reproduce the grid search’s own recorded <code>test_acc</code> exactly (max difference 0.000).</p></li>
+<li><p><strong>The oracle is not headroom.</strong> <code>analyses/14_ensembling</code> §2 decomposes it: of the crops where some member is right but the vote is not, 97.5% have a <em>minority</em> of members correct, so no plurality rule can reach them. “At least one of 22 correlated models is right” is closer to a statement about how many models there are than about what a committee could achieve.</p></li>
+<li><p><strong>Caveats.</strong> The 100 models are all top-100-by-CV, hence correlated (~0.77) — an agreed-wrong image is a strong signal but the vote’s gain over the best single model is small for the same reason. Test is 308 images (±~3 pp, <code>analyses/03</code> §3), and the per-project boxplot (§3.4) uses only the 14 projects with ≥4 test crops. “True” labels are the recorded human scores — the very thing §4 stress-tests. ```</p></li>
+</ul>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

@@ -1,0 +1,67 @@
+---
+title: "Should I try other ensembles"
+format:
+    html:
+        colab-fold: true
+jupyter: python3
+---
+
+Date: 18/01/2025
+
+## Question: Should I try other types of ensemble model?
+
+### How does the Random Forest work?
+
+A Random Forest is a collection of decision trees trained on different random samples of the image dataset and input models. Different trees become specialists at different parts of the problem, and their votes are counted (nominal data) or averaged (numerical data).
+
+In the standard method (Forest-RI), at each node the tree only asks a question about one input (the best split). For this reason, the Random Forest separator is called "axis-aligned" - it is always parallel to one of the axes on the graph. Whilst the individual split is linear, the overall model separator is non-linear, since the tree is a sequence of many splits, described as a piecewise constant non-linear boundary.
+
+### What strengths might other methods have?
+
+**Nominal vs Ordinal**
+
+Random Forests treat the 0-6 severity scores as unrelated nominal categories instead of an ordered sequence. Ordinal Cumulative Link Models (CLMs) and Ordinal Forests (Hornung, 2020) explicitly model the scores as a continuous progression, and may therefore be better at resolving disagreements between adjacent scores.
+
+**Gradient Boosting**
+
+Gradient Boosting Machines like XGBoost (Chen and Guestrin, 2016) builds trees sequentially to correct the specific errors of the previous ones. If a more influential model makes mistakes, the boosting model will learn a specific correction using other models. Since the best individual model from our Random Forest had by far the strongest influence (SHAP values), this may improve predictions on where that model is wrong.
+
+XGBoost also uses the same axis-aligned separator as Random Forests.
+
+**High Feature Correlation**
+
+The 9 models have a high correlation, and many of the models had low influences in the Random Forest ensemble. If Model A and B are highly correlated, then trees built with both models will be highly correlated, which can directly increase the error rate.
+
+A Lasso (L1) meta-learner uses a linear separator. It performs feature selection by shrinking the weight coefficients of redundant models to 0. This creates a sparse model which focuses only on the most reliable signals.
+
+**Non-linear Separators**
+
+If the true decision boundary between two adjacent scores is diagonal (not axis-parallel), a Random Forest will struggle to approximate it. Rather than creating a staircase of many axis-aligned cuts, a linear Support Vector Machine (SVM) creates a single slanted (oblique) hyperplane.
+
+### Will these methods give significant performance improvements?
+
+**Lack of Complementary Information**
+
+A meta-learner can only improve accuracy if the component models provide complementary information (fail on different images). The Random Forest I trained does not make any meaningful performance over the best single model. No meta-learner can extract more information than exists in the source features.
+
+Other models like XGBoost are also sensitive to multi-collinearity and would likely overfit to noise like the Random Forest.
+
+**Single-model Dominance**
+
+One model (CNN_Composite_7000) dominates the SHAP importance - the ensemble is essentially a single-model system with noise. It would be better for an ensemble if different models were important for different types of images, and I've shown in my mean SHAP analysis that this isn't the case.
+
+**Shared Model Bias**
+
+Model disagreement is confined to adjacent scores, and the models agree on the vast majority of cases.
+
+The 9 models cannot find a way to match the human label. If they are correlated because they are all learning from the same clear patterns (can test with SHAP analysis of CNNs and ViTs), then it must be the human label that is the outlier.
+
+We know from the exploratory data analysis of the CDA dataset that scoring is subjective and human labellers are inconsistent and often disagree, so this may provide a performance ceiling, the Bayes Error Rate.
+
+**Deployment**
+
+An ensemble of 9 CNN/ViT models requires all 9 models to be loaded and used for prediction. This will significantly increase computational costs which is not worthwhile unless there is meaningful improvement.
+
+## Conclusion
+
+Theoretically, alternative ensembling architectures offer different mechanisms for aggregating predictions. However, the high correlation between models suggests that various models have already converged on a shared representation of the leaf features. The performance is unlikely to improve because of inherent noise or labelling inconsistency rather than limitations of the ensemble itself. Switching to a different ensemble architecture is unlikely to result in major performance improvements, but would require 9 models to be run and aggregated for each prediction, increasing the computational cost.

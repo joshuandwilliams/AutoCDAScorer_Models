@@ -1,0 +1,393 @@
+---
+title: "model_predictions_EDA"
+author: "Joshua Williams"
+date: "2025-12-01"
+output: html_document
+---
+
+## GOHREP
+
+**Goal:**
+
+Investigate patterns of scoring amongst the different trained deep learning models
+
+**Hypotheses:**
+
+1. Some images will be poorly scored by all models.
+2. Agreement between models will vary.
+3. Poorly scored images will share a specific feature e.g. they may all come from the same project.
+4. A consensus score from all the models will be no better than the best single model.
+
+**Rationales:**
+
+1. Human ground truth labelling is subjective. Models apply consistend rules when scoring, so if one disagrees with humans is it likely many or all disagree with humans.
+2. Different training datasets and architectures may mean that some models learn more similar patterns than others.
+3. Some types of images may be less common in the training data or more likely to be poorly scored by humans.
+4. Models are more likely to agree with each other already - consensus scoring would perform better if different models performed better/worse on different parts of the dataset. 
+
+**Experimental plan:**
+
+DONE
+
+1. Load in all models from models/00_miscellaneous/best_models_of_each_type_11_25/
+2. Load in labelled dataset from data/cropped_images/
+3. Predict all models on all images. Since the training/val/test datasets were randomly selected, there shouldn't be any images that are overrepresented in training/val/test, so it's fine that some predictions will be on training data.
+4. Rank images by least to best predicted (rank first by number of incorrect predictions, then by mean distance from correct score).
+5. Visually inspect grid of 30 most poorly predicted images - do they share any patterns? Are there any images consistently scored >1 from ground truth - perhaps incorrectly labelled by humans?
+
+NEXT
+
+6. How often do models agree with one another? Can models be clustered by their scoring agreements? How can I visualise this? Do similarities in model scoring correlate with any feature e.g. training dataset or architecture type? 
+7. Does human scoring variability correlate with model scoring variability? Maybe some images are just more challenging to score consistently. Does human scoring agreement correlate with model prediction accuracy?
+8. How do model prediction accuracies differ by a) score (we sort of already know but only for individual models) b) project c) dataset type d) architecture type e) size of cell death area (from bounding box size)
+9. Generate a model consensus using the median score. Does this perform better or worse than the best individual model? Talk to love about how he built his ensemble models.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Libraries
+
+```{r}
+library(tidyverse)
+library(multcompView)
+library(broom)
+library(ggpubr)
+library(pheatmap)
+```
+
+## Load and clean data
+
+This data is score-class size normalised by random sampling.
+
+```{r}
+df <- read_csv("/Users/jowillia/Documents/GitHub/AutoCDAScorer_Models/analyses/10_model_scoring_patterns/results_normalised.csv", show_col_types=FALSE)
+print(head(df))
+df$experiment <- str_replace_all(df$experiment, "-", "_")
+```
+
+## Histograms of agreement percentage and average distance
+```{r}
+# a) Agreement Percentage
+df$num_agreeing_models <- round((df$agreement_pct ) * 9)
+ggplot(df, aes(x = factor(num_agreeing_models))) +
+  geom_bar(fill = "steelblue", color = "white", alpha = 0.8) +
+  labs(x = "Number of models agreeing with human score", y = "Count") +
+  theme_minimal()
+
+# b) Average Distance
+ggplot(df, aes(x = avg_distance)) +
+  geom_histogram(bins = 50, fill = "coral", color = "white", alpha = 0.8) +
+  labs(x = "Difference between average model score and human score", y = "Count") +
+  theme_minimal()
+
+# c) Score Variability (SD)
+ggplot(df, aes(x = score_variability)) +
+  geom_histogram(bins = 50, fill = "seagreen", color = "white", alpha = 0.8) +
+  labs(x = "Standard deviation", y = "Count") +
+  theme_minimal()
+
+# d) Bounding Box Size
+ggplot(df, aes(x = bounding_box_size)) +
+  geom_histogram(bins = 50, fill = "purple", color = "white", alpha = 0.8) +
+  labs(x = "Bounding box size (pixels)", y = "Count") +
+  theme_minimal()
+```
+For some images, all models disagree with humans. For others, all agree. For most, some agree and some disagree, implying that the models don't always agree with each other.
+
+The same ~480 images for which all models agree with humans have an average prediction difference from the ground truth of 0. For the other images, the average difference mostly lies between 0 and 1, with some lying between 1-2 and a very small number greater than 2.
+
+The human score variability bars align with different patterns of agreement. When all three humans agree, the variability is 0. When two humans agree and one human differs by 1 (e.g. 4, 4, 3) the SD is 0.577. When there are three consecutive scores (e.g. 3, 4, 5) the variability is 1, and when there is one scorer who disagrees by 2 scores (e.g. 4, 4, 2) the variability is 1.155. This explains why there are discrete bars. It may be better to visualise this by scoring pattern rather than variability (SD).
+
+The bounding box sizes appear to fit a roughly normal distribution, with a peak around 240 and a longer upper tail with some bounding boxes >400 pixels in side length.
+
+## Does human scoring variability correlate with model scoring variability
+
+We would expect that when humans are confused about what score to assign a CDA, the models are also confused.
+
+However, the models were trained on a median consensus score and did not have access to human scoring variability data. They may learn consistent rules for scoring that mean they agree with each other even when scoring agreement amongst humans is low.
+
+```{r}
+# Define the model columns
+model_cols <- c("567_924_Tran_CGAN_A", "574_938_CNN_Confident", 
+                "600_933_CNN_CGAN_A", "611_974_Tran_Base", 
+                "617_961_CNN_Geom_700", "621_969_CNN_Base", 
+                "640_950_Tran_Composite_7000", "653_968_CNN_Composite_7000", 
+                "676_970_Tran_Geom_700")
+
+# Calculate row-wise standard deviation
+df <- df %>%
+  rowwise() %>%
+  mutate(model_score_variability = sd(c_across(all_of(model_cols)), na.rm = TRUE)) %>%
+  ungroup()
+
+# Model Scoring Variability
+ggplot(df, aes(x = model_score_variability)) +
+  geom_histogram(bins = 30, fill = "red", color = "white", alpha = 0.8) +
+  labs(title = "Model scoring variability", x = "SD of model predictions", y = "Count") +
+  theme_minimal()
+```
+
+```{r}
+ggplot(df, aes(x = score_variability, y = model_score_variability)) +
+  # Use jitter to prevent overplotting of discrete human scores
+  geom_jitter(alpha = 0.3, width = 0.05, size = 1) + 
+  
+  # Add Regression Line (Linear Model)
+  geom_smooth(method = "lm", formula = y ~ x, color = "red", fill = "mistyrose") + 
+  
+  # Add Statistical Test (Pearson Correlation) directly to plot
+  stat_cor(method = "pearson", label.x.npc = "left", label.y.npc = "top") +
+  
+  # Labels
+  labs(x = "Human Scoring Variability", 
+       y = "Model Scoring Variability",
+       title = "Correlation between Human and Model Score Variability") +
+  
+  theme_minimal()
+```
+
+Although we see a statistically significant correlation between human and model score variability, this is likely due to the large sample size. The relationship is not biologically meaningful and is virtually non-existent - the coefficient of determination (R^2) is 0.0729, meaning 92.71% of the variability in model scores is completely unrelated to human disagreement.
+
+This relates to something we already saw, which was that by using a subset of CDA images where all three scorers had agreed as a training dataset did not lead to any improvements in model accuracy over the whole base dataset. Variability in human scoring seems to be random and unrelated to how "difficult" it is to score a particular image.
+
+## Are model accuracies affected by other variables (experiment, score, model type, dataset type, bounding box size)
+
+```{r}
+# 1. Prepare Data: Calculate Avg Distance PER IMAGE for each group
+# We first create a unique ID for every image to ensure safe grouping
+df_clean <- df %>% mutate(img_id = row_number())
+
+df_long_base <- df_clean %>%
+  pivot_longer(
+    cols = c("567_924_Tran_CGAN_A", "574_938_CNN_Confident", 
+             "600_933_CNN_CGAN_A", "611_974_Tran_Base", 
+             "617_961_CNN_Geom_700", "621_969_CNN_Base", 
+             "640_950_Tran_Composite_7000", "653_968_CNN_Composite_7000", 
+             "676_970_Tran_Geom_700"),
+    names_to = "model_name",
+    values_to = "model_score"
+  ) %>%
+  mutate(
+    parts = str_split(model_name, "_"),
+    model_type = map_chr(parts, 3),
+    dataset_type = map_chr(parts, ~paste(.x[4:length(.x)], collapse = "_")),
+    error = abs(model_score - human_score)
+  )
+
+# Create Summary Table for Model Type (Aggregated per image)
+df_model_summary <- df_long_base %>%
+  group_by(img_id, model_type) %>%
+  summarise(avg_distance = mean(error, na.rm = TRUE), .groups = "drop")
+
+# Create Summary Table for Dataset Type (Aggregated per image)
+df_dataset_summary <- df_long_base %>%
+  group_by(img_id, dataset_type) %>%
+  summarise(avg_distance = mean(error, na.rm = TRUE), .groups = "drop")
+
+
+# 2. Define the Plotting Function
+analyze_and_plot <- function(data, group_col, value_col, x_label) {
+  
+  print(paste("=== ANALYZING:", x_label, "==="))
+  
+  # Statistics
+  f <- as.formula(paste(value_col, "~", group_col))
+  model <- aov(f, data = data)
+  print(summary(model))
+  
+  tukey <- TukeyHSD(model)
+  print(tidy(tukey) %>% filter(adj.p.value < 0.05) %>% select(contrast, adj.p.value))
+  
+  # Letters
+  cld <- multcompLetters4(model, tukey)
+  letters_vec <- cld[[group_col]]$Letters
+  cld_df <- data.frame(letter = letters_vec) %>% rownames_to_column(var = group_col)
+  
+  # Formatting for Plot
+  # Reorder x-axis by mean performance (Low avg_distance is better)
+  data[[group_col]] <- reorder(data[[group_col]], -data[[value_col]], FUN = mean)
+  
+  plot_data <- data %>%
+    group_by(.data[[group_col]]) %>%
+    summarise(y_max = max(.data[[value_col]]) + (max(data[[value_col]]) * 0.05)) %>%
+    left_join(cld_df, by = group_col)
+  
+  # Plot
+  p <- ggplot(data, aes(x = .data[[group_col]], y = .data[[value_col]])) +
+    geom_boxplot(outlier.shape = NA, fill = "white", color = "black") +
+    geom_jitter(width = 0.2, height = 0, alpha = 0.05, size = 1) + # height=0 is critical here
+    geom_text(data = plot_data, aes(y = y_max, label = letter), 
+              vjust = 0, size = 5, fontface = "bold", color = "red") +
+    labs(x = x_label, y = "Avg Distance") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_y_continuous(expand = expansion(mult = c(0.05, 0.15)))
+    
+  return(p)
+}
+```
+
+```{r}
+analyze_and_plot(df, "experiment", "avg_distance", "Experiment")
+```
+
+```{r}
+analyze_and_plot(df_model_summary, "model_type", "avg_distance", "Model Architecture")
+```
+
+```{r}
+analyze_and_plot(df_dataset_summary, "dataset_type", "avg_distance", "Training Dataset")
+```
+## How often do each model agree with each other
+
+```{r}
+# 1. Define Sort Order (Dataset -> Type)
+sorted_models <- tibble(model_name = model_cols) %>%
+  mutate(
+    parts = str_split(model_name, "_"),
+    type = map_chr(parts, 3),
+    dataset = map_chr(parts, ~paste(.x[4:length(.x)], collapse = "_"))
+  ) %>%
+  arrange(dataset, type) %>% 
+  pull(model_name)
+
+# 2. Calculate Exact Match Agreement
+agreement_exact <- expand.grid(Model1 = model_cols, Model2 = model_cols, stringsAsFactors = FALSE) %>%
+  rowwise() %>%
+  mutate(Agreement = mean(df[[Model1]] == df[[Model2]], na.rm = TRUE) * 100) %>%
+  ungroup()
+
+agreement_exact$Model1 <- factor(agreement_exact$Model1, levels = sorted_models)
+agreement_exact$Model2 <- factor(agreement_exact$Model2, levels = sorted_models)
+
+# 3. Calculate Near-Miss Agreement (+/- 1 score)
+agreement_near_miss <- expand.grid(Model1 = model_cols, Model2 = model_cols, stringsAsFactors = FALSE) %>%
+  rowwise() %>%
+  mutate(Agreement = mean(abs(df[[Model1]] - df[[Model2]]) <= 1, na.rm = TRUE) * 100) %>%
+  ungroup()
+
+agreement_near_miss$Model1 <- factor(agreement_near_miss$Model1, levels = sorted_models)
+agreement_near_miss$Model2 <- factor(agreement_near_miss$Model2, levels = sorted_models)
+
+# 4. Plot 1: Exact Agreement
+ggplot(agreement_exact, aes(x = Model1, y = Model2, fill = Agreement)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(Agreement, 1)), color = "black", size = 3) +
+  scale_fill_gradient(low = "white", high = "#69b3a2") +
+  labs(title = "Exact Agreement (%)", x = NULL, y = NULL, fill = "%") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "right") +
+  coord_fixed()
+
+# 5. Plot 2: Near-Miss Agreement
+ggplot(agreement_near_miss, aes(x = Model1, y = Model2, fill = Agreement)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(Agreement, 1)), color = "black", size = 3) +
+  scale_fill_gradient(low = "white", high = "#e76f51") +
+  labs(title = "Near-Miss Agreement (+/- 1) (%)", x = NULL, y = NULL, fill = "%") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "right") +
+  coord_fixed()
+```
+The models which agree most often are CNN_Composite_7000 and CNN_Geom_700, which agree 76.2% of the time. The models which agree least are CNN_Base and Tran_CGAN_A, which agree only 50.3% of the time. It seems that both models trained on CGAN images agree less often with other models, including each other. The models trained on geometrically augmented datasets, by contrast, seem to agree more strongly with other models (apart from the CGAN models).
+
+The models often agree less with each other than they do with the ground truth human score.
+
+However, when models disagree, they are almost always within near-miss range (+-1), with some models even having an almost % near miss agreement, particularly models trained with base or geometrically augmented datasets (which are very similar).
+
+```{r}
+# Select model data
+# We need a matrix where columns = models and rows = images
+model_data <- df %>% select(all_of(model_cols))
+
+# Calculate Similarity Matrix (Correlation)
+# We use correlation because it captures the pattern of scoring best
+# (e.g. if Model A goes up, does Model B also go up?)
+cor_matrix <- cor(model_data, method = "pearson", use = "pairwise.complete.obs")
+
+# Generate Clustered Heatmap
+# pheatmap automatically runs hclust() to generate the trees
+pheatmap(cor_matrix,
+         clustering_distance_rows = "euclidean",
+         clustering_distance_cols = "euclidean",
+         clustering_method = "complete",
+         display_numbers = TRUE,    # Show the correlation values
+         number_format = "%.2f",    # Format to 2 decimals
+         color = colorRampPalette(c("white", "mistyrose", "red"))(100),
+         main = "Phylogeny of Models (Clustered by Scoring Similarity)")
+```
+
+Here the values are Pearson correlation coefficients, and they are higher because they measure covariance rather than binary agreement or non-agreement.
+
+Similar patterns are visible here. The CGAN-trained models cluster apart from all of the other models, reflecting their lower levels of agreement with other models. The CNN trained on the small, confident dataset is also placed distinctly from the other models on the tree. The remaining models seem to cluster by model type, with the Transformers and CNNs providing more similar predictions to other models of the same type.
+
+The high Pearson correlation coefficients here indicate that even when models disagree, they tend to give near-miss scores.
+
+## Take a median score - how often does this agree with the human score - how often within +-1?
+
+Due to the similarities in model scoring (even the most different models achieve 0.90 pearson correlation), it is unlikely that ensembling will improve prediction performances against humans.
+
+```{r}
+# Calculate Median Model Score and Matches
+df <- df %>%
+  rowwise() %>%
+  mutate(
+    # Calculate median and round to nearest integer
+    median_model_score = round(median(c_across(all_of(model_cols)), na.rm = TRUE)),
+    
+    # check for exact match
+    exact_match = (median_model_score == human_score),
+    
+    # Check for near miss (difference is 0 or 1)
+    # This logic automatically handles the 0 and 6 boundaries correctly
+    near_miss = (abs(median_model_score - human_score) <= 1)
+  ) %>%
+  ungroup()
+
+# Calculate and Print Global Percentages
+accuracy_stats <- df %>%
+  summarise(
+    Exact_Match_Pct = mean(exact_match, na.rm = TRUE) * 100,
+    Near_Miss_Pct = mean(near_miss, na.rm = TRUE) * 100
+  )
+
+print(accuracy_stats)
+```
+As expeected, there is no improvement by ensembling all models and taking a median over the single best performing model.
+
+Leave-one-out analysis
+```{r}
+# Function to calculate stats when one model is excluded
+calculate_loo_stats <- function(excluded_model) {
+  # Select all models EXCEPT the excluded one
+  subset_cols <- setdiff(model_cols, excluded_model)
+  
+  # Calculate row-wise median for the subset
+  # apply(..., 1, median) is faster than rowwise() for this iteration
+  subset_medians <- round(apply(df[, subset_cols], 1, median, na.rm = TRUE))
+  
+  # --- FIX: Calculate exact_match variable ---
+  exact_match <- mean(subset_medians == df$human_score, na.rm = TRUE) * 100
+  # -------------------------------------------
+  
+  # Calculate near miss
+  near_miss <- mean(abs(subset_medians - df$human_score) <= 1, na.rm = TRUE) * 100
+  
+  return(data.frame(
+    Excluded_Model = excluded_model,
+    Exact_Match_Pct = exact_match,
+    Near_Miss_Pct = near_miss
+  ))
+}
+
+# Run for all models and bind results
+loo_results <- map_dfr(model_cols, calculate_loo_stats) %>%
+  arrange(desc(Exact_Match_Pct)) # Sort by best performance
+
+print(loo_results)
+```
+
+In the same way, removing individual models from the ensemble also does not achieve any better performance than the single best model.
+
+## Can I cluster images hierarchically by model scoring patterns on them in some sort of phylogeny or heatmap?

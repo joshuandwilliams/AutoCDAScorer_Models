@@ -1,0 +1,53 @@
+
+Starting agroinfiltration_scoring kernel...[IPKernelApp] WARNING | Kernel is running over TCP without encryption. All communication (including code and outputs) is sent in plain text and is susceptible to eavesdropping. Use IPC transport or launch with kernel manager-provisioned CurveZMQ keys to enable transport encryption.
+Done
+
+Executing 'vit_grid_and_cnn_comparison.quarto_ipynb'
+  Cell 1/15: ''...Done
+  Cell 2/15: ''...Done
+  Cell 3/15: ''...2026-09-11 17:29:48.606896: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1789144199.979080 11686649 service.cc:145] XLA service 0x60000080ba00 initialized for platform Host (this does not guarantee that XLA will be used). Devices:
+I0000 00:00:1789144199.979975 11686649 service.cc:153]   StreamExecutor device (0): Host, Default Version
+2026-09-11 17:29:59.981544: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2026-09-11 17:30:00.106903: I tensorflow/compiler/mlir/tensorflow/utils/dump_mlir_util.cc:268] disabling MLIR crash reproducer, set env var `MLIR_CRASH_REPRODUCER_DIRECTORY` to enable.
+I0000 00:00:1789144202.473235 11686649 device_compiler.h:188] Compiled cluster using XLA!  This line is logged at most once for the lifetime of the process.
+Done
+  Cell 4/15: ''...Done
+  Cell 5/15: ''...Done
+  Cell 6/15: ''...Done
+  Cell 7/15: ''...Done
+  Cell 8/15: ''...Done
+  Cell 9/15: ''...Done
+  Cell 10/15: ''...Done
+  Cell 11/15: ''...Done
+  Cell 12/15: ''...Done
+  Cell 13/15: ''...Done
+  Cell 14/15: ''...Done
+  Cell 15/15: ''...Done
+
+[1mpandoc [22m
+  to: html
+  output-file: vit_grid_and_cnn_comparison.html
+  standalone: true
+  section-divs: true
+  html-math-method: mathjax
+  wrap: none
+  default-image-extension: png
+  toc: true
+  variables: {}
+  
+[1mmetadata[22m
+  document-css: false
+  link-citations: true
+  date-format: long
+  lang: en
+  engines:
+    - path: /Applications/quarto/share/extension-subtrees/julia-engine/_extensions/julia-engine/julia-engine.js
+  title: 'The Medoid ViT grid: what the 2,592 configs show, and how they compare to the CNNs'
+  jupyter: agroinfiltration_scoring
+  
+Output created: vit_grid_and_cnn_comparison.html
+

@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.38">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Human rater performance on the medoid_64 test set</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="02_human_performance_files/libs/clipboard/clipboard.min.js"></script>
+<script src="02_human_performance_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="02_human_performance_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="02_human_performance_files/libs/quarto-html/popper.min.js"></script>
+<script src="02_human_performance_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="02_human_performance_files/libs/quarto-html/anchor.min.js"></script>
+<link href="02_human_performance_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="02_human_performance_files/libs/quarto-html/quarto-syntax-highlighting-15634bcf2e68342d4ad2dfa704d543f6.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="02_human_performance_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="02_human_performance_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="02_human_performance_files/libs/bootstrap/bootstrap-138a6193a3bd40baf1e627da441a4734.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="fullcontent quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Human rater performance on the medoid_64 test set</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p>Date: 17/07/2026</p>
+<section id="gohrep" class="level2">
+<h2 class="anchored" data-anchor-id="gohrep">GOHREP</h2>
+<p><strong>Goal:</strong></p>
+<p>Locate the specific medoid_64 held-out test set within the distribution of human rater agreement, so model test accuracy can be compared against a like-for-like human benchmark.</p>
+<p><strong>Hypothesis:</strong></p>
+<p>The test set’s human agreement will fall within the distribution of human agreement (i.e.&nbsp;it is a plausible draw, not an anomalously easy or hard subset).</p>
+<p><strong>Rationale:</strong></p>
+<p>Model test accuracy and near-miss accuracy are reported on this one fixed test split. To judge whether the model matches human raters, the human benchmark must be computed on the <em>same</em> CDAs. The test set is small (44 CDAs/class), so its human value will differ from the full-dataset mean by chance; what matters is that it sits comfortably within the distribution of agreement values you would get from any test-sized draw - because that single value is exactly what the model is compared against.</p>
+<p>Only <strong>Metric 3</strong> is used here - median agreement corrected for the median-of-3 tautology - the chosen benchmark from <code>uv-agroinfiltration-dataset</code> (<code>analyses/03_human_performance</code>). Its full-dataset distribution (1,000 iterations of stratified undersampling to 436 CDAs/class) is loaded from that repo’s cache; the <code>human_performance</code> functions are imported from there too, so the test-set value is computed with identical methodology.</p>
+<p>Two reference distributions are shown:</p>
+<ol type="1">
+<li><strong>Full-dataset distribution</strong> (436 CDAs/class) - the cached distribution. Very tight, because each draw uses ~10x more data than the test set and the draws overlap heavily.</li>
+<li><strong>Test-sized distribution</strong> (44 CDAs/class) - generated here. Same undersampling procedure at the test set’s own size, so its spread reflects the real sampling noise of a 308-CDA estimate. This is the distribution the test-set value should be judged against.</li>
+</ol>
+</section>
+<section id="setup" class="level2">
+<h2 class="anchored" data-anchor-id="setup">1. Setup</h2>
+<section id="import-required-libraries" class="level3">
+<h3 class="anchored" data-anchor-id="import-required-libraries">1.1 Import required libraries</h3>
+<div id="91ccdc51" class="cell" data-execution_count="1">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.1</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> re</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> sys</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> scipy.stats <span class="im">as</span> st</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> confusion_matrix</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>repo_root <span class="op">=</span> <span class="bu">next</span>(p <span class="cf">for</span> p <span class="kw">in</span> [Path.cwd(), <span class="op">*</span>Path.cwd().parents] <span class="cf">if</span> (p <span class="op">/</span> <span class="st">'.git'</span>).exists())</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="co"># The rater data, the cached Metric 3 distribution, and the human_performance</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="co"># functions all live in the sibling uv-agroinfiltration-dataset repo. Importing</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="co"># them directly guarantees every human value is computed with byte-identical</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="co"># methodology.</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>uv_repo <span class="op">=</span> repo_root.parent <span class="op">/</span> <span class="st">"uv-agroinfiltration-dataset"</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>sys.path.append(<span class="bu">str</span>(uv_repo <span class="op">/</span> <span class="st">"src"</span>))</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> human_performance  <span class="co"># noqa: E402</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+</div>
+</section>
+<section id="paths" class="level3">
+<h3 class="anchored" data-anchor-id="paths">1.2 Paths</h3>
+<div id="4b44a330" class="cell" data-execution_count="2">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.2</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Cached Metric 3 full-dataset distribution (436/class, 1,000 iterations).</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>uv_hp_dir <span class="op">=</span> uv_repo <span class="op">/</span> <span class="st">"analyses"</span> <span class="op">/</span> <span class="st">"03_human_performance"</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>metric3_path <span class="op">=</span> uv_hp_dir <span class="op">/</span> <span class="st">"metric3_resampling.csv"</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Anonymised rater data (one row per CDA: three rater scores + their median).</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Use this repo's own tracked copy of the rater table rather than reaching into the</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="co"># sibling repo. That path broke when the sibling renamed 04_median_and_centre_coords -&gt;</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 04_representative_bounding_box_and_score; data/combined_cda_data_median.csv here is</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="co"># byte-identical to it and is version-controlled with this analysis.</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>rater_data_path <span class="op">=</span> repo_root <span class="op">/</span> <span class="st">"data"</span> <span class="op">/</span> <span class="st">"combined_cda_data_median.csv"</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="co"># The medoid_64 dataset definition - the fixed train/val/ensemble/test split.</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>split_path <span class="op">=</span> repo_root <span class="op">/</span> <span class="st">"data"</span> <span class="op">/</span> <span class="st">"datasets"</span> <span class="op">/</span> <span class="st">"medoid_64"</span> <span class="op">/</span> <span class="st">"medoid_64.csv"</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>analysis_dir <span class="op">=</span> repo_root <span class="op">/</span> <span class="st">"analyses"</span> <span class="op">/</span> <span class="st">"02_human_performance"</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>thesis_plots_dir <span class="op">=</span> analysis_dir <span class="op">/</span> <span class="st">"thesis_plots"</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Local cache for the test-sized distribution generated in section 4.</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>testsize_cache_path <span class="op">=</span> analysis_dir <span class="op">/</span> <span class="st">"metric3_testsize_resampling.csv"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+</div>
+</section>
+</section>
+<section id="load-the-cached-full-dataset-distribution" class="level2">
+<h2 class="anchored" data-anchor-id="load-the-cached-full-dataset-distribution">2. Load the cached full-dataset distribution</h2>
+<p>1,000 exact and near-miss values, one pair per iteration of stratified undersampling to 436 CDAs/class. Loaded, not recomputed.</p>
+<div id="c418732c" class="cell" data-execution_count="3">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>m3 <span class="op">=</span> pd.read_csv(metric3_path)</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>full_exact <span class="op">=</span> m3[<span class="st">"corrected_dist"</span>].to_numpy()</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>full_near <span class="op">=</span> m3[<span class="st">"corrected_nearmiss"</span>].to_numpy()</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Loaded </span><span class="sc">{</span><span class="bu">len</span>(full_exact)<span class="sc">}</span><span class="ss"> iterations (full-dataset, 436 CDAs/class)."</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Loaded 1000 iterations (full-dataset, 436 CDAs/class).</code></pre>
+</div>
+</div>
+</section>
+<section id="map-the-medoid_64-test-set-onto-the-rater-data-and-compute-its-value" class="level2">
+<h2 class="anchored" data-anchor-id="map-the-medoid_64-test-set-onto-the-rater-data-and-compute-its-value">3. Map the medoid_64 test set onto the rater data and compute its value</h2>
+<p>The medoid_64 filenames encode the CDA as <code>&lt;Basename&gt;_&lt;Row&gt;_&lt;Col&gt;_&lt;Pos&gt;.tif</code>. Stripping the trailing <code>_Row_Col_Pos</code> and the extension recovers the Basename, which matches the rater data case-insensitively. Every test CDA maps to a rater record, and its medoid_64 <code>label</code> equals the rater <code>Median_Score</code> - a check that the mapping is correct.</p>
+<div id="fe3509a9" class="cell" data-execution_count="4">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>rater_data <span class="op">=</span> pd.read_csv(rater_data_path)</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>split_manifest <span class="op">=</span> pd.read_csv(split_path)</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cda_key(basename_stem, row, col, pos):</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Case-insensitive join key shared by both datasets."""</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="ss">f"</span><span class="sc">{</span><span class="bu">str</span>(basename_stem)<span class="sc">.</span>lower()<span class="sc">}</span><span class="ss">_</span><span class="sc">{</span><span class="bu">int</span>(row)<span class="sc">}</span><span class="ss">_</span><span class="sc">{</span><span class="bu">int</span>(col)<span class="sc">}</span><span class="ss">_</span><span class="sc">{</span><span class="bu">int</span>(pos)<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>rater_data[<span class="st">"key"</span>] <span class="op">=</span> [</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>    cda_key(re.sub(<span class="vs">r"</span><span class="ch">\.</span><span class="pp">[^.]</span><span class="op">+</span><span class="dv">$</span><span class="vs">"</span>, <span class="st">""</span>, b), r, c, p)</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> b, r, c, p <span class="kw">in</span> <span class="bu">zip</span>(rater_data[<span class="st">"Basename"</span>], rater_data[<span class="st">"Row"</span>], rater_data[<span class="st">"Col"</span>], rater_data[<span class="st">"Pos"</span>])</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>test_split <span class="op">=</span> split_manifest[split_manifest[<span class="st">"split"</span>] <span class="op">==</span> <span class="st">"test"</span>].copy()</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> parse_filename(filename):</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>    stem <span class="op">=</span> re.sub(<span class="vs">r"</span><span class="ch">\.</span><span class="pp">[^.]</span><span class="op">+</span><span class="dv">$</span><span class="vs">"</span>, <span class="st">""</span>, filename)</span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>    match <span class="op">=</span> re.match(<span class="vs">r"</span><span class="dv">^</span><span class="kw">(</span><span class="dv">.</span><span class="op">*</span><span class="kw">)</span><span class="vs">_</span><span class="kw">(</span><span class="dv">\d</span><span class="op">+</span><span class="kw">)</span><span class="vs">_</span><span class="kw">(</span><span class="dv">\d</span><span class="op">+</span><span class="kw">)</span><span class="vs">_</span><span class="kw">(</span><span class="dv">\d</span><span class="op">+</span><span class="kw">)</span><span class="dv">$</span><span class="vs">"</span>, stem)</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> cda_key(match.group(<span class="dv">1</span>), match.group(<span class="dv">2</span>), match.group(<span class="dv">3</span>), match.group(<span class="dv">4</span>))</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>test_split[<span class="st">"key"</span>] <span class="op">=</span> test_split[<span class="st">"filename"</span>].<span class="bu">map</span>(parse_filename)</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>rater_test <span class="op">=</span> rater_data[rater_data[<span class="st">"key"</span>].isin(<span class="bu">set</span>(test_split[<span class="st">"key"</span>]))].copy()</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a><span class="co"># Integrity checks.</span></span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">len</span>(rater_test) <span class="op">==</span> <span class="bu">len</span>(test_split), (</span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"Mapped </span><span class="sc">{</span><span class="bu">len</span>(rater_test)<span class="sc">}</span><span class="ss"> rater records but the test split has </span><span class="sc">{</span><span class="bu">len</span>(test_split)<span class="sc">}</span><span class="ss"> CDAs."</span></span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>merged_check <span class="op">=</span> test_split.merge(</span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>    rater_data[[<span class="st">"key"</span>, <span class="st">"Median_Score"</span>]].drop_duplicates(<span class="st">"key"</span>), on<span class="op">=</span><span class="st">"key"</span>, how<span class="op">=</span><span class="st">"left"</span></span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> (merged_check[<span class="st">"label"</span>] <span class="op">==</span> merged_check[<span class="st">"Median_Score"</span>]).<span class="bu">all</span>(), (</span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a>    <span class="st">"medoid_64 label does not equal the rater Median_Score for every test CDA."</span></span>
+<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"All </span><span class="sc">{</span><span class="bu">len</span>(rater_test)<span class="sc">}</span><span class="ss"> test CDAs mapped; medoid_64 label == rater Median_Score for all of them."</span>)</span>
+<span id="cb5-39"><a href="#cb5-39" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Per-class test count:</span><span class="ch">\n</span><span class="sc">{</span>test_split[<span class="st">'label'</span>]<span class="sc">.</span>value_counts()<span class="sc">.</span>sort_index()<span class="sc">.</span>to_string()<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb5-40"><a href="#cb5-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-41"><a href="#cb5-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-42"><a href="#cb5-42" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> metric3_values(rater_wide):</span>
+<span id="cb5-43"><a href="#cb5-43" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Metric 3 exact &amp; near-miss on a wide-format rater table of CDAs.</span></span>
+<span id="cb5-44"><a href="#cb5-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-45"><a href="#cb5-45" aria-hidden="true" tabindex="-1"></a><span class="co">    Each row is given a unique synthetic CDA id so that bootstrap resamples</span></span>
+<span id="cb5-46"><a href="#cb5-46" aria-hidden="true" tabindex="-1"></a><span class="co">    (which draw whole CDAs with replacement, producing duplicate Basename/Row/</span></span>
+<span id="cb5-47"><a href="#cb5-47" aria-hidden="true" tabindex="-1"></a><span class="co">    Col/Pos) still uniquely identify each CDA for wide_to_long and for the</span></span>
+<span id="cb5-48"><a href="#cb5-48" aria-hidden="true" tabindex="-1"></a><span class="co">    per-CDA grouping inside corrected_median_agreement. This does not change the</span></span>
+<span id="cb5-49"><a href="#cb5-49" aria-hidden="true" tabindex="-1"></a><span class="co">    result on any table whose CDAs are already unique.</span></span>
+<span id="cb5-50"><a href="#cb5-50" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb5-51"><a href="#cb5-51" aria-hidden="true" tabindex="-1"></a>    rw <span class="op">=</span> rater_wide.copy()</span>
+<span id="cb5-52"><a href="#cb5-52" aria-hidden="true" tabindex="-1"></a>    rw[<span class="st">"Basename"</span>] <span class="op">=</span> np.arange(<span class="bu">len</span>(rw))</span>
+<span id="cb5-53"><a href="#cb5-53" aria-hidden="true" tabindex="-1"></a>    rw[<span class="st">"Row"</span>] <span class="op">=</span> rw[<span class="st">"Col"</span>] <span class="op">=</span> rw[<span class="st">"Pos"</span>] <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb5-54"><a href="#cb5-54" aria-hidden="true" tabindex="-1"></a>    <span class="bu">long</span> <span class="op">=</span> (</span>
+<span id="cb5-55"><a href="#cb5-55" aria-hidden="true" tabindex="-1"></a>        pd.wide_to_long(rw, stubnames<span class="op">=</span>[<span class="st">"Scorer"</span>, <span class="st">"Score"</span>], i<span class="op">=</span>[<span class="st">"Basename"</span>, <span class="st">"Row"</span>, <span class="st">"Col"</span>, <span class="st">"Pos"</span>], j<span class="op">=</span><span class="st">"num"</span>)</span>
+<span id="cb5-56"><a href="#cb5-56" aria-hidden="true" tabindex="-1"></a>        .reset_index()</span>
+<span id="cb5-57"><a href="#cb5-57" aria-hidden="true" tabindex="-1"></a>        .dropna(subset<span class="op">=</span>[<span class="st">"Score"</span>])</span>
+<span id="cb5-58"><a href="#cb5-58" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb5-59"><a href="#cb5-59" aria-hidden="true" tabindex="-1"></a>    corrected <span class="op">=</span> human_performance.corrected_median_agreement(<span class="bu">long</span>)</span>
+<span id="cb5-60"><a href="#cb5-60" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> corrected[<span class="st">"Exact_Match"</span>].mean(), corrected[<span class="st">"NearMiss_Match"</span>].mean()</span>
+<span id="cb5-61"><a href="#cb5-61" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-62"><a href="#cb5-62" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-63"><a href="#cb5-63" aria-hidden="true" tabindex="-1"></a>test_exact, test_near <span class="op">=</span> metric3_values(rater_test)</span>
+<span id="cb5-64"><a href="#cb5-64" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-65"><a href="#cb5-65" aria-hidden="true" tabindex="-1"></a><span class="co"># CDA-level bootstrap (resample whole CDAs with replacement) for a 95% CI on the</span></span>
+<span id="cb5-66"><a href="#cb5-66" aria-hidden="true" tabindex="-1"></a><span class="co"># fixed test-set point.</span></span>
+<span id="cb5-67"><a href="#cb5-67" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">42</span>)</span>
+<span id="cb5-68"><a href="#cb5-68" aria-hidden="true" tabindex="-1"></a>cda_ids <span class="op">=</span> rater_test.index.to_numpy()</span>
+<span id="cb5-69"><a href="#cb5-69" aria-hidden="true" tabindex="-1"></a>boot_exact, boot_near <span class="op">=</span> [], []</span>
+<span id="cb5-70"><a href="#cb5-70" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1000</span>):</span>
+<span id="cb5-71"><a href="#cb5-71" aria-hidden="true" tabindex="-1"></a>    sample <span class="op">=</span> rater_test.loc[rng.choice(cda_ids, size<span class="op">=</span><span class="bu">len</span>(cda_ids), replace<span class="op">=</span><span class="va">True</span>)]</span>
+<span id="cb5-72"><a href="#cb5-72" aria-hidden="true" tabindex="-1"></a>    e, n <span class="op">=</span> metric3_values(sample)</span>
+<span id="cb5-73"><a href="#cb5-73" aria-hidden="true" tabindex="-1"></a>    boot_exact.append(e)</span>
+<span id="cb5-74"><a href="#cb5-74" aria-hidden="true" tabindex="-1"></a>    boot_near.append(n)</span>
+<span id="cb5-75"><a href="#cb5-75" aria-hidden="true" tabindex="-1"></a>test_exact_ci <span class="op">=</span> (np.quantile(boot_exact, <span class="fl">0.025</span>), np.quantile(boot_exact, <span class="fl">0.975</span>))</span>
+<span id="cb5-76"><a href="#cb5-76" aria-hidden="true" tabindex="-1"></a>test_near_ci <span class="op">=</span> (np.quantile(boot_near, <span class="fl">0.025</span>), np.quantile(boot_near, <span class="fl">0.975</span>))</span>
+<span id="cb5-77"><a href="#cb5-77" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-78"><a href="#cb5-78" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Metric 3 test-set value:"</span>)</span>
+<span id="cb5-79"><a href="#cb5-79" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Exact:     </span><span class="sc">{</span>test_exact <span class="op">*</span> <span class="dv">100</span><span class="sc">:.2f}</span><span class="ss">%  (bootstrap 95% CI </span><span class="sc">{</span>test_exact_ci[<span class="dv">0</span>] <span class="op">*</span> <span class="dv">100</span><span class="sc">:.2f}</span><span class="ss">-</span><span class="sc">{</span>test_exact_ci[<span class="dv">1</span>] <span class="op">*</span> <span class="dv">100</span><span class="sc">:.2f}</span><span class="ss">%)"</span>)</span>
+<span id="cb5-80"><a href="#cb5-80" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Near-Miss: </span><span class="sc">{</span>test_near <span class="op">*</span> <span class="dv">100</span><span class="sc">:.2f}</span><span class="ss">%  (bootstrap 95% CI </span><span class="sc">{</span>test_near_ci[<span class="dv">0</span>] <span class="op">*</span> <span class="dv">100</span><span class="sc">:.2f}</span><span class="ss">-</span><span class="sc">{</span>test_near_ci[<span class="dv">1</span>] <span class="op">*</span> <span class="dv">100</span><span class="sc">:.2f}</span><span class="ss">%)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>All 308 test CDAs mapped; medoid_64 label == rater Median_Score for all of them.
+Per-class test count:
+label
+0    44
+1    44
+2    44
+3    44
+4    44
+5    44
+6    44
+
+Metric 3 test-set value:
+  Exact:     68.92%  (bootstrap 95% CI 65.31-72.38%)
+  Near-Miss: 92.80%  (bootstrap 95% CI 91.10-94.43%)</code></pre>
+</div>
+</div>
+</section>
+<section id="generate-the-test-sized-distribution-44-cdasclass" class="level2">
+<h2 class="anchored" data-anchor-id="generate-the-test-sized-distribution-44-cdasclass">4. Generate the test-sized distribution (44 CDAs/class)</h2>
+<p>The same stratified-undersampling procedure as the cached distribution, but drawing 44 CDAs/class (the test set’s size) instead of 436, over 1,000 seeds. This distribution’s spread is the genuine sampling noise of a test-sized estimate, so it is the fair reference for the single test-set value. Cached to CSV so re-renders are instant.</p>
+<div id="c08f0b77" class="cell" data-execution_count="5">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>n_per_class <span class="op">=</span> <span class="bu">int</span>(test_split[<span class="st">"label"</span>].value_counts().<span class="bu">min</span>())  <span class="co"># 44</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> testsize_cache_path.exists():</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    ts <span class="op">=</span> pd.read_csv(testsize_cache_path)</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    testsize_exact <span class="op">=</span> ts[<span class="st">"exact"</span>].to_numpy()</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    testsize_near <span class="op">=</span> ts[<span class="st">"near"</span>].to_numpy()</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Loaded cached test-sized distribution (</span><span class="sc">{</span><span class="bu">len</span>(testsize_exact)<span class="sc">}</span><span class="ss"> iterations, </span><span class="sc">{</span>n_per_class<span class="sc">}</span><span class="ss"> CDAs/class)."</span>)</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Generating test-sized distribution (</span><span class="sc">{</span>n_per_class<span class="sc">}</span><span class="ss"> CDAs/class, 1,000 iterations)..."</span>)</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    testsize_exact, testsize_near <span class="op">=</span> [], []</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> seed <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, <span class="dv">1001</span>):</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>        sub <span class="op">=</span> rater_data.groupby(<span class="st">"Median_Score"</span>, group_keys<span class="op">=</span><span class="va">False</span>).sample(n<span class="op">=</span>n_per_class, random_state<span class="op">=</span>seed)</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>        e, n <span class="op">=</span> metric3_values(sub)</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>        testsize_exact.append(e)</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>        testsize_near.append(n)</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    testsize_exact <span class="op">=</span> np.array(testsize_exact)</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    testsize_near <span class="op">=</span> np.array(testsize_near)</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>    pd.DataFrame({<span class="st">"exact"</span>: testsize_exact, <span class="st">"near"</span>: testsize_near}).to_csv(testsize_cache_path, index<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"Done and cached."</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Loaded cached test-sized distribution (1000 iterations, 44 CDAs/class).</code></pre>
+</div>
+</div>
+</section>
+<section id="where-the-test-set-value-sits-in-each-distribution" class="level2">
+<h2 class="anchored" data-anchor-id="where-the-test-set-value-sits-in-each-distribution">5. Where the test-set value sits in each distribution</h2>
+<div id="b5ad7ece" class="cell" data-execution_count="6">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 5</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> dist_report(dist, test_value, name):</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    dist <span class="op">=</span> np.asarray(dist)</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    mean <span class="op">=</span> <span class="bu">float</span>(np.mean(dist))</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    sd <span class="op">=</span> <span class="bu">float</span>(np.std(dist))</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    pct <span class="op">=</span> <span class="bu">float</span>((dist <span class="op">&lt;</span> test_value).mean() <span class="op">*</span> <span class="dv">100</span>)</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>name<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  distribution: mean </span><span class="sc">{</span>mean<span class="sc">:.4f}</span><span class="ss">, SD </span><span class="sc">{</span>sd<span class="sc">:.4f}</span><span class="ss">, 95% range [</span><span class="sc">{</span>np<span class="sc">.</span>quantile(dist, <span class="fl">0.025</span>)<span class="sc">:.4f}</span><span class="ss">, </span><span class="sc">{</span>np<span class="sc">.</span>quantile(dist, <span class="fl">0.975</span>)<span class="sc">:.4f}</span><span class="ss">]"</span>)</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  test value </span><span class="sc">{</span>test_value<span class="sc">:.4f}</span><span class="ss"> -&gt; </span><span class="sc">{</span>pct<span class="sc">:.1f}</span><span class="ss">th percentile</span><span class="ch">\n</span><span class="ss">"</span>)</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"=== EXACT ==="</span>)</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>dist_report(full_exact, test_exact, <span class="st">"Full-dataset distribution (436/class)"</span>)</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>dist_report(testsize_exact, test_exact, <span class="st">"Test-sized distribution (44/class)"</span>)</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"=== NEAR-MISS ==="</span>)</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>dist_report(full_near, test_near, <span class="st">"Full-dataset distribution (436/class)"</span>)</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>dist_report(testsize_near, test_near, <span class="st">"Test-sized distribution (44/class)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>=== EXACT ===
+Full-dataset distribution (436/class)
+  distribution: mean 0.6951, SD 0.0027, 95% range [0.6900, 0.7004]
+  test value 0.6892 -&gt; 1.5th percentile
+
+Test-sized distribution (44/class)
+  distribution: mean 0.6945, SD 0.0150, 95% range [0.6641, 0.7219]
+  test value 0.6892 -&gt; 34.7th percentile
+
+=== NEAR-MISS ===
+Full-dataset distribution (436/class)
+  distribution: mean 0.9266, SD 0.0015, 95% range [0.9237, 0.9295]
+  test value 0.9280 -&gt; 84.3th percentile
+
+Test-sized distribution (44/class)
+  distribution: mean 0.9262, SD 0.0084, 95% range [0.9084, 0.9414]
+  test value 0.9280 -&gt; 56.6th percentile
+</code></pre>
+</div>
+</div>
+<p>The percentile against the <strong>full-dataset</strong> distribution can look extreme because that distribution is far tighter than the test set’s own sampling error (more data, overlapping draws). The <strong>test-sized</strong> distribution is the honest reference: it shows the test value is an ordinary draw. Either way, the model is compared against the single test-set value, so all that matters is that it lies within the range of plausible human agreement - which it does.</p>
+</section>
+<section id="distribution-plots" class="level2">
+<h2 class="anchored" data-anchor-id="distribution-plots">6. Distribution plots</h2>
+<div id="f0afb9a9" class="cell" data-execution_count="7">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> plot_distribution(dist, out_path, x_label, test_value, test_interval<span class="op">=</span><span class="va">None</span>):</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    dist <span class="op">=</span> np.asarray(dist)</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    mean <span class="op">=</span> <span class="bu">float</span>(np.mean(dist))</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    plt.figure(figsize<span class="op">=</span>(<span class="dv">10</span>, <span class="dv">6</span>))</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    plt.hist(dist, bins<span class="op">=</span><span class="st">"auto"</span>, alpha<span class="op">=</span><span class="fl">0.75</span>, color<span class="op">=</span><span class="st">"skyblue"</span>, edgecolor<span class="op">=</span><span class="st">"black"</span>)</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>    plt.axvline(mean, color<span class="op">=</span><span class="st">"red"</span>, linestyle<span class="op">=</span><span class="st">"--"</span>, linewidth<span class="op">=</span><span class="dv">2</span>, label<span class="op">=</span><span class="ss">f"Distribution mean: </span><span class="sc">{</span>mean<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>    plt.axvline(test_value, color<span class="op">=</span><span class="st">"green"</span>, linestyle<span class="op">=</span><span class="st">"-"</span>, linewidth<span class="op">=</span><span class="dv">2</span>, label<span class="op">=</span><span class="ss">f"Test set: </span><span class="sc">{</span>test_value<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> test_interval <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>        plt.axvline(test_interval[<span class="dv">0</span>], color<span class="op">=</span><span class="st">"green"</span>, linestyle<span class="op">=</span><span class="st">":"</span>, linewidth<span class="op">=</span><span class="fl">1.5</span>,</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>                    label<span class="op">=</span><span class="ss">f"Test-set 95% CI: [</span><span class="sc">{</span>test_interval[<span class="dv">0</span>]<span class="sc">:.4f}</span><span class="ss">, </span><span class="sc">{</span>test_interval[<span class="dv">1</span>]<span class="sc">:.4f}</span><span class="ss">]"</span>)</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>        plt.axvline(test_interval[<span class="dv">1</span>], color<span class="op">=</span><span class="st">"green"</span>, linestyle<span class="op">=</span><span class="st">":"</span>, linewidth<span class="op">=</span><span class="fl">1.5</span>)</span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>    plt.xlabel(x_label)</span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>    plt.ylabel(<span class="st">"Frequency"</span>)</span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>    plt.legend(loc<span class="op">=</span><span class="st">"upper left"</span>)</span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>    plt.grid(axis<span class="op">=</span><span class="st">"y"</span>, linestyle<span class="op">=</span><span class="st">"--"</span>, alpha<span class="op">=</span><span class="fl">0.7</span>)</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>    plt.savefig(out_path, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>    plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+</div>
+<section id="full-dataset-distribution-436-cdasclass" class="level3">
+<h3 class="anchored" data-anchor-id="full-dataset-distribution-436-cdasclass">6.1 Full-dataset distribution (436 CDAs/class)</h3>
+<p>The cached distribution. The test-set value’s bootstrap 95% CI (dashed) shows that its distance from the mean is small relative to its own uncertainty.</p>
+<div id="655d41ee" class="cell" data-execution_count="8">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6.1</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>plot_distribution(full_exact, <span class="bu">str</span>(thesis_plots_dir <span class="op">/</span> <span class="st">"metric3_exact_full_dataset_dist.png"</span>),</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>                  <span class="st">"Exact Accuracy (corrected agreement with median)"</span>, test_exact, test_exact_ci)</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>plot_distribution(full_near, <span class="bu">str</span>(thesis_plots_dir <span class="op">/</span> <span class="st">"metric3_nearmiss_full_dataset_dist.png"</span>),</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>                  <span class="st">"Near-Miss Accuracy (corrected agreement with median)"</span>, test_near, test_near_ci)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="02_human_performance_files/figure-html/cell-9-output-1.png" width="817" height="504" class="figure-img"></p>
+<figcaption>Metric 3 human agreement over 1,000 iterations of stratified undersampling to 436 CDAs/class, with the medoid_64 test-set value and its bootstrap 95% CI. (a) Exact. (b) Near-miss.</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="02_human_performance_files/figure-html/cell-9-output-2.png" width="817" height="504" class="figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="test-sized-distribution-44-cdasclass" class="level3">
+<h3 class="anchored" data-anchor-id="test-sized-distribution-44-cdasclass">6.2 Test-sized distribution (44 CDAs/class)</h3>
+<p>The reference at the test set’s own size. The histogram’s spread is the real sampling noise of a 308-CDA estimate, and the test-set value (green) sits well inside it.</p>
+<div id="278b91ad" class="cell" data-execution_count="9">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6.2</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>plot_distribution(testsize_exact, <span class="bu">str</span>(thesis_plots_dir <span class="op">/</span> <span class="st">"metric3_exact_test_sized_dist.png"</span>),</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>                  <span class="st">"Exact Accuracy (corrected agreement with median)"</span>, test_exact)</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>plot_distribution(testsize_near, <span class="bu">str</span>(thesis_plots_dir <span class="op">/</span> <span class="st">"metric3_nearmiss_test_sized_dist.png"</span>),</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>                  <span class="st">"Near-Miss Accuracy (corrected agreement with median)"</span>, test_near)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="02_human_performance_files/figure-html/cell-10-output-1.png" width="817" height="504" class="figure-img"></p>
+<figcaption>Metric 3 human agreement over 1,000 iterations of stratified undersampling to 44 CDAs/class (the test set’s size), with the medoid_64 test-set value. (a) Exact. (b) Near-miss.</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="02_human_performance_files/figure-html/cell-10-output-2.png" width="817" height="504" class="figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+</section>
+<section id="interpretation" class="level2">
+<h2 class="anchored" data-anchor-id="interpretation">7. Interpretation</h2>
+<div id="4e70a10b" class="cell" data-execution_count="10">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 7</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Metric 3 human benchmark on the medoid_64 test set (the value the model is compared against):"</span>)</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Exact:     </span><span class="sc">{</span>test_exact <span class="op">*</span> <span class="dv">100</span><span class="sc">:.2f}</span><span class="ss">%"</span>)</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Near-Miss: </span><span class="sc">{</span>test_near <span class="op">*</span> <span class="dv">100</span><span class="sc">:.2f}</span><span class="ss">%"</span>)</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Test-sized distribution (44/class) means: exact </span><span class="sc">{</span>np<span class="sc">.</span>mean(testsize_exact) <span class="op">*</span> <span class="dv">100</span><span class="sc">:.2f}</span><span class="ss">%, near-miss </span><span class="sc">{</span>np<span class="sc">.</span>mean(testsize_near) <span class="op">*</span> <span class="dv">100</span><span class="sc">:.2f}</span><span class="ss">%"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Metric 3 human benchmark on the medoid_64 test set (the value the model is compared against):
+  Exact:     68.92%
+  Near-Miss: 92.80%
+
+Test-sized distribution (44/class) means: exact 69.45%, near-miss 92.62%</code></pre>
+</div>
+</div>
+<p>The test-set value lies within the test-sized distribution of human agreement, so the held-out split is a plausible, representative draw. Its small size means it can sit a little either side of the full-dataset mean by chance, but that is immaterial: the model’s exact and near-miss test accuracy are compared directly against this single value, measured on the identical, class-balanced test CDAs.</p>
+</section>
+<section id="confusion-matrix" class="level2">
+<h2 class="anchored" data-anchor-id="confusion-matrix">8. Confusion matrix</h2>
+<p>Drawn with <code>_plot_confusion_matrix</code> from <code>src/cnn_base.py</code>, so it matches every model confusion matrix in this project: counts rather than proportions, the Greens colour map, a “Frequency” colour bar and a black border on the diagonal.</p>
+<p>Rows are a CDA’s median score, columns are what an individual rater gave it, one entry per rater judgement. The tautological matches Metric 3 removes – the rater whose own score is the median when all three disagree – are excluded, so the diagonal counts genuine agreement only.</p>
+<div id="f6291288" class="cell" data-execution_count="11">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 8</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> sys <span class="im">as</span> _sys</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>_sys.path.append(<span class="bu">str</span>(repo_root <span class="op">/</span> <span class="st">"src"</span>))</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> cnn_base <span class="im">import</span> _plot_confusion_matrix  <span class="co"># noqa: E402</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Same wide-to-long reshape metric3_values uses, so the matrix counts exactly the rater</span></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a><span class="co"># judgements Metric 3 scores.</span></span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>_rw <span class="op">=</span> rater_test.copy()</span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>_rw[<span class="st">"Basename"</span>] <span class="op">=</span> np.arange(<span class="bu">len</span>(_rw))</span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>_rw[<span class="st">"Row"</span>] <span class="op">=</span> _rw[<span class="st">"Col"</span>] <span class="op">=</span> _rw[<span class="st">"Pos"</span>] <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>_long <span class="op">=</span> (pd.wide_to_long(_rw, stubnames<span class="op">=</span>[<span class="st">"Scorer"</span>, <span class="st">"Score"</span>],</span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>                         i<span class="op">=</span>[<span class="st">"Basename"</span>, <span class="st">"Row"</span>, <span class="st">"Col"</span>, <span class="st">"Pos"</span>], j<span class="op">=</span><span class="st">"num"</span>)</span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>         .reset_index().dropna(subset<span class="op">=</span>[<span class="st">"Score"</span>]))</span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>corrected <span class="op">=</span> human_performance.corrected_median_agreement(_long)</span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a>keep <span class="op">=</span> <span class="op">~</span>((corrected.Agreement_Pattern <span class="op">==</span> <span class="st">"All different"</span>) <span class="op">&amp;</span> corrected.Raw_Exact_Match)</span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a>cm <span class="op">=</span> (pd.crosstab(corrected.loc[keep, <span class="st">"Median_Score"</span>].astype(<span class="bu">int</span>),</span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a>                  corrected.loc[keep, <span class="st">"Score"</span>].astype(<span class="bu">int</span>))</span>
+<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a>      .reindex(index<span class="op">=</span><span class="bu">range</span>(<span class="dv">7</span>), columns<span class="op">=</span><span class="bu">range</span>(<span class="dv">7</span>), fill_value<span class="op">=</span><span class="dv">0</span>).to_numpy())</span>
+<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a>_plot_confusion_matrix(cm, np.arange(<span class="dv">7</span>), (<span class="st">"Median severity score"</span>, <span class="st">"Individual rater score"</span>),</span>
+<span id="cb16-21"><a href="#cb16-21" aria-hidden="true" tabindex="-1"></a>                       <span class="bu">str</span>(thesis_plots_dir <span class="op">/</span> <span class="st">"human_confusion_matrix.png"</span>))</span>
+<span id="cb16-22"><a href="#cb16-22" aria-hidden="true" tabindex="-1"></a><span class="co"># Exported so other analyses can difference their own matrices against this baseline.</span></span>
+<span id="cb16-23"><a href="#cb16-23" aria-hidden="true" tabindex="-1"></a><span class="co"># Counts are not comparable across analyses (917 rater judgements here against 308 model</span></span>
+<span id="cb16-24"><a href="#cb16-24" aria-hidden="true" tabindex="-1"></a><span class="co"># predictions), so consumers must row-normalise both before subtracting.</span></span>
+<span id="cb16-25"><a href="#cb16-25" aria-hidden="true" tabindex="-1"></a><span class="co">#</span></span>
+<span id="cb16-26"><a href="#cb16-26" aria-hidden="true" tabindex="-1"></a><span class="co"># An eighth column carries the tautological judgements Metric 3 removes. They cannot go</span></span>
+<span id="cb16-27"><a href="#cb16-27" aria-hidden="true" tabindex="-1"></a><span class="co"># anywhere else: each one has Score == Median_Score exactly, so its only cell is the</span></span>
+<span id="cb16-28"><a href="#cb16-28" aria-hidden="true" tabindex="-1"></a><span class="co"># diagonal, which is the cell the correction forbids. Dropping them from the table</span></span>
+<span id="cb16-29"><a href="#cb16-29" aria-hidden="true" tabindex="-1"></a><span class="co"># entirely leaves 875 judgements, and row-normalising over 875 gives a human diagonal of</span></span>
+<span id="cb16-30"><a href="#cb16-30" aria-hidden="true" tabindex="-1"></a><span class="co"># 72.23% while the reported Metric 3 rate divides the same diagonal by 917 and gets</span></span>
+<span id="cb16-31"><a href="#cb16-31" aria-hidden="true" tabindex="-1"></a><span class="co"># 68.92%. Any consumer that row-normalises the 7-column form is therefore comparing a</span></span>
+<span id="cb16-32"><a href="#cb16-32" aria-hidden="true" tabindex="-1"></a><span class="co"># model against an inflated human rate. Keeping them as their own column restores the 917</span></span>
+<span id="cb16-33"><a href="#cb16-33" aria-hidden="true" tabindex="-1"></a><span class="co"># denominator and makes the row proportions directly comparable with a model's.</span></span>
+<span id="cb16-34"><a href="#cb16-34" aria-hidden="true" tabindex="-1"></a>taut <span class="op">=</span> (corrected.loc[</span>
+<span id="cb16-35"><a href="#cb16-35" aria-hidden="true" tabindex="-1"></a>    (corrected.Agreement_Pattern <span class="op">==</span> <span class="st">"All different"</span>) <span class="op">&amp;</span> corrected.Raw_Exact_Match,</span>
+<span id="cb16-36"><a href="#cb16-36" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Median_Score"</span>].astype(<span class="bu">int</span>).value_counts().reindex(<span class="bu">range</span>(<span class="dv">7</span>), fill_value<span class="op">=</span><span class="dv">0</span>).to_numpy())</span>
+<span id="cb16-37"><a href="#cb16-37" aria-hidden="true" tabindex="-1"></a>cm_full <span class="op">=</span> np.hstack([cm, taut[:, <span class="va">None</span>]])</span>
+<span id="cb16-38"><a href="#cb16-38" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> cm_full.<span class="bu">sum</span>() <span class="op">==</span> <span class="bu">len</span>(corrected), <span class="st">"the eight-column matrix must hold every judgement"</span></span>
+<span id="cb16-39"><a href="#cb16-39" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">abs</span>(np.trace(cm) <span class="op">/</span> cm_full.<span class="bu">sum</span>() <span class="op">-</span> <span class="fl">0.6892</span>) <span class="op">&lt;</span> <span class="fl">5e-4</span>, <span class="st">"must reproduce the Metric 3 rate"</span></span>
+<span id="cb16-40"><a href="#cb16-40" aria-hidden="true" tabindex="-1"></a>pd.DataFrame(cm_full, index<span class="op">=</span><span class="bu">range</span>(<span class="dv">7</span>),</span>
+<span id="cb16-41"><a href="#cb16-41" aria-hidden="true" tabindex="-1"></a>             columns<span class="op">=</span>[<span class="op">*</span><span class="bu">range</span>(<span class="dv">7</span>), <span class="st">"tautological"</span>]).to_csv(</span>
+<span id="cb16-42"><a href="#cb16-42" aria-hidden="true" tabindex="-1"></a>    thesis_plots_dir <span class="op">/</span> <span class="st">"human_confusion_matrix.csv"</span>)</span>
+<span id="cb16-43"><a href="#cb16-43" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"tautological judgements per median score: </span><span class="sc">{</span>taut<span class="sc">.</span>tolist()<span class="sc">}</span><span class="ss"> (total </span><span class="sc">{</span><span class="bu">int</span>(taut.<span class="bu">sum</span>())<span class="sc">}</span><span class="ss">)"</span>)</span>
+<span id="cb16-44"><a href="#cb16-44" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"diagonal / all </span><span class="sc">{</span><span class="bu">int</span>(cm_full.<span class="bu">sum</span>())<span class="sc">}</span><span class="ss"> judgements = </span><span class="sc">{</span>np<span class="sc">.</span>trace(cm) <span class="op">/</span> cm_full<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb16-45"><a href="#cb16-45" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>cm<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">}</span><span class="ss"> rater judgements counted; </span><span class="sc">{</span>np<span class="sc">.</span>trace(cm)<span class="sc">}</span><span class="ss"> on the diagonal "</span></span>
+<span id="cb16-46"><a href="#cb16-46" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"(</span><span class="sc">{</span>np<span class="sc">.</span>trace(cm) <span class="op">/</span> cm<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:.4f}</span><span class="ss">)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stderr">
+<pre><code>2026-09-14 00:16:23.609788: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.</code></pre>
+</div>
+<div class="cell-output cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="02_human_performance_files/figure-html/cell-12-output-2.png" width="677" height="566" class="figure-img"></p>
+<figcaption>Human rater agreement with the median on the 308 medoid_64 test CDAs, Metric 3 (corrected).</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>tautological judgements per median score: [0, 2, 14, 8, 8, 10, 0] (total 42)
+diagonal / all 917 judgements = 0.6892
+875 rater judgements counted; 632 on the diagonal (0.7223)</code></pre>
+</div>
+</div>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

@@ -2,12 +2,12 @@
 #SBATCH -p jic-gpu
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem 16000
-#SBATCH --time=1-00:00:00
+#SBATCH --mem 40000
+#SBATCH --time=2-00:00:00
 #SBATCH --job-name="base_vit_search"
 #SBATCH -o slurm.run_search_%a.out
 #SBATCH -e slurm.run_search_%a.err
-#SBATCH --array=1-16
+#SBATCH --array=1-8
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=jowillia@nbi.ac.uk
 
@@ -24,10 +24,13 @@
 # the verified way to run this exact image on a GPU. --nv exposes the GPU to the
 # container; without it TensorFlow silently falls back to CPU.
 #
-# --array=1-16 asks for up to 16 concurrent GPUs; SLURM runs as many as your QOS allows
-# and queues the rest -- because the tasks self-schedule, the exact number is not
-# critical (more GPUs = shorter wall clock). 4 CPUs is plenty to feed the in-memory
-# dataset. --time is 1 day per task; a re-submit resumes from the shared counter.
+# Memory tuned after ViTs OOM'd at the earlier settings: --mem is 40 GB (host) and the
+# batch size was dropped to 32 in run_search.py, since the largest configs (patch 4 ->
+# 256 tokens, proj 128, depth 6) exhausted memory. --array=1-8 (down from 16) keeps
+# fewer heavy tasks running at once; SLURM runs as many as your QOS allows and queues
+# the rest -- self-scheduling means the exact number is not critical (more GPUs = shorter
+# wall clock). 4 CPUs feed the in-memory dataset. --time is 2 days; a re-submit resumes
+# from the shared counter. The harness now frees GPU memory per CV fold (src/random_search.py).
 img="$HOME/singularity/TensorFlow/TensorFlowGPU_2_21_0.img"
 top_n=100
 

@@ -1,0 +1,60 @@
+
+Starting agroinfiltration_scoring kernel...[IPKernelApp] WARNING | Kernel is running over TCP without encryption. All communication (including code and outputs) is sent in plain text and is susceptible to eavesdropping. Use IPC transport or launch with kernel manager-provisioned CurveZMQ keys to enable transport encryption.
+Done
+
+Executing 'test_image_difficulty.quarto_ipynb'
+  Cell 1/22: ''...Done
+  Cell 2/22: ''...Done
+  Cell 3/22: ''...Done
+  Cell 4/22: ''...Done
+  Cell 5/22: ''...Done
+  Cell 6/22: ''...Done
+  Cell 7/22: ''...Done
+  Cell 8/22: ''...Done
+  Cell 9/22: ''...Done
+  Cell 10/22: ''...Done
+  Cell 11/22: ''...Done
+  Cell 12/22: ''...Done
+  Cell 13/22: ''...Done
+  Cell 14/22: ''...Done
+  Cell 15/22: ''...Done
+  Cell 16/22: ''...Done
+  Cell 17/22: ''...2026-09-11 20:15:52.279561: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1789154161.878697 11861830 service.cc:145] XLA service 0x600003cd0400 initialized for platform Host (this does not guarantee that XLA will be used). Devices:
+I0000 00:00:1789154161.879056 11861830 service.cc:153]   StreamExecutor device (0): Host, Default Version
+2026-09-11 20:16:01.879970: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2026-09-11 20:16:01.978963: I tensorflow/compiler/mlir/tensorflow/utils/dump_mlir_util.cc:268] disabling MLIR crash reproducer, set env var `MLIR_CRASH_REPRODUCER_DIRECTORY` to enable.
+I0000 00:00:1789154163.824712 11861830 device_compiler.h:188] Compiled cluster using XLA!  This line is logged at most once for the lifetime of the process.
+Done
+  Cell 18/22: ''...Done
+  Cell 19/22: ''...Done
+  Cell 20/22: ''...Done
+  Cell 21/22: ''...Done
+  Cell 22/22: ''...Done
+
+[1mpandoc [22m
+  to: html
+  output-file: test_image_difficulty.html
+  standalone: true
+  section-divs: true
+  html-math-method: mathjax
+  wrap: none
+  default-image-extension: png
+  toc: true
+  variables: {}
+  
+[1mmetadata[22m
+  document-css: false
+  link-citations: true
+  date-format: long
+  lang: en
+  engines:
+    - path: /Applications/quarto/share/extension-subtrees/julia-engine/_extensions/julia-engine/julia-engine.js
+  title: 'The top-100 CNNs as a committee: per-image difficulty, model diversity, and ensembles'
+  jupyter: agroinfiltration_scoring
+  
+Output created: test_image_difficulty.html
+
