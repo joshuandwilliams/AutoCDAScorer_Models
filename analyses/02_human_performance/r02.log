@@ -1,0 +1,41 @@
+
+Starting agroinfiltration_scoring kernel...[IPKernelApp] WARNING | Kernel is running over TCP without encryption. All communication (including code and outputs) is sent in plain text and is susceptible to eavesdropping. Use IPC transport or launch with kernel manager-provisioned CurveZMQ keys to enable transport encryption.
+Done
+
+Executing '02_human_performance.quarto_ipynb'
+  Cell 1/11: ''...Done
+  Cell 2/11: ''...Done
+  Cell 3/11: ''...Done
+  Cell 4/11: ''...Done
+  Cell 5/11: ''...Done
+  Cell 6/11: ''...Done
+  Cell 7/11: ''...Done
+  Cell 8/11: ''...Done
+  Cell 9/11: ''...Done
+  Cell 10/11: ''...Done
+  Cell 11/11: ''...2026-09-11 17:10:57.611402: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+Done
+
+[1mpandoc [22m
+  to: html
+  output-file: 02_human_performance.html
+  standalone: true
+  section-divs: true
+  html-math-method: mathjax
+  wrap: none
+  default-image-extension: png
+  variables: {}
+  
+[1mmetadata[22m
+  document-css: false
+  link-citations: true
+  date-format: long
+  lang: en
+  engines:
+    - path: /Applications/quarto/share/extension-subtrees/julia-engine/_extensions/julia-engine/julia-engine.js
+  title: Human rater performance on the medoid_64 test set
+  jupyter: agroinfiltration_scoring
+  
+Output created: 02_human_performance.html
+

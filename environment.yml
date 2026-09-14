@@ -32,3 +32,12 @@ dependencies:
       - pytest-cov
       - pytest-mock
       - pyfakefs
+      # Local Quarto rendering: this TF env is the kernel for analyses that must run
+      # the saved models locally (e.g. analyses/05_test_image_difficulty). ipykernel
+      # alone is not enough for quarto's jupyter engine, which also needs the
+      # nbclient/nbformat/yaml stack. None of this is in the HPC container.
+      - ipykernel
+      - jupyter_client
+      - nbclient
+      - nbformat
+      - pyyaml

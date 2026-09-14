@@ -76,10 +76,30 @@ fi
 mkdir -p "$DST"
 echo "Pulling results: ${SRC} -> ${DST}"
 
-# Include only result artefacts (recurse dirs, keep array_task*/ subtrees
-# and result CSVs), exclude everything else.
+# Include only result artefacts (recurse into every dir, keep the files the search
+# harness actually writes), exclude everything else.
+#
+# These patterns must track src/random_search.py and src/results_store.py. The harness
+# writes: results/<avg_vaf>_<model_id>/{model.keras,*.png}, parts/<run_id>.csv,
+# random_search_results.csv, threshold.txt, next.txt, and (run_single_test.py)
+# testrun/<config>/bench.json, memtest/<phase>/memory_samples.json. The array_task*/
+# and results_*.csv patterns below are
+# kept only for the older from_HPC-era layout; they match nothing in the current one.
 rsync -av --prune-empty-dirs $DRY_RUN -e ssh \
     --include='*/' \
+    --include='*.keras' \
+    --include='*.png' \
+    --include='random_search_results.csv' \
+    --include='threshold.txt' \
+    --include='next.txt' \
+    --include='bench.json' \
+    --include='memory_samples.json' \
+    --include='features.npz' \
+    --include='bench_result_*.csv' \
+    --include='parts/*.csv' \
+    --include='logs/**' \
+    --include='*.out' \
+    --include='*.err' \
     --include='array_task*/**' \
     --include='results_*.csv' \
     --include='combined_sorted_results.csv' \

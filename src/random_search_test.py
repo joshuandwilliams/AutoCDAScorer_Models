@@ -215,3 +215,142 @@ def _three_config_space():
         "opt": ["Adam"],
         "dropout": [0.0],
     }
+
+
+def test_soft_targets_are_used_for_training_not_validation(monkeypatch):
+    """soft_targets must replace the one-hot TRAINING target and leave validation alone.
+
+    Guards the models/05 soft-label run: if this plumbing broke, that search would
+    silently train on one-hot medians and look like a duplicate of models/03.
+    """
+    import numpy as np
+    import tensorflow as tf
+
+    from model_builders import CNNModelBuilder
+    from random_search import RandomSearch
+
+    seen = {}
+
+    class Recorder(CNNModelBuilder):
+        def build(self, params, input_shape, num_classes):
+            model = super().build(params, input_shape, num_classes)
+            real_fit = model.fit
+
+            def fit(x, y, **kw):
+                seen.setdefault("train_y", []).append(np.asarray(y))
+                seen.setdefault("val_y", []).append(np.asarray(kw["validation_data"][1]))
+                return real_fit(x, y, **kw)
+
+            model.fit = fit
+            return model
+
+    rng = np.random.default_rng(0)
+    X = rng.random((70, 16, 16, 3)).astype("float32")
+    y = np.tile(np.arange(7), 10)
+    # A soft target that is deliberately NOT one-hot and NOT peaked at the hard label.
+    soft = np.full((70, 7), 1.0 / 7.0, dtype="float32")
+
+    space = {
+        "num_filters": [4], "filter_size": [3], "learning_rate": [0.01], "epochs": [1],
+        "num_layers": [1], "pooling_size": [2], "activation_function": ["relu"],
+        "batch_size": [16], "reg": [None], "reg_strength": [0.0001], "opt": ["Adam"],
+        "dropout": [0.0],
+    }
+    s = RandomSearch(Recorder(), space, k=2, seed=1, cv_seed=42, run_id="t")
+    s._cross_validate(
+        list(__import__("sklearn.model_selection", fromlist=["ParameterGrid"])
+             .ParameterGrid(space))[0],
+        X, y, sorted(set(y.tolist())), soft_targets=soft,
+    )
+
+    train_y = np.concatenate(seen["train_y"])
+    val_y = np.concatenate(seen["val_y"])
+    # Training target is the uniform soft distribution, not one-hot.
+    assert np.allclose(train_y, 1.0 / 7.0), "training did not use the soft targets"
+    # Validation target is still one-hot on the hard label.
+    assert set(np.unique(val_y).tolist()) <= {0.0, 1.0}, "validation target was softened"
+    assert np.allclose(val_y.sum(axis=1), 1.0)
+
+
+def test_grouped_folds_keep_augmented_copies_with_their_source():
+    """No group may straddle the train/validation boundary of any fold.
+
+    Guards the models/07 augmented runs. An augmented crop shares its ``source`` index with
+    the real crop it was made from; if grouping broke, a validation fold would contain
+    augmented copies of images whose originals were trained on, and ``avg_vaf`` would
+    measure recall of the training set rather than generalisation -- while still looking
+    like a perfectly normal, slightly high number.
+    """
+    import numpy as np
+
+    from model_builders import CNNModelBuilder
+    from random_search import RandomSearch
+
+    rng = np.random.default_rng(0)
+    # 40 source crops, each with 3 augmented copies: 160 rows, 4 per group.
+    labels = np.repeat(np.arange(4), 10)
+    source = np.arange(40)
+    y = np.concatenate([labels] * 4)
+    groups = np.concatenate([source] * 4)
+    images = rng.random((len(y), 8, 8, 3)).astype("float32")
+
+    search = RandomSearch(CNNModelBuilder(), _three_config_space(), k=4, cv_seed=42)
+    folds = search._folds(images, y, groups)
+    assert len(folds) == 4
+    for train_idx, val_idx in folds:
+        assert not set(groups[train_idx]) & set(groups[val_idx])
+    # Every row must be validated exactly once across the folds.
+    seen = np.concatenate([v for _, v in folds])
+    assert sorted(seen.tolist()) == list(range(len(y)))
+
+    # Ungrouped folds on the same data DO split groups -- proving the test above is not
+    # passing for some unrelated reason.
+    plain = search._folds(images, y)
+    assert any(set(groups[t]) & set(groups[v]) for t, v in plain)
+
+
+def test_split_accuracy_reports_real_and_augmented_separately(monkeypatch):
+    """avg_vaf_orig / avg_vaf_aug must be computed over the right subsets.
+
+    A model forced to predict a constant class gives an accuracy equal to that class's
+    share of the subset, so the expected values are known exactly and the columns can be
+    checked rather than merely asserted to exist.
+    """
+    import numpy as np
+
+    from model_builders import CNNModelBuilder
+    from random_search import RandomSearch
+
+    class AlwaysZero(CNNModelBuilder):
+        def build(self, params, input_shape, num_classes):
+            model = super().build(params, input_shape, num_classes)
+            # Only predict is stubbed. fit still runs (one epoch on 60 tiny images), so
+            # the History object the harness reads per-epoch accuracy out of is real.
+            model.predict = lambda x, **kw: np.tile(
+                np.eye(num_classes)[0], (len(x), 1)
+            ).astype("float32")
+            return model
+
+    rng = np.random.default_rng(0)
+    y = np.repeat(np.arange(2), 40)               # 40 zeros, 40 ones
+    groups = np.arange(80)
+    # Real rows are all class 0; augmented rows are all class 1. A constant-zero predictor
+    # therefore scores 1.0 on the real subset and 0.0 on the augmented one, whatever the
+    # fold split happens to be.
+    is_aug = y == 1
+    images = rng.random((80, 8, 8, 3)).astype("float32")
+
+    search = RandomSearch(AlwaysZero(), _three_config_space(), k=4, cv_seed=42)
+    cv = search._cross_validate(
+        {"num_filters": 4, "filter_size": 3, "learning_rate": 0.01, "epochs": 1,
+         "num_layers": 1, "pooling_size": 2, "activation_function": "relu",
+         "batch_size": 8, "reg": None, "reg_strength": 0.0001, "opt": "Adam",
+         "dropout": 0.0},
+        images, y, [0, 1], groups=groups, is_aug=is_aug,
+    )
+    assert np.allclose(cv["val_acc_orig_fold"], 1.0)
+    assert np.allclose(cv["val_acc_aug_fold"], 0.0)
+    assert np.allclose(cv["train_acc_orig_fold"], 1.0)
+    assert np.allclose(cv["train_acc_aug_fold"], 0.0)
+    # The pooled number must sit between the two, not equal either.
+    assert all(0.0 < a < 1.0 for a in cv["val_acc_fold"])
