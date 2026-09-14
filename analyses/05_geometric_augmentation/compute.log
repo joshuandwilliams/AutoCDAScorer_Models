@@ -1,0 +1,247 @@
+2026-09-13 23:01:40.977440: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+/Users/jowillia/miniforge3/envs/agroinfiltration_scoring/lib/python3.12/site-packages/keras/src/saving/saving_lib.py:843: UserWarning: Skipping variable loading for optimizer 'adam', because it has 22 variables whereas the saved optimizer has 2 variables. 
+  saveable.load_own_variables(weights_store.get(inner_path))
+
+1834 train crops over 212 raw images
+original grid: mean 5.69 augmentations active per image
+  _DSC0024.tif: 14 crops
+  DSC_9240.TIF: 9 crops
+  DSC_7712.TIF: 9 crops
+  DSC_9227_s2.TIF: 6 crops
+  _DSC0771.tif: 6 crops
+  DSC_0212.TIF: 7 crops
+  DSC_0104.TIF: 6 crops
+  DSC_2452.tif: 8 crops
+  _DSC9858.tif: 18 crops
+  DSC_2395.tif: 8 crops
+  _DSC3040.TIF: 13 crops
+  _DSC0175.tif: 28 crops
+  DSC_3612.tif: 8 crops
+  DSC_4390.TIF: 4 crops
+  _DSC9859.tif: 18 crops
+  _DSC1334.TIF: 6 crops
+  DSC_7588.TIF: 6 crops
+  _DSC8787.tif: 30 crops
+  _DSC7622.tif: 7 crops
+  DSC_1351.tif: 14 crops
+  DSC_0216.TIF: 9 crops
+  _DSC7623.tif: 6 crops
+  DSC_6339.tif: 8 crops
+  DSC_7586.TIF: 11 crops
+  _DSC0023.tif: 15 crops
+  DSC_1346.tif: 5 crops
+  DSC_1176.tif: 7 crops
+  DSC_5087.TIF: 12 crops
+  _DSC9261.tif: 17 crops
+  DSC_2453.tif: 3 crops
+  DSC_3614.tif: 7 crops
+  _DSC9260.tif: 23 crops
+  DSC_9242.TIF: 4 crops
+  _DSC1805.tif: 50 crops
+  DSC_1180.tif: 11 crops
+  DSC_9234.TIF: 2 crops
+  _DSC8106.tif: 8 crops
+  DSC_2870.tif: 7 crops
+  _DSC9856.tif: 10 crops
+  _DSC3538.TIF: 5 crops
+  DSC_8265.tif: 8 crops
+  _DSC9857.tif: 4 crops
+  _DSC1647.tif: 49 crops
+  _DSC0139.tif: 16 crops
+  _DSC2690.tif: 6 crops
+  _DSC0768.tif: 9 crops
+  _DSC3043.TIF: 13 crops
+  DSC_2867.tif: 4 crops
+  DSC_4388.TIF: 8 crops
+  DSC_2828.TIF: 5 crops
+  _DSC3044.TIF: 15 crops
+  _DSC7621.tif: 11 crops
+  DSC_6619.tif: 5 crops
+  DSC_4540.TIF: 9 crops
+  _DSC0138.tif: 14 crops
+  _DSC1014.TIF: 6 crops
+  DSC_7585.TIF: 11 crops
+  DSC_3615.tif: 9 crops
+  _DSC0170.tif: 28 crops
+  _DSC2691.tif: 5 crops
+  DSC_1558.tif: 15 crops
+  DSC_7711.TIF: 8 crops
+  DSC_9239.TIF: 13 crops
+  _DSC1646.tif: 26 crops
+  DSC_6617.tif: 5 crops
+  DSC_8268.tif: 10 crops
+  _DSC9854.tif: 9 crops
+  DSC_9235.TIF: 9 crops
+  DSC_0208.TIF: 8 crops
+  DSC_7709.TIF: 5 crops
+  DSC_1593.tif: 9 crops
+  _DSC8104.tif: 8 crops
+  _DSC1159.TIF: 8 crops
+  _DSC1332.TIF: 5 crops
+  _DSC0765.tif: 9 crops
+  DSC_1556.tif: 12 crops
+  _DSC9258.tif: 15 crops
+  _DSC3537.TIF: 10 crops
+  DSC_5086.TIF: 10 crops
+  DSC_7492.TIF: 14 crops
+  DSC_1592.tif: 10 crops
+  DSC_0109.TIF: 6 crops
+  DSC_9228_s1.TIF: 10 crops
+  DSC_0806.tif: 7 crops
+  DSC_1349.tif: 12 crops
+  DSC_7490.TIF: 6 crops
+  DSC_3613.tif: 6 crops
+  _DSC0769.tif: 8 crops
+  DSC_1174.tif: 7 crops
+  _DSC9259.tif: 12 crops
+  DSC_7710.TIF: 13 crops
+  DSC_0112.TIF: 8 crops
+  DSC_0113.TIF: 3 crops
+  DSC_4543.TIF: 5 crops
+  DSC_3611.tif: 6 crops
+  DSC_4391.TIF: 7 crops
+  DSC_3618.tif: 7 crops
+  _DSC1648.tif: 43 crops
+  _DSC1158.TIF: 11 crops
+  DSC_0209.TIF: 2 crops
+  DSC_8266.tif: 4 crops
+  DSC_9237.TIF: 3 crops
+  DSC_1173.tif: 9 crops
+  DSC_0217.TIF: 9 crops
+  DSC_0807.tif: 8 crops
+  DSC_0803.tif: 6 crops
+  _DSC1160.TIF: 7 crops
+  DSC_5088.TIF: 11 crops
+  _DSC3042.TIF: 11 crops
+  DSC_9231.TIF: 9 crops
+  DSC_4392.TIF: 11 crops
+  _DSC1804.tif: 26 crops
+  DSC_0111.TIF: 7 crops
+  DSC_4387.TIF: 5 crops
+  DSC_2451.tif: 4 crops
+  DSC_8264.tif: 13 crops
+  DSC_1347.tif: 8 crops
+  DSC_8267.tif: 7 crops
+  DSC_6338.tif: 7 crops
+  DSC_4542.TIF: 11 crops
+  DSC_1178.tif: 13 crops
+  DSC_1348.tif: 8 crops
+  DSC_4393.TIF: 12 crops
+  DSC_7708.TIF: 6 crops
+  _DSC0766.tif: 7 crops
+  _DSC8788.tif: 20 crops
+  DSC_4394.TIF: 9 crops
+  DSC_1344.tif: 5 crops
+  _DSC8786.tif: 7 crops
+  DSC_2871.tif: 3 crops
+  _DSC1333.TIF: 11 crops
+  _DSC7360.tif: 14 crops
+  DSC_6618.tif: 6 crops
+  DSC_7494.TIF: 12 crops
+  DSC_2454.tif: 9 crops
+  DSC_1345.tif: 10 crops
+  DSC_1350.tif: 7 crops
+  _DSC7359.tif: 11 crops
+  _DSC0764.tif: 7 crops
+  DSC_9232.TIF: 4 crops
+  DSC_4541.TIF: 7 crops
+  DSC_0214.TIF: 7 crops
+  DSC_1179.tif: 12 crops
+  _DSC3535.TIF: 7 crops
+  DSC_7587.TIF: 2 crops
+  DSC_0218.TIF: 4 crops
+  DSC_4545.TIF: 7 crops
+  _DSC1015.TIF: 4 crops
+  _DSC2692.tif: 4 crops
+  DSC_2827.TIF: 6 crops
+  DSC_0808.tif: 6 crops
+  DSC_7491.TIF: 9 crops
+  _DSC3536.TIF: 9 crops
+  DSC_0215.TIF: 6 crops
+  DSC_0106.TIF: 3 crops
+  DSC_8534.tif: 9 crops
+  DSC_8269.tif: 9 crops
+  DSC_4547.TIF: 7 crops
+  _DSC8105.tif: 7 crops
+  DSC_7713.TIF: 4 crops
+  DSC_8263.tif: 6 crops
+  DSC_0207.TIF: 6 crops
+  _DSC0770.tif: 6 crops
+  _DSC3041.TIF: 9 crops
+  DSC_0110.TIF: 8 crops
+  DSC_2869.tif: 10 crops
+  DSC_5085.TIF: 9 crops
+  DSC_4539.TIF: 10 crops
+  DSC_0103.TIF: 5 crops
+  DSC_7493.TIF: 4 crops
+  DSC_0107.TIF: 2 crops
+  DSC_8270.tif: 10 crops
+  DSC_6340.tif: 5 crops
+  DSC_2394.tif: 8 crops
+  DSC_4538.TIF: 7 crops
+  DSC_2868.tif: 4 crops
+  DSC_0213.TIF: 4 crops
+  DSC_9233.TIF: 2 crops
+  _DSC2689.tif: 3 crops
+  DSC_6337.tif: 4 crops
+  DSC_4389.TIF: 9 crops
+  _DSC0025-AVRPib.tif: 2 crops
+  DSC_1177.tif: 9 crops
+  DSC_0810.tif: 8 crops
+  _DSC8785.tif: 9 crops
+  DSC_7583.TIF: 5 crops
+  DSC_1175.tif: 9 crops
+  DSC_6261.tif: 3 crops
+  DSC_0210.TIF: 5 crops
+  DSC_3616.tif: 6 crops
+  _DSC1157.TIF: 3 crops
+  _DSC8103.tif: 4 crops
+  DSC_0105.TIF: 2 crops
+  DSC_9238.TIF: 2 crops
+  DSC_3617.tif: 7 crops
+  DSC_9241.TIF: 5 crops
+  DSC_9236.TIF: 4 crops
+  DSC_0804.tif: 7 crops
+  _DSC7624.tif: 4 crops
+  _DSC1335.TIF: 6 crops
+  DSC_7584.TIF: 4 crops
+  _DSC1016.TIF: 3 crops
+  DSC_2396.tif: 2 crops
+  DSC_0114.TIF: 4 crops
+  DSC_7811.tif: 4 crops
+  DSC_0805.tif: 7 crops
+  _DSC0767.tif: 6 crops
+  DSC_2397.tif: 2 crops
+  DSC_7489.TIF: 3 crops
+  DSC_0108.TIF: 1 crops
+  DSC_0211.TIF: 1 crops
+  _DSC1017.TIF: 3 crops
+CNN for the label-preservation test: 0.645702_3606
+  measured identity
+  measured flip_x
+  measured flip_y
+  measured rot90
+  measured rot180
+  measured rot270
+  measured rot15
+  measured rot-15
+  measured shift_x-10pct
+  measured shift_y-10pct
+  measured shift_xy+10pct
+  measured shift_xy-10pct
+  measured rot150
+  measured rot300
+  measured shift_x+20
+  measured shift_y+20
+  measured shift_x+10pct
+  measured shift_y+10pct
+  measured zoom0.8
+  measured zoom1.2
+  measured shear_x0.3
+  measured shear_y0.3
+  measured brightness1.2
+  measured brightness0.8
+  measured orig_composite
+wrote /Users/jowillia/Documents/GitHub/AutoCDAScorer_Models/analyses/05_geometric_augmentation/augmentation_effects.npz
+
