@@ -26,9 +26,9 @@ the augmentation and not from resampling.
 import sys
 from pathlib import Path
 
+import cv2 as cv
 import numpy as np
 import pandas as pd
-import cv2 as cv
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
@@ -41,14 +41,17 @@ sys.path.insert(0, str(ROOT / "analyses" / "07_gan_diversity"))
 # path, and src/ is inserted last so it would shadow the local one. Load this folder's copy
 # by path so which module is meant is not left to import order.
 import importlib.util as _ilu  # noqa: E402
+
 _spec = _ilu.spec_from_file_location("sweep_augment", HERE / "augment.py")
 augment = _ilu.module_from_spec(_spec)
 _spec.loader.exec_module(augment)
 import chapter2_features as c2  # noqa: E402
 
-MEDOID_COORDS = Path("/Users/jowillia/Documents/GitHub/uv-agroinfiltration-dataset/"
-                     "analyses/01_generate_raw_data/04_representative_bounding_box_and_score/"
-                     "combined_cda_data_medoid.csv")
+MEDOID_COORDS = Path(
+    "/Users/jowillia/Documents/GitHub/uv-agroinfiltration-dataset/"
+    "analyses/01_generate_raw_data/04_representative_bounding_box_and_score/"
+    "combined_cda_data_medoid.csv"
+)
 CNN_RESULTS = ROOT / "models/03_Medoid_CNN_RandomSearch/01_Categorical_Loss"
 
 # The original grid, copied verbatim from
@@ -64,8 +67,17 @@ ORIGINAL_GRID = {
     "flip_y": [True, False],
     "brightness": [1.2, 0.8, 1],
 }
-IDENTITY = {"shift_x": 0, "shift_y": 0, "zoom": 1, "rotation": 0, "shear_x": 0,
-            "shear_y": 0, "flip_x": False, "flip_y": False, "brightness": 1}
+IDENTITY = {
+    "shift_x": 0,
+    "shift_y": 0,
+    "zoom": 1,
+    "rotation": 0,
+    "shear_x": 0,
+    "shear_y": 0,
+    "flip_x": False,
+    "flip_y": False,
+    "brightness": 1,
+}
 
 
 def draw_original(rng):
@@ -89,21 +101,30 @@ def n_active(p):
 def load_index():
     med = pd.read_csv(MEDOID_COORDS)
     med["stem"] = med.Basename.str.replace(r"\.(TIF|tif)$", "", regex=True)
-    med["key"] = (med.stem + "_" + med.Row.astype(str) + "_" + med.Col.astype(str)
-                  + "_" + med.Pos.astype(str) + ".tif")
+    med["key"] = (
+        med.stem
+        + "_"
+        + med.Row.astype(str)
+        + "_"
+        + med.Col.astype(str)
+        + "_"
+        + med.Pos.astype(str)
+        + ".tif"
+    )
     med = med.set_index("key")
     ds = pd.read_csv(ROOT / "data/datasets/medoid_64/medoid_64.csv")
     tr = ds[ds.split == "train"].copy()
     assert tr.filename.isin(med.index).all(), "some train crops have no medoid box"
     k = med.loc[tr.filename, "Medoid_Coords"].astype(int).values
-    for c, col in zip("XXYY", ["X1", "X2", "Y1", "Y2"]):
-        tr[col] = [med.loc[f, f"{col}_{kk}"] for f, kk in zip(tr.filename, k)]
+    for _c, col in zip("XXYY", ["X1", "X2", "Y1", "Y2"], strict=True):
+        tr[col] = [med.loc[f, f"{col}_{kk}"] for f, kk in zip(tr.filename, k, strict=True)]
     tr["Basename"] = med.loc[tr.filename, "Basename"].values
     return tr
 
 
 def cnn():
     import tensorflow as tf
+
     res = pd.read_csv(CNN_RESULTS / "random_search_results.csv")
     best = int(res.sort_values("avg_vaf", ascending=False).iloc[0].model_id)
     path = next((CNN_RESULTS / "results").glob(f"*_{best}")) / "model.keras"
@@ -120,8 +141,10 @@ def main():
 
     # One composite draw per crop, fixed up front so it is recorded alongside the result.
     composites = [draw_original(rng) for _ in range(len(tr))]
-    print(f"original grid: mean {np.mean([n_active(p) for p in composites]):.2f} "
-          f"augmentations active per image")
+    print(
+        f"original grid: mean {np.mean([n_active(p) for p in composites]):.2f} "
+        f"augmentations active per image"
+    )
 
     crops = {n: np.zeros((len(tr), 64, 64, 3), dtype=np.uint8) for n in names}
     oof = {n: np.zeros(len(tr)) for n in names}
@@ -130,7 +153,7 @@ def main():
         raw = cv.imread(str(ROOT / "data/raw_images_rotated" / base))
         if raw is None:
             raise SystemExit(f"missing raw image {base}")
-        for i, r in zip(grp.index, grp.itertuples()):
+        for i, r in zip(grp.index, grp.itertuples(), strict=True):
             pos = tr.index.get_loc(i)
             box = [int(r.X1), int(r.X2), int(r.Y1), int(r.Y2)]
             # src/augment.py measures the box side as the mean of its width and height,
@@ -158,8 +181,10 @@ def main():
 
     np.savez_compressed(
         HERE / "augmentation_effects.npz",
-        names=np.array(names), labels=tr.label.values,
-        filenames=tr.filename.values, model=model_name,
+        names=np.array(names),
+        labels=tr.label.values,
+        filenames=tr.filename.values,
+        model=model_name,
         feature_names=np.array(c2.FEATURE_NAMES),
         n_active=np.array([n_active(p) for p in composites]),
         **{f"feat__{n}": feats[n] for n in names},

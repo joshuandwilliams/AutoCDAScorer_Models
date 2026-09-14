@@ -40,25 +40,35 @@ import numpy as np
 from scipy import ndimage
 
 FEATURE_NAMES = [
-    "sep", "green_gap", "cda_green", "frac_g_gt_r", "cda_green_sd", "cda_bright",
-    "cda_bright_sd", "leaf_green_sd", "mean_green", "log_gr", "leaf_bright", "ent_gap",
+    "sep",
+    "green_gap",
+    "cda_green",
+    "frac_g_gt_r",
+    "cda_green_sd",
+    "cda_bright",
+    "cda_bright_sd",
+    "leaf_green_sd",
+    "mean_green",
+    "log_gr",
+    "leaf_bright",
+    "ent_gap",
 ]
 
 # What each feature measures, and which way it should move with severity. Taken from the
 # Chapter 2 table so the direction checks in the qmd have something to test against.
 FEATURE_DOC = {
-    "sep":           ("leaf-greenness bimodality (Otsu between-class / total variance)", "rises"),
-    "green_gap":     ("CDA greenness minus healthy-leaf greenness", "rises"),
-    "cda_green":     ("mean greenness inside the CDA", "rises"),
-    "frac_g_gt_r":   ("lesion size: |CDA| / |leaf|", "rises"),
-    "cda_green_sd":  ("greenness spread within the CDA", "rises"),
-    "cda_bright":    ("mean brightness inside the CDA", "rises"),
+    "sep": ("leaf-greenness bimodality (Otsu between-class / total variance)", "rises"),
+    "green_gap": ("CDA greenness minus healthy-leaf greenness", "rises"),
+    "cda_green": ("mean greenness inside the CDA", "rises"),
+    "frac_g_gt_r": ("lesion size: |CDA| / |leaf|", "rises"),
+    "cda_green_sd": ("greenness spread within the CDA", "rises"),
+    "cda_bright": ("mean brightness inside the CDA", "rises"),
     "cda_bright_sd": ("brightness spread within the CDA", "rises"),
     "leaf_green_sd": ("greenness spread over the whole leaf", "rises"),
-    "mean_green":    ("mean green-channel intensity over the leaf", "rises"),
-    "log_gr":        ("log ratio of green-dominant to red-dominant leaf pixels", "rises"),
-    "leaf_bright":   ("mean brightness over the leaf", "rises"),
-    "ent_gap":       ("CDA minus healthy-leaf Shannon entropy", "rises"),
+    "mean_green": ("mean green-channel intensity over the leaf", "rises"),
+    "log_gr": ("log ratio of green-dominant to red-dominant leaf pixels", "rises"),
+    "leaf_bright": ("mean brightness over the leaf", "rises"),
+    "ent_gap": ("CDA minus healthy-leaf Shannon entropy", "rises"),
 }
 
 
@@ -112,9 +122,11 @@ def otsu_sep(x, nbins=64):
     with np.errstate(divide="ignore", invalid="ignore"):
         bcv = (mu * w1 - m1) ** 2 / (w1 * (1 - w1) + 1e-12)
     k = int(np.nanargmax(bcv))
-    return {"thr": float(edges[k + 1]),
-            "sep": float(np.nanmax(bcv) / (tot + 1e-12)),
-            "frac_hi": float(np.mean(x > edges[k + 1]))}
+    return {
+        "thr": float(edges[k + 1]),
+        "sep": float(np.nanmax(bcv) / (tot + 1e-12)),
+        "frac_hi": float(np.mean(x > edges[k + 1])),
+    }
 
 
 def segment_cda(img, sigma=2):
@@ -185,22 +197,21 @@ def features(img):
     both = cda.any() and healthy.any()
 
     return {
-        "sep":           o["sep"],
-        "green_gap":     mn(gmat[cda]) - mn(gmat[healthy]) if both else 0.0,
-        "cda_green":     mn(gmat[cda]),
-        "frac_g_gt_r":   cda.sum() / max(leaf.sum(), 1),
-        "cda_green_sd":  nsd(gmat[cda]) * 255,
-        "cda_bright":    mn(bmat[cda]) * 255,
+        "sep": o["sep"],
+        "green_gap": mn(gmat[cda]) - mn(gmat[healthy]) if both else 0.0,
+        "cda_green": mn(gmat[cda]),
+        "frac_g_gt_r": cda.sum() / max(leaf.sum(), 1),
+        "cda_green_sd": nsd(gmat[cda]) * 255,
+        "cda_bright": mn(bmat[cda]) * 255,
         "cda_bright_sd": nsd(bmat[cda]) * 255,
         "leaf_green_sd": nsd(gv_leaf) * 255,
-        "mean_green":    mn(G[leaf]) * 255,
-        "log_gr":        float(np.log((n_green + 1) / (n_red + 1))),
-        "leaf_bright":   mn(bmat[leaf]) * 255,
-        "ent_gap":       (region_entropy(img, cda) - region_entropy(img, healthy)) if both else 0.0,
+        "mean_green": mn(G[leaf]) * 255,
+        "log_gr": float(np.log((n_green + 1) / (n_red + 1))),
+        "leaf_bright": mn(bmat[leaf]) * 255,
+        "ent_gap": (region_entropy(img, cda) - region_entropy(img, healthy)) if both else 0.0,
     }
 
 
 def feature_table(images):
     """Stack `features` over an iterable of crops into an (n, 12) array."""
-    return np.array([[features(im)[k] for k in FEATURE_NAMES] for im in images],
-                    dtype="float64")
+    return np.array([[features(im)[k] for k in FEATURE_NAMES] for im in images], dtype="float64")

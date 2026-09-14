@@ -62,23 +62,35 @@ DEFAULT_CONFIG = 48
 def main():
     p = argparse.ArgumentParser(description="Build the cGAN-augmented medoid training pool")
     p.add_argument("--target", type=int, default=5000, help="crops per class in the pool")
-    p.add_argument("--config", type=int, default=DEFAULT_CONFIG,
-                   help="which models/06 array task's generator to sample from")
+    p.add_argument(
+        "--config",
+        type=int,
+        default=DEFAULT_CONFIG,
+        help="which models/06 array task's generator to sample from",
+    )
     p.add_argument("--seed", type=int, default=42)
     args = p.parse_args()
 
     res = pd.read_csv(CGAN_RUN / "cgan_results.csv")
     row = res.query("slurm_array == @args.config").iloc[0]
     latent = int(row.latent_dim)
-    print(f"generator: config {args.config}, best_fcd {row.best_fcd:.3f} at epoch "
-          f"{int(row.best_epoch)}, latent_dim {latent}")
+    print(
+        f"generator: config {args.config}, best_fcd {row.best_fcd:.3f} at epoch "
+        f"{int(row.best_epoch)}, latent_dim {latent}"
+    )
 
     # Same split call the real dataset used, and the same skipping of the class-balancing
     # downsample: the point of both augmented runs is to keep every real crop.
     images, labels, filepaths = base_dataset.load_images_and_labels(CROPS, image_size=64)
-    split = base_dataset.split_dataset(images=images, labels=labels, filepaths=filepaths,
-                                       train_ratio=0.6, val_ratio=0.15,
-                                       ensemble_ratio=0.15, seed=42)
+    split = base_dataset.split_dataset(
+        images=images,
+        labels=labels,
+        filepaths=filepaths,
+        train_ratio=0.6,
+        val_ratio=0.15,
+        ensemble_ratio=0.15,
+        seed=42,
+    )
     y = np.asarray(split["train_labels"]).astype(int)
     names = np.array([Path(str(f)).name for f in split["train_filepaths"]])
     print(f"full train split: {len(y)} crops, per class {np.bincount(y).tolist()}")
@@ -87,7 +99,8 @@ def main():
     print(f"generated crops needed per class: {[need[c] for c in range(7)]}")
 
     gen = tf.keras.models.load_model(
-        CGAN_RUN / f"array_task{args.config}/models/generator_best.keras")
+        CGAN_RUN / f"array_task{args.config}/models/generator_best.keras"
+    )
 
     # cgan.sample draws n_per_class for EVERY class at once, so ask for the largest need
     # and then take what each class actually requires. Sampling in blocks keeps memory
@@ -128,10 +141,18 @@ def main():
     is_aug = np.concatenate([np.zeros(len(y), bool), np.ones(len(gen_lab), bool)])
 
     OUT.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(OUT / "medoid_64_cgan.npz", images=X, labels=Y, source=source,
-                        is_aug=is_aug, source_names=names, target=args.target,
-                        seed=args.seed, generator_config=args.config,
-                        generator_fcd=float(row.best_fcd))
+    np.savez_compressed(
+        OUT / "medoid_64_cgan.npz",
+        images=X,
+        labels=Y,
+        source=source,
+        is_aug=is_aug,
+        source_names=names,
+        target=args.target,
+        seed=args.seed,
+        generator_config=args.config,
+        generator_fcd=float(row.best_fcd),
+    )
     print(f"\npool: {len(X)} crops, per class {np.bincount(Y).tolist()}")
     print(f"  real {int((~is_aug).sum())}, generated {int(is_aug.sum())}")
     print(f"wrote {OUT / 'medoid_64_cgan.npz'}")

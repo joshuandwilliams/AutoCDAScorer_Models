@@ -121,7 +121,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="setup">1. Setup</h2>
 <section id="import-required-libraries" class="level3">
 <h3 class="anchored" data-anchor-id="import-required-libraries">1.1 Import required libraries</h3>
-<div id="91ccdc51" class="cell" data-execution_count="1">
+<div id="7a6620ba" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.1</span></span>
@@ -149,7 +149,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="paths" class="level3">
 <h3 class="anchored" data-anchor-id="paths">1.2 Paths</h3>
-<div id="4b44a330" class="cell" data-execution_count="2">
+<div id="f4e64836" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.2</span></span>
@@ -178,7 +178,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="load-the-cached-full-dataset-distribution" class="level2">
 <h2 class="anchored" data-anchor-id="load-the-cached-full-dataset-distribution">2. Load the cached full-dataset distribution</h2>
 <p>1,000 exact and near-miss values, one pair per iteration of stratified undersampling to 436 CDAs/class. Loaded, not recomputed.</p>
-<div id="c418732c" class="cell" data-execution_count="3">
+<div id="41f317c7" class="cell" data-execution_count="3">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2</span></span>
@@ -195,7 +195,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="map-the-medoid_64-test-set-onto-the-rater-data-and-compute-its-value" class="level2">
 <h2 class="anchored" data-anchor-id="map-the-medoid_64-test-set-onto-the-rater-data-and-compute-its-value">3. Map the medoid_64 test set onto the rater data and compute its value</h2>
 <p>The medoid_64 filenames encode the CDA as <code>&lt;Basename&gt;_&lt;Row&gt;_&lt;Col&gt;_&lt;Pos&gt;.tif</code>. Stripping the trailing <code>_Row_Col_Pos</code> and the extension recovers the Basename, which matches the rater data case-insensitively. Every test CDA maps to a rater record, and its medoid_64 <code>label</code> equals the rater <code>Median_Score</code> - a check that the mapping is correct.</p>
-<div id="fe3509a9" class="cell" data-execution_count="4">
+<div id="0dbecbd4" class="cell" data-execution_count="4">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3</span></span>
@@ -300,7 +300,7 @@ Metric 3 test-set value:
 <section id="generate-the-test-sized-distribution-44-cdasclass" class="level2">
 <h2 class="anchored" data-anchor-id="generate-the-test-sized-distribution-44-cdasclass">4. Generate the test-sized distribution (44 CDAs/class)</h2>
 <p>The same stratified-undersampling procedure as the cached distribution, but drawing 44 CDAs/class (the test set’s size) instead of 436, over 1,000 seeds. This distribution’s spread is the genuine sampling noise of a test-sized estimate, so it is the fair reference for the single test-set value. Cached to CSV so re-renders are instant.</p>
-<div id="c08f0b77" class="cell" data-execution_count="5">
+<div id="686f760e" class="cell" data-execution_count="5">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4</span></span>
@@ -331,7 +331,7 @@ Metric 3 test-set value:
 </section>
 <section id="where-the-test-set-value-sits-in-each-distribution" class="level2">
 <h2 class="anchored" data-anchor-id="where-the-test-set-value-sits-in-each-distribution">5. Where the test-set value sits in each distribution</h2>
-<div id="b5ad7ece" class="cell" data-execution_count="6">
+<div id="524f633f" class="cell" data-execution_count="6">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 5</span></span>
@@ -377,7 +377,7 @@ Test-sized distribution (44/class)
 </section>
 <section id="distribution-plots" class="level2">
 <h2 class="anchored" data-anchor-id="distribution-plots">6. Distribution plots</h2>
-<div id="f0afb9a9" class="cell" data-execution_count="7">
+<div id="1d7bfb90" class="cell" data-execution_count="7">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6</span></span>
@@ -404,7 +404,7 @@ Test-sized distribution (44/class)
 <section id="full-dataset-distribution-436-cdasclass" class="level3">
 <h3 class="anchored" data-anchor-id="full-dataset-distribution-436-cdasclass">6.1 Full-dataset distribution (436 CDAs/class)</h3>
 <p>The cached distribution. The test-set value’s bootstrap 95% CI (dashed) shows that its distance from the mean is small relative to its own uncertainty.</p>
-<div id="655d41ee" class="cell" data-execution_count="8">
+<div id="1ac9e877" class="cell" data-execution_count="8">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6.1</span></span>
@@ -433,7 +433,7 @@ Test-sized distribution (44/class)
 <section id="test-sized-distribution-44-cdasclass" class="level3">
 <h3 class="anchored" data-anchor-id="test-sized-distribution-44-cdasclass">6.2 Test-sized distribution (44 CDAs/class)</h3>
 <p>The reference at the test set’s own size. The histogram’s spread is the real sampling noise of a 308-CDA estimate, and the test-set value (green) sits well inside it.</p>
-<div id="278b91ad" class="cell" data-execution_count="9">
+<div id="c82765e7" class="cell" data-execution_count="9">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6.2</span></span>
@@ -462,7 +462,7 @@ Test-sized distribution (44/class)
 </section>
 <section id="interpretation" class="level2">
 <h2 class="anchored" data-anchor-id="interpretation">7. Interpretation</h2>
-<div id="4e70a10b" class="cell" data-execution_count="10">
+<div id="002572e5" class="cell" data-execution_count="10">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 7</span></span>
@@ -485,7 +485,7 @@ Test-sized distribution (44/class) means: exact 69.45%, near-miss 92.62%</code><
 <h2 class="anchored" data-anchor-id="confusion-matrix">8. Confusion matrix</h2>
 <p>Drawn with <code>_plot_confusion_matrix</code> from <code>src/cnn_base.py</code>, so it matches every model confusion matrix in this project: counts rather than proportions, the Greens colour map, a “Frequency” colour bar and a black border on the diagonal.</p>
 <p>Rows are a CDA’s median score, columns are what an individual rater gave it, one entry per rater judgement. The tautological matches Metric 3 removes – the rater whose own score is the median when all three disagree – are excluded, so the diagonal counts genuine agreement only.</p>
-<div id="f6291288" class="cell" data-execution_count="11">
+<div id="40204ce5" class="cell" data-execution_count="11">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 8</span></span>
@@ -507,42 +507,56 @@ Test-sized distribution (44/class) means: exact 69.45%, near-miss 92.62%</code><
 <span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a>                  corrected.loc[keep, <span class="st">"Score"</span>].astype(<span class="bu">int</span>))</span>
 <span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a>      .reindex(index<span class="op">=</span><span class="bu">range</span>(<span class="dv">7</span>), columns<span class="op">=</span><span class="bu">range</span>(<span class="dv">7</span>), fill_value<span class="op">=</span><span class="dv">0</span>).to_numpy())</span>
 <span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a>_plot_confusion_matrix(cm, np.arange(<span class="dv">7</span>), (<span class="st">"Median severity score"</span>, <span class="st">"Individual rater score"</span>),</span>
-<span id="cb16-21"><a href="#cb16-21" aria-hidden="true" tabindex="-1"></a>                       <span class="bu">str</span>(thesis_plots_dir <span class="op">/</span> <span class="st">"human_confusion_matrix.png"</span>))</span>
-<span id="cb16-22"><a href="#cb16-22" aria-hidden="true" tabindex="-1"></a><span class="co"># Exported so other analyses can difference their own matrices against this baseline.</span></span>
-<span id="cb16-23"><a href="#cb16-23" aria-hidden="true" tabindex="-1"></a><span class="co"># Counts are not comparable across analyses (917 rater judgements here against 308 model</span></span>
-<span id="cb16-24"><a href="#cb16-24" aria-hidden="true" tabindex="-1"></a><span class="co"># predictions), so consumers must row-normalise both before subtracting.</span></span>
-<span id="cb16-25"><a href="#cb16-25" aria-hidden="true" tabindex="-1"></a><span class="co">#</span></span>
-<span id="cb16-26"><a href="#cb16-26" aria-hidden="true" tabindex="-1"></a><span class="co"># An eighth column carries the tautological judgements Metric 3 removes. They cannot go</span></span>
-<span id="cb16-27"><a href="#cb16-27" aria-hidden="true" tabindex="-1"></a><span class="co"># anywhere else: each one has Score == Median_Score exactly, so its only cell is the</span></span>
-<span id="cb16-28"><a href="#cb16-28" aria-hidden="true" tabindex="-1"></a><span class="co"># diagonal, which is the cell the correction forbids. Dropping them from the table</span></span>
-<span id="cb16-29"><a href="#cb16-29" aria-hidden="true" tabindex="-1"></a><span class="co"># entirely leaves 875 judgements, and row-normalising over 875 gives a human diagonal of</span></span>
-<span id="cb16-30"><a href="#cb16-30" aria-hidden="true" tabindex="-1"></a><span class="co"># 72.23% while the reported Metric 3 rate divides the same diagonal by 917 and gets</span></span>
-<span id="cb16-31"><a href="#cb16-31" aria-hidden="true" tabindex="-1"></a><span class="co"># 68.92%. Any consumer that row-normalises the 7-column form is therefore comparing a</span></span>
-<span id="cb16-32"><a href="#cb16-32" aria-hidden="true" tabindex="-1"></a><span class="co"># model against an inflated human rate. Keeping them as their own column restores the 917</span></span>
-<span id="cb16-33"><a href="#cb16-33" aria-hidden="true" tabindex="-1"></a><span class="co"># denominator and makes the row proportions directly comparable with a model's.</span></span>
-<span id="cb16-34"><a href="#cb16-34" aria-hidden="true" tabindex="-1"></a>taut <span class="op">=</span> (corrected.loc[</span>
-<span id="cb16-35"><a href="#cb16-35" aria-hidden="true" tabindex="-1"></a>    (corrected.Agreement_Pattern <span class="op">==</span> <span class="st">"All different"</span>) <span class="op">&amp;</span> corrected.Raw_Exact_Match,</span>
-<span id="cb16-36"><a href="#cb16-36" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Median_Score"</span>].astype(<span class="bu">int</span>).value_counts().reindex(<span class="bu">range</span>(<span class="dv">7</span>), fill_value<span class="op">=</span><span class="dv">0</span>).to_numpy())</span>
-<span id="cb16-37"><a href="#cb16-37" aria-hidden="true" tabindex="-1"></a>cm_full <span class="op">=</span> np.hstack([cm, taut[:, <span class="va">None</span>]])</span>
-<span id="cb16-38"><a href="#cb16-38" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> cm_full.<span class="bu">sum</span>() <span class="op">==</span> <span class="bu">len</span>(corrected), <span class="st">"the eight-column matrix must hold every judgement"</span></span>
-<span id="cb16-39"><a href="#cb16-39" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">abs</span>(np.trace(cm) <span class="op">/</span> cm_full.<span class="bu">sum</span>() <span class="op">-</span> <span class="fl">0.6892</span>) <span class="op">&lt;</span> <span class="fl">5e-4</span>, <span class="st">"must reproduce the Metric 3 rate"</span></span>
-<span id="cb16-40"><a href="#cb16-40" aria-hidden="true" tabindex="-1"></a>pd.DataFrame(cm_full, index<span class="op">=</span><span class="bu">range</span>(<span class="dv">7</span>),</span>
-<span id="cb16-41"><a href="#cb16-41" aria-hidden="true" tabindex="-1"></a>             columns<span class="op">=</span>[<span class="op">*</span><span class="bu">range</span>(<span class="dv">7</span>), <span class="st">"tautological"</span>]).to_csv(</span>
-<span id="cb16-42"><a href="#cb16-42" aria-hidden="true" tabindex="-1"></a>    thesis_plots_dir <span class="op">/</span> <span class="st">"human_confusion_matrix.csv"</span>)</span>
-<span id="cb16-43"><a href="#cb16-43" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"tautological judgements per median score: </span><span class="sc">{</span>taut<span class="sc">.</span>tolist()<span class="sc">}</span><span class="ss"> (total </span><span class="sc">{</span><span class="bu">int</span>(taut.<span class="bu">sum</span>())<span class="sc">}</span><span class="ss">)"</span>)</span>
-<span id="cb16-44"><a href="#cb16-44" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"diagonal / all </span><span class="sc">{</span><span class="bu">int</span>(cm_full.<span class="bu">sum</span>())<span class="sc">}</span><span class="ss"> judgements = </span><span class="sc">{</span>np<span class="sc">.</span>trace(cm) <span class="op">/</span> cm_full<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb16-45"><a href="#cb16-45" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>cm<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">}</span><span class="ss"> rater judgements counted; </span><span class="sc">{</span>np<span class="sc">.</span>trace(cm)<span class="sc">}</span><span class="ss"> on the diagonal "</span></span>
-<span id="cb16-46"><a href="#cb16-46" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"(</span><span class="sc">{</span>np<span class="sc">.</span>trace(cm) <span class="op">/</span> cm<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:.4f}</span><span class="ss">)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a><span class="co"># The eighth column is plotted, not just exported. Without it the figure sums to 875</span></span>
+<span id="cb16-21"><a href="#cb16-21" aria-hidden="true" tabindex="-1"></a><span class="co"># judgements with 632 on the diagonal, so a reader adding it up gets 72.23% while the</span></span>
+<span id="cb16-22"><a href="#cb16-22" aria-hidden="true" tabindex="-1"></a><span class="co"># text beside it reports the Metric 3 rate of 68.92%, which divides the same 632 by all</span></span>
+<span id="cb16-23"><a href="#cb16-23" aria-hidden="true" tabindex="-1"></a><span class="co"># 917. The 42 tautological judgements cannot go in any other cell -- each has</span></span>
+<span id="cb16-24"><a href="#cb16-24" aria-hidden="true" tabindex="-1"></a><span class="co"># Score == Median_Score exactly, so its only home is the diagonal, which is the cell the</span></span>
+<span id="cb16-25"><a href="#cb16-25" aria-hidden="true" tabindex="-1"></a><span class="co"># correction forbids -- so they get their own column and the figure reconciles with the</span></span>
+<span id="cb16-26"><a href="#cb16-26" aria-hidden="true" tabindex="-1"></a><span class="co"># text. It also matches the eight-column form analyses/10 and analyses/14 difference</span></span>
+<span id="cb16-27"><a href="#cb16-27" aria-hidden="true" tabindex="-1"></a><span class="co"># against.</span></span>
+<span id="cb16-28"><a href="#cb16-28" aria-hidden="true" tabindex="-1"></a>taut_col <span class="op">=</span> (corrected.loc[</span>
+<span id="cb16-29"><a href="#cb16-29" aria-hidden="true" tabindex="-1"></a>    (corrected.Agreement_Pattern <span class="op">==</span> <span class="st">"All different"</span>) <span class="op">&amp;</span> corrected.Raw_Exact_Match,</span>
+<span id="cb16-30"><a href="#cb16-30" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Median_Score"</span>].astype(<span class="bu">int</span>).value_counts().reindex(<span class="bu">range</span>(<span class="dv">7</span>), fill_value<span class="op">=</span><span class="dv">0</span>).to_numpy())</span>
+<span id="cb16-31"><a href="#cb16-31" aria-hidden="true" tabindex="-1"></a>cm_plot <span class="op">=</span> np.hstack([cm, taut_col[:, <span class="va">None</span>]])</span>
+<span id="cb16-32"><a href="#cb16-32" aria-hidden="true" tabindex="-1"></a>_plot_confusion_matrix(cm_plot, np.arange(<span class="dv">7</span>),</span>
+<span id="cb16-33"><a href="#cb16-33" aria-hidden="true" tabindex="-1"></a>                       (<span class="st">"Median severity score"</span>, <span class="st">"Individual rater score"</span>),</span>
+<span id="cb16-34"><a href="#cb16-34" aria-hidden="true" tabindex="-1"></a>                       <span class="bu">str</span>(thesis_plots_dir <span class="op">/</span> <span class="st">"human_confusion_matrix.png"</span>),</span>
+<span id="cb16-35"><a href="#cb16-35" aria-hidden="true" tabindex="-1"></a>                       col_labels<span class="op">=</span>[<span class="op">*</span><span class="bu">range</span>(<span class="dv">7</span>), <span class="st">"Tautological"</span>])</span>
+<span id="cb16-36"><a href="#cb16-36" aria-hidden="true" tabindex="-1"></a><span class="co"># Exported so other analyses can difference their own matrices against this baseline.</span></span>
+<span id="cb16-37"><a href="#cb16-37" aria-hidden="true" tabindex="-1"></a><span class="co"># Counts are not comparable across analyses (917 rater judgements here against 308 model</span></span>
+<span id="cb16-38"><a href="#cb16-38" aria-hidden="true" tabindex="-1"></a><span class="co"># predictions), so consumers must row-normalise both before subtracting.</span></span>
+<span id="cb16-39"><a href="#cb16-39" aria-hidden="true" tabindex="-1"></a><span class="co">#</span></span>
+<span id="cb16-40"><a href="#cb16-40" aria-hidden="true" tabindex="-1"></a><span class="co"># An eighth column carries the tautological judgements Metric 3 removes. They cannot go</span></span>
+<span id="cb16-41"><a href="#cb16-41" aria-hidden="true" tabindex="-1"></a><span class="co"># anywhere else: each one has Score == Median_Score exactly, so its only cell is the</span></span>
+<span id="cb16-42"><a href="#cb16-42" aria-hidden="true" tabindex="-1"></a><span class="co"># diagonal, which is the cell the correction forbids. Dropping them from the table</span></span>
+<span id="cb16-43"><a href="#cb16-43" aria-hidden="true" tabindex="-1"></a><span class="co"># entirely leaves 875 judgements, and row-normalising over 875 gives a human diagonal of</span></span>
+<span id="cb16-44"><a href="#cb16-44" aria-hidden="true" tabindex="-1"></a><span class="co"># 72.23% while the reported Metric 3 rate divides the same diagonal by 917 and gets</span></span>
+<span id="cb16-45"><a href="#cb16-45" aria-hidden="true" tabindex="-1"></a><span class="co"># 68.92%. Any consumer that row-normalises the 7-column form is therefore comparing a</span></span>
+<span id="cb16-46"><a href="#cb16-46" aria-hidden="true" tabindex="-1"></a><span class="co"># model against an inflated human rate. Keeping them as their own column restores the 917</span></span>
+<span id="cb16-47"><a href="#cb16-47" aria-hidden="true" tabindex="-1"></a><span class="co"># denominator and makes the row proportions directly comparable with a model's.</span></span>
+<span id="cb16-48"><a href="#cb16-48" aria-hidden="true" tabindex="-1"></a>taut <span class="op">=</span> (corrected.loc[</span>
+<span id="cb16-49"><a href="#cb16-49" aria-hidden="true" tabindex="-1"></a>    (corrected.Agreement_Pattern <span class="op">==</span> <span class="st">"All different"</span>) <span class="op">&amp;</span> corrected.Raw_Exact_Match,</span>
+<span id="cb16-50"><a href="#cb16-50" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Median_Score"</span>].astype(<span class="bu">int</span>).value_counts().reindex(<span class="bu">range</span>(<span class="dv">7</span>), fill_value<span class="op">=</span><span class="dv">0</span>).to_numpy())</span>
+<span id="cb16-51"><a href="#cb16-51" aria-hidden="true" tabindex="-1"></a>cm_full <span class="op">=</span> np.hstack([cm, taut[:, <span class="va">None</span>]])</span>
+<span id="cb16-52"><a href="#cb16-52" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> cm_full.<span class="bu">sum</span>() <span class="op">==</span> <span class="bu">len</span>(corrected), <span class="st">"the eight-column matrix must hold every judgement"</span></span>
+<span id="cb16-53"><a href="#cb16-53" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">abs</span>(np.trace(cm) <span class="op">/</span> cm_full.<span class="bu">sum</span>() <span class="op">-</span> <span class="fl">0.6892</span>) <span class="op">&lt;</span> <span class="fl">5e-4</span>, <span class="st">"must reproduce the Metric 3 rate"</span></span>
+<span id="cb16-54"><a href="#cb16-54" aria-hidden="true" tabindex="-1"></a>pd.DataFrame(cm_full, index<span class="op">=</span><span class="bu">range</span>(<span class="dv">7</span>),</span>
+<span id="cb16-55"><a href="#cb16-55" aria-hidden="true" tabindex="-1"></a>             columns<span class="op">=</span>[<span class="op">*</span><span class="bu">range</span>(<span class="dv">7</span>), <span class="st">"tautological"</span>]).to_csv(</span>
+<span id="cb16-56"><a href="#cb16-56" aria-hidden="true" tabindex="-1"></a>    thesis_plots_dir <span class="op">/</span> <span class="st">"human_confusion_matrix.csv"</span>)</span>
+<span id="cb16-57"><a href="#cb16-57" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"tautological judgements per median score: </span><span class="sc">{</span>taut<span class="sc">.</span>tolist()<span class="sc">}</span><span class="ss"> (total </span><span class="sc">{</span><span class="bu">int</span>(taut.<span class="bu">sum</span>())<span class="sc">}</span><span class="ss">)"</span>)</span>
+<span id="cb16-58"><a href="#cb16-58" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"diagonal / all </span><span class="sc">{</span><span class="bu">int</span>(cm_full.<span class="bu">sum</span>())<span class="sc">}</span><span class="ss"> judgements = </span><span class="sc">{</span>np<span class="sc">.</span>trace(cm) <span class="op">/</span> cm_full<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb16-59"><a href="#cb16-59" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>cm<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">}</span><span class="ss"> rater judgements counted; </span><span class="sc">{</span>np<span class="sc">.</span>trace(cm)<span class="sc">}</span><span class="ss"> on the diagonal "</span></span>
+<span id="cb16-60"><a href="#cb16-60" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"(</span><span class="sc">{</span>np<span class="sc">.</span>trace(cm) <span class="op">/</span> cm<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:.4f}</span><span class="ss">)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stderr">
-<pre><code>2026-09-14 00:16:23.609788: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+<pre><code>2026-09-14 12:12:52.759849: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
 To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.</code></pre>
 </div>
 <div class="cell-output cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="02_human_performance_files/figure-html/cell-12-output-2.png" width="677" height="566" class="figure-img"></p>
+<p><img src="02_human_performance_files/figure-html/cell-12-output-2.png" width="732" height="566" class="figure-img"></p>
 <figcaption>Human rater agreement with the median on the 308 medoid_64 test CDAs, Metric 3 (corrected).</figcaption>
 </figure>
 </div>

@@ -29,8 +29,8 @@ Here the window is instead translated back inside the frame, and `out_of_frame` 
 how much of the requested window fell outside so the two can be told apart.
 """
 
-import numpy as np
 import cv2 as cv
+import numpy as np
 
 OUT = 64
 
@@ -60,8 +60,10 @@ def _matrix(box, shift_x=0, shift_y=0, zoom=1.0, rotation=0.0, shear_x=0.0, shea
     th = np.radians(rotation)
     R = np.array([[np.cos(th), -np.sin(th), 0], [np.sin(th), np.cos(th), 0], [0, 0, 1]])
     H = np.array([[1, shear_x, 0], [shear_y, 1, 0], [0, 0, 1]], dtype=np.float64)
-    T = np.array([[1, 0, (x1 + x2 - 1) / 2 + shift_x],
-                  [0, 1, (y1 + y2 - 1) / 2 + shift_y], [0, 0, 1]], dtype=np.float64)
+    T = np.array(
+        [[1, 0, (x1 + x2 - 1) / 2 + shift_x], [0, 1, (y1 + y2 - 1) / 2 + shift_y], [0, 0, 1]],
+        dtype=np.float64,
+    )
     return (T @ H @ R @ Z @ S)[:2], (int(round(w)), int(round(h)))
 
 
@@ -69,11 +71,12 @@ def out_of_frame(raw_shape, box, **kw):
     """Fraction of the sampled window's corners that fall outside the raw image."""
     kw = {k: v for k, v in kw.items() if k not in ("flip_x", "flip_y", "brightness")}
     M, (w, h) = _matrix(box, **kw)
-    corners = np.array([[0, 0, 1], [w - 1, 0, 1], [w - 1, h - 1, 1], [0, h - 1, 1]],
-                       dtype=np.float64).T
+    corners = np.array(
+        [[0, 0, 1], [w - 1, 0, 1], [w - 1, h - 1, 1], [0, h - 1, 1]], dtype=np.float64
+    ).T
     pts = M @ corners
     raw_h, raw_w = raw_shape[:2]
-    outside = ((pts[0] < 0) | (pts[0] > raw_w - 1) | (pts[1] < 0) | (pts[1] > raw_h - 1))
+    outside = (pts[0] < 0) | (pts[0] > raw_w - 1) | (pts[1] < 0) | (pts[1] > raw_h - 1)
     return float(outside.mean())
 
 
@@ -86,8 +89,13 @@ def crop(raw, box, flip_x=False, flip_y=False, brightness=1.0, **kw):
     the measured leaf area rather than the thing the augmentation was meant to change.
     """
     M, (w, h) = _matrix(box, **kw)
-    img = cv.warpAffine(raw, M, (w, h), flags=cv.INTER_LINEAR | cv.WARP_INVERSE_MAP,
-                        borderMode=cv.BORDER_REFLECT_101)
+    img = cv.warpAffine(
+        raw,
+        M,
+        (w, h),
+        flags=cv.INTER_LINEAR | cv.WARP_INVERSE_MAP,
+        borderMode=cv.BORDER_REFLECT_101,
+    )
     img = cv.resize(img, (OUT, OUT))
     if flip_x:
         img = cv.flip(img, 0)
@@ -102,37 +110,37 @@ def crop(raw, box, flip_x=False, flip_y=False, brightness=1.0, **kw):
 # used (from_HPC/models/Model_0029_Aug_Sensitivity/random_search_array_sample.py,
 # aug_param_grid), plus small-angle rotation variants the original grid did not contain.
 AUGMENTATIONS = {
-    "identity":       {},
-    "flip_x":         {"flip_x": True},
-    "flip_y":         {"flip_y": True},
-    "rot90":          {"rotation": 90},
-    "rot180":         {"rotation": 180},
+    "identity": {},
+    "flip_x": {"flip_x": True},
+    "flip_y": {"flip_y": True},
+    "rot90": {"rotation": 90},
+    "rot180": {"rotation": 180},
     # The policy in src/augment.py draws one of FOUR right-angle rotations, so 270 is
     # applied as often as 90 and 180 and belongs in the measured set alongside them.
-    "rot270":         {"rotation": 270},
-    "rot15":          {"rotation": 15},
+    "rot270": {"rotation": 270},
+    "rot15": {"rotation": 15},
     # The policy draws every perturbation symmetrically about zero (rotation +/- 15, shift
     # +/- 10% of the box side), and shifts BOTH axes on the same draw rather than one.
     # The negative halves and the joint shift are measured here so the sweep covers
     # everything the policy can produce and does not need re-running to answer that.
-    "rot-15":         {"rotation": -15},
-    "shift_x-10pct":  {"shift_x_frac": -0.10},
-    "shift_y-10pct":  {"shift_y_frac": -0.10},
+    "rot-15": {"rotation": -15},
+    "shift_x-10pct": {"shift_x_frac": -0.10},
+    "shift_y-10pct": {"shift_y_frac": -0.10},
     "shift_xy+10pct": {"shift_x_frac": 0.10, "shift_y_frac": 0.10},
     "shift_xy-10pct": {"shift_x_frac": -0.10, "shift_y_frac": -0.10},
-    "rot150":         {"rotation": 150},
-    "rot300":         {"rotation": 300},
-    "shift_x+20":     {"shift_x": 20},
-    "shift_y+20":     {"shift_y": 20},
+    "rot150": {"rotation": 150},
+    "rot300": {"rotation": 300},
+    "shift_x+20": {"shift_x": 20},
+    "shift_y+20": {"shift_y": 20},
     # The magnitude the policy in src/augment.py actually applies: a tenth of the box side
     # rather than a fixed 20 px. Resolved per crop in compute.py, because the box differs
     # from crop to crop; the value here is the fraction, not a pixel count.
-    "shift_x+10pct":  {"shift_x_frac": 0.10},
-    "shift_y+10pct":  {"shift_y_frac": 0.10},
-    "zoom0.8":        {"zoom": 0.8},
-    "zoom1.2":        {"zoom": 1.2},
-    "shear_x0.3":     {"shear_x": 0.3},
-    "shear_y0.3":     {"shear_y": 0.3},
-    "brightness1.2":  {"brightness": 1.2},
-    "brightness0.8":  {"brightness": 0.8},
+    "shift_x+10pct": {"shift_x_frac": 0.10},
+    "shift_y+10pct": {"shift_y_frac": 0.10},
+    "zoom0.8": {"zoom": 0.8},
+    "zoom1.2": {"zoom": 1.2},
+    "shear_x0.3": {"shear_x": 0.3},
+    "shear_y0.3": {"shear_y": 0.3},
+    "brightness1.2": {"brightness": 1.2},
+    "brightness0.8": {"brightness": 0.8},
 }
