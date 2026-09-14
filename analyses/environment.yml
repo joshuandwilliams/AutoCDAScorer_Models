@@ -64,7 +64,12 @@ dependencies:
   - numba=0.67.0
   - llvmlite=0.49.0
 
+  # Test suite. pyfakefs supplies the `fs` fixture base_dataset_test.py uses,
+  # and the CI Tests job installs the same set via pyproject's [test] extra.
   - pytest=9.1.1
+  - pytest-cov
+  - pytest-mock
+  - pyfakefs
 
   # Jupyter execution stack Quarto's jupyter engine needs to run the .qmd chunks.
   # ipykernel alone is not enough; quarto's jupyter.py imports yaml and nbformat.

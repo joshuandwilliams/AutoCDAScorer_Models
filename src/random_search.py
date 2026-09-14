@@ -19,8 +19,7 @@ import time
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from sklearn.model_selection import (ParameterGrid, StratifiedGroupKFold,
-                                     StratifiedKFold)
+from sklearn.model_selection import ParameterGrid, StratifiedGroupKFold, StratifiedKFold
 
 from cnn_base import (
     _CustomEarlyStoppingAndSave,
@@ -88,8 +87,9 @@ class RandomSearch:
         self.cv_seed = cv_seed
         self.run_id = str(run_id)
 
-    def _folds(self, images: np.ndarray, labels: np.ndarray,
-               groups: np.ndarray | None = None) -> list:
+    def _folds(
+        self, images: np.ndarray, labels: np.ndarray, groups: np.ndarray | None = None
+    ) -> list:
         """Stratified k-fold split. Uses ``cv_seed`` (shared across tasks), not the
         per-task sampling ``seed``, so all models are compared on the same folds.
 
@@ -107,9 +107,14 @@ class RandomSearch:
         return list(sgk.split(images, labels, groups=groups))
 
     def _cross_validate(
-        self, params: dict, images: np.ndarray, labels: np.ndarray, class_labels,
+        self,
+        params: dict,
+        images: np.ndarray,
+        labels: np.ndarray,
+        class_labels,
         soft_targets: np.ndarray | None = None,
-        groups: np.ndarray | None = None, is_aug: np.ndarray | None = None,
+        groups: np.ndarray | None = None,
+        is_aug: np.ndarray | None = None,
     ):
         """Run stratified k-fold CV for a single config and collect per-fold results.
 
@@ -328,14 +333,25 @@ class RandomSearch:
             pass
 
     def _train_one(
-        self, params, model_id, images, labels, class_labels, store, test_images, test_labels,
-        soft_targets=None, groups=None, is_aug=None,
+        self,
+        params,
+        model_id,
+        images,
+        labels,
+        class_labels,
+        store,
+        test_images,
+        test_labels,
+        soft_targets=None,
+        groups=None,
+        is_aug=None,
     ):
         """CV-train one config, offer its artefacts to the store, return its row (or None)."""
         start = time.perf_counter()
         try:
-            cv = self._cross_validate(params, images, labels, class_labels, soft_targets,
-                                      groups=groups, is_aug=is_aug)
+            cv = self._cross_validate(
+                params, images, labels, class_labels, soft_targets, groups=groups, is_aug=is_aug
+            )
         except Exception as exc:  # defensive: a runtime failure shouldn't abort the sweep
             print(f"Model {model_id} failed to build/train ({exc}); skipping.")
             return None
@@ -355,13 +371,19 @@ class RandomSearch:
                 # Real-only and augmented-only accuracy alongside the pooled figure.
                 # avg_vaf stays the all-data number so it means the same thing as in every
                 # other search in this project and the runs remain comparable.
-                **({"avg_vaf_orig": float(np.nanmean(cv["val_acc_orig_fold"])),
-                    "avg_vaf_aug": float(np.nanmean(cv["val_acc_aug_fold"])),
-                    "avg_taf_orig": float(np.nanmean(cv["train_acc_orig_fold"])),
-                    "avg_taf_aug": float(np.nanmean(cv["train_acc_aug_fold"])),
-                    "aug_minus_orig_vaf": float(np.nanmean(cv["val_acc_aug_fold"])
-                                                - np.nanmean(cv["val_acc_orig_fold"]))}
-                   if cv["val_acc_orig_fold"] else {}),
+                **(
+                    {
+                        "avg_vaf_orig": float(np.nanmean(cv["val_acc_orig_fold"])),
+                        "avg_vaf_aug": float(np.nanmean(cv["val_acc_aug_fold"])),
+                        "avg_taf_orig": float(np.nanmean(cv["train_acc_orig_fold"])),
+                        "avg_taf_aug": float(np.nanmean(cv["train_acc_aug_fold"])),
+                        "aug_minus_orig_vaf": float(
+                            np.nanmean(cv["val_acc_aug_fold"]) - np.nanmean(cv["val_acc_orig_fold"])
+                        ),
+                    }
+                    if cv["val_acc_orig_fold"]
+                    else {}
+                ),
                 "best_epoch": cv["best_epoch"],
                 "train_seconds": round(train_seconds, 1),
                 "cv_seed": self.cv_seed,

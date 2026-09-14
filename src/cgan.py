@@ -53,13 +53,13 @@ def build_generator(latent_dim: int, filters: list[int]) -> tf.keras.Model:
     x = layers.Reshape((8, 8, filters[0]))(x)
 
     for f in filters[1:]:
-        x = layers.Conv2DTranspose(f, (5, 5), strides=(2, 2), padding="same",
-                                   use_bias=False)(x)
+        x = layers.Conv2DTranspose(f, (5, 5), strides=(2, 2), padding="same", use_bias=False)(x)
         x = layers.BatchNormalization()(x)
         x = layers.LeakyReLU()(x)
 
-    out = layers.Conv2DTranspose(IMG_CHANNELS, (5, 5), strides=(1, 1), padding="same",
-                                 use_bias=False, activation="tanh")(x)
+    out = layers.Conv2DTranspose(
+        IMG_CHANNELS, (5, 5), strides=(1, 1), padding="same", use_bias=False, activation="tanh"
+    )(x)
     return tf.keras.Model([noise_in, label_in], out, name="generator")
 
 
@@ -119,10 +119,14 @@ class FrechetCDADistance:
 
     def __init__(self, feature_model_path: str | Path):
         base = tf.keras.models.load_model(feature_model_path)
-        pool_types = (tf.keras.layers.MaxPooling2D,
-                      tf.keras.layers.AveragePooling2D,
-                      tf.keras.layers.GlobalAveragePooling2D)
-        last_pool = next((l for l in reversed(base.layers) if isinstance(l, pool_types)), None)
+        pool_types = (
+            tf.keras.layers.MaxPooling2D,
+            tf.keras.layers.AveragePooling2D,
+            tf.keras.layers.GlobalAveragePooling2D,
+        )
+        last_pool = next(
+            (lyr for lyr in reversed(base.layers) if isinstance(lyr, pool_types)), None
+        )
         if last_pool is None:
             raise ValueError(f"{feature_model_path} has no pooling layer to take features from")
         self.model = tf.keras.Model(base.inputs, last_pool.output)
@@ -149,7 +153,11 @@ class FrechetCDADistance:
 
 def sample(generator, latent_dim: int, n_per_class: int, seed: int | None = None):
     """Generate ``n_per_class`` images for each of the 7 classes, in [0, 1)."""
-    rng = tf.random.Generator.from_seed(seed) if seed is not None else tf.random.get_global_generator()
+    rng = (
+        tf.random.Generator.from_seed(seed)
+        if seed is not None
+        else tf.random.get_global_generator()
+    )
     imgs, labs = [], []
     for c in range(NUM_CLASSES):
         z = rng.normal([n_per_class, latent_dim])
@@ -203,8 +211,9 @@ def train_cgan(
     tf.keras.utils.set_random_seed(seed)
     latent_dim = params["latent_dim"]
     gen = build_generator(latent_dim, params["generator_filters"])
-    disc = build_discriminator(params["discriminator_filters"],
-                               dropout=params.get("disc_dropout", 0.3))
+    disc = build_discriminator(
+        params["discriminator_filters"], dropout=params.get("disc_dropout", 0.3)
+    )
     # beta_1: Keras defaults to 0.9, the DCGAN convention is 0.5. High beta_1 keeps
     # pushing the generator along a direction the discriminator has already moved away
     # from, which is a well-known source of GAN instability. The original pinned it at
@@ -228,10 +237,12 @@ def train_cgan(
 
     x = preprocess_images(train_images)
     y = tf.keras.utils.to_categorical(np.asarray(train_labels).astype(int), NUM_CLASSES)
-    ds = (tf.data.Dataset.from_tensor_slices((x, y))
-          .shuffle(len(x), seed=seed)
-          .batch(params["batch_size"], drop_remainder=True)
-          .prefetch(tf.data.AUTOTUNE))
+    ds = (
+        tf.data.Dataset.from_tensor_slices((x, y))
+        .shuffle(len(x), seed=seed)
+        .batch(params["batch_size"], drop_remainder=True)
+        .prefetch(tf.data.AUTOTUNE)
+    )
 
     @tf.function
     def step(images, labels):
@@ -241,12 +252,17 @@ def train_cgan(
             real_out = disc([images, labels], training=True)
             fake_out = disc([fake, labels], training=True)
             g_loss = bce(tf.ones_like(fake_out), fake_out)
-            d_loss = (bce(tf.fill(tf.shape(real_out), real_target), real_out)
-                      + bce(tf.zeros_like(fake_out), fake_out))
-        g_opt.apply_gradients(zip(gt.gradient(g_loss, gen.trainable_variables),
-                                  gen.trainable_variables))
-        d_opt.apply_gradients(zip(dt.gradient(d_loss, disc.trainable_variables),
-                                  disc.trainable_variables))
+            d_loss = bce(tf.fill(tf.shape(real_out), real_target), real_out) + bce(
+                tf.zeros_like(fake_out), fake_out
+            )
+        g_opt.apply_gradients(
+            zip(gt.gradient(g_loss, gen.trainable_variables), gen.trainable_variables, strict=True)
+        )
+        d_opt.apply_gradients(
+            zip(
+                dt.gradient(d_loss, disc.trainable_variables), disc.trainable_variables, strict=True
+            )
+        )
         return g_loss, d_loss
 
     # The original compared generated images against the VALIDATION split
@@ -255,8 +271,7 @@ def train_cgan(
     # generalisation measure rather than a memorisation one.
     history, best = [], {"fcd": np.inf, "epoch": -1}
     wait, stopped_at = 0, None
-    real_ref = np.asarray(val_images if val_images is not None else train_images,
-                          dtype="float32")
+    real_ref = np.asarray(val_images if val_images is not None else train_images, dtype="float32")
 
     t_start = time.perf_counter()
     for epoch in range(1, epochs + 1):
@@ -264,17 +279,23 @@ def train_cgan(
         gl = dl = n = 0.0
         for xb, yb in ds:
             a, b = step(xb, yb)
-            gl += float(a); dl += float(b); n += 1
-        rec = {"epoch": epoch, "gen_loss": gl / n, "disc_loss": dl / n,
-               "epoch_seconds": time.perf_counter() - t0}
+            gl += float(a)
+            dl += float(b)
+            n += 1
+        rec = {
+            "epoch": epoch,
+            "gen_loss": gl / n,
+            "disc_loss": dl / n,
+            "epoch_seconds": time.perf_counter() - t0,
+        }
 
         if fcd is not None and (epoch % fcd_every == 0 or epoch == epochs):
             fake_imgs, fake_labs = sample(gen, latent_dim, 64, seed=epoch)
             rec["fcd"] = fcd(real_ref, fake_imgs)
             rec["disc_acc"] = discriminator_accuracy(
                 disc,
-                preprocess_images(real_ref[:len(fake_imgs)]),
-                y[:len(fake_imgs)],
+                preprocess_images(real_ref[: len(fake_imgs)]),
+                y[: len(fake_imgs)],
                 preprocess_images(fake_imgs),
                 tf.keras.utils.to_categorical(fake_labs, NUM_CLASSES),
             )
@@ -289,15 +310,19 @@ def train_cgan(
                 if wait >= patience and lo <= rec["disc_acc"] <= hi:
                     stopped_at = epoch
                     history.append(rec)
-                    print(f"  early stop at epoch {epoch}: no Frechet improvement for "
-                          f"{wait} evaluations, discriminator accuracy "
-                          f"{rec['disc_acc']:.3f} inside [{lo}, {hi}]", flush=True)
+                    print(
+                        f"  early stop at epoch {epoch}: no Frechet improvement for "
+                        f"{wait} evaluations, discriminator accuracy "
+                        f"{rec['disc_acc']:.3f} inside [{lo}, {hi}]",
+                        flush=True,
+                    )
                     break
 
         if epoch % sample_every == 0 or epoch == epochs:
             imgs, labs = sample(gen, latent_dim, 4, seed=0)
-            np.savez_compressed(out_dir / "samples" / f"epoch_{epoch:05d}.npz",
-                                images=imgs, labels=labs)
+            np.savez_compressed(
+                out_dir / "samples" / f"epoch_{epoch:05d}.npz", images=imgs, labels=labs
+            )
         history.append(rec)
         # Wall-clock budget. The early-stopping rule above only fires while the
         # discriminator's accuracy is inside the window, so a config whose discriminator
@@ -307,13 +332,18 @@ def train_cgan(
         # timeout would leave generator_best.keras on disk but no summary row.
         if max_seconds is not None and time.perf_counter() - t_start >= max_seconds:
             stopped_at = epoch
-            print(f"  wall-clock budget of {max_seconds / 3600:.2f} h reached at epoch "
-                  f"{epoch}; stopping cleanly (best epoch {best['epoch']})", flush=True)
+            print(
+                f"  wall-clock budget of {max_seconds / 3600:.2f} h reached at epoch "
+                f"{epoch}; stopping cleanly (best epoch {best['epoch']})",
+                flush=True,
+            )
             break
         if epoch % 100 == 0:
-            print(f"  epoch {epoch}: gen {rec['gen_loss']:.3f} disc {rec['disc_loss']:.3f}"
-                  + (f" fcd {rec.get('fcd', float('nan')):.2f}" if "fcd" in rec else ""),
-                  flush=True)
+            print(
+                f"  epoch {epoch}: gen {rec['gen_loss']:.3f} disc {rec['disc_loss']:.3f}"
+                + (f" fcd {rec.get('fcd', float('nan')):.2f}" if "fcd" in rec else ""),
+                flush=True,
+            )
 
     gen.save(out_dir / "models" / "generator_final.keras")
     best["stopped_at"] = stopped_at

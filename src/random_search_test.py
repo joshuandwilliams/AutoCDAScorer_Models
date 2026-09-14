@@ -224,7 +224,6 @@ def test_soft_targets_are_used_for_training_not_validation(monkeypatch):
     silently train on one-hot medians and look like a duplicate of models/03.
     """
     import numpy as np
-    import tensorflow as tf
 
     from model_builders import CNNModelBuilder
     from random_search import RandomSearch
@@ -251,16 +250,28 @@ def test_soft_targets_are_used_for_training_not_validation(monkeypatch):
     soft = np.full((70, 7), 1.0 / 7.0, dtype="float32")
 
     space = {
-        "num_filters": [4], "filter_size": [3], "learning_rate": [0.01], "epochs": [1],
-        "num_layers": [1], "pooling_size": [2], "activation_function": ["relu"],
-        "batch_size": [16], "reg": [None], "reg_strength": [0.0001], "opt": ["Adam"],
+        "num_filters": [4],
+        "filter_size": [3],
+        "learning_rate": [0.01],
+        "epochs": [1],
+        "num_layers": [1],
+        "pooling_size": [2],
+        "activation_function": ["relu"],
+        "batch_size": [16],
+        "reg": [None],
+        "reg_strength": [0.0001],
+        "opt": ["Adam"],
         "dropout": [0.0],
     }
     s = RandomSearch(Recorder(), space, k=2, seed=1, cv_seed=42, run_id="t")
     s._cross_validate(
-        list(__import__("sklearn.model_selection", fromlist=["ParameterGrid"])
-             .ParameterGrid(space))[0],
-        X, y, sorted(set(y.tolist())), soft_targets=soft,
+        list(
+            __import__("sklearn.model_selection", fromlist=["ParameterGrid"]).ParameterGrid(space)
+        )[0],
+        X,
+        y,
+        sorted(set(y.tolist())),
+        soft_targets=soft,
     )
 
     train_y = np.concatenate(seen["train_y"])
@@ -326,13 +337,13 @@ def test_split_accuracy_reports_real_and_augmented_separately(monkeypatch):
             model = super().build(params, input_shape, num_classes)
             # Only predict is stubbed. fit still runs (one epoch on 60 tiny images), so
             # the History object the harness reads per-epoch accuracy out of is real.
-            model.predict = lambda x, **kw: np.tile(
-                np.eye(num_classes)[0], (len(x), 1)
-            ).astype("float32")
+            model.predict = lambda x, **kw: np.tile(np.eye(num_classes)[0], (len(x), 1)).astype(
+                "float32"
+            )
             return model
 
     rng = np.random.default_rng(0)
-    y = np.repeat(np.arange(2), 40)               # 40 zeros, 40 ones
+    y = np.repeat(np.arange(2), 40)  # 40 zeros, 40 ones
     groups = np.arange(80)
     # Real rows are all class 0; augmented rows are all class 1. A constant-zero predictor
     # therefore scores 1.0 on the real subset and 0.0 on the augmented one, whatever the
@@ -342,11 +353,25 @@ def test_split_accuracy_reports_real_and_augmented_separately(monkeypatch):
 
     search = RandomSearch(AlwaysZero(), _three_config_space(), k=4, cv_seed=42)
     cv = search._cross_validate(
-        {"num_filters": 4, "filter_size": 3, "learning_rate": 0.01, "epochs": 1,
-         "num_layers": 1, "pooling_size": 2, "activation_function": "relu",
-         "batch_size": 8, "reg": None, "reg_strength": 0.0001, "opt": "Adam",
-         "dropout": 0.0},
-        images, y, [0, 1], groups=groups, is_aug=is_aug,
+        {
+            "num_filters": 4,
+            "filter_size": 3,
+            "learning_rate": 0.01,
+            "epochs": 1,
+            "num_layers": 1,
+            "pooling_size": 2,
+            "activation_function": "relu",
+            "batch_size": 8,
+            "reg": None,
+            "reg_strength": 0.0001,
+            "opt": "Adam",
+            "dropout": 0.0,
+        },
+        images,
+        y,
+        [0, 1],
+        groups=groups,
+        is_aug=is_aug,
     )
     assert np.allclose(cv["val_acc_orig_fold"], 1.0)
     assert np.allclose(cv["val_acc_aug_fold"], 0.0)

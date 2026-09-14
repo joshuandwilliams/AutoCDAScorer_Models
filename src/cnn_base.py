@@ -347,6 +347,7 @@ def _plot_confusion_matrix(
     labels: np.ndarray,
     axis_labels: tuple[str, str],
     output: str = "confusion_matrix.png",
+    col_labels: np.ndarray | list | None = None,
 ) -> None:
     """
     Plots a confusion matrix with labels, and highlights the diagonal cells with black borders.
@@ -359,6 +360,11 @@ def _plot_confusion_matrix(
             Array of labels for the matrix axes.
     axis_labels : tuple[str, str]
             A tuple containing the labels for the X and Y axes, e.g., ('Predicted', 'Actual').
+    col_labels : Optional[Union[np.ndarray, list]]
+            Column tick labels, when the matrix is not square and the columns are not the
+            same set as the rows. The human rater matrix needs this: it carries an extra
+            column for the judgements Metric 3 removes from the diagonal but keeps in its
+            denominator, which has no row counterpart. Defaults to ``labels``.
 
     Returns:
     --------
@@ -370,9 +376,9 @@ def _plot_confusion_matrix(
     cbar.set_label("Frequency")
 
     labels = labels.astype(int)
-    tick_marks = np.arange(len(labels))
-    plt.xticks(tick_marks, labels)
-    plt.yticks(tick_marks, labels)
+    col_labels = labels if col_labels is None else np.asarray(col_labels)
+    plt.xticks(np.arange(len(col_labels)), col_labels)
+    plt.yticks(np.arange(len(labels)), labels)
 
     # Adding text annotations and black borders for diagonal cells
     ax = plt.gca()  # Get current axis
@@ -389,8 +395,14 @@ def _plot_confusion_matrix(
             # Add a black border if it's on the diagonal (i == j)
             if i == j:
                 ax.add_patch(
-                    Rectangle((j - 0.5, i - 0.5), 1, 1, fill=False, edgecolor="black",
-                              linewidth=plt.rcParams["axes.linewidth"])
+                    Rectangle(
+                        (j - 0.5, i - 0.5),
+                        1,
+                        1,
+                        fill=False,
+                        edgecolor="black",
+                        linewidth=plt.rcParams["axes.linewidth"],
+                    )
                 )
 
     plt.ylabel(axis_labels[0])
