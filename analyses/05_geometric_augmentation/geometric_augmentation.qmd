@@ -1,0 +1,603 @@
+---
+title: "Which geometric augmentations are worth applying to CDA crops"
+format:
+  html:
+    code-fold: true
+    toc: true
+jupyter: autocdascorer-analyses
+---
+
+Date: 10/09/2026
+
+## GOHREP
+
+**Goal:**
+
+Decide which geometric augmentations to apply to the medoid CDA crops, and how many at
+once. An earlier attempt applied a large set of them together and did not improve
+validation accuracy. This works out which of them could have helped, which could not, and
+which were actively changing the thing being predicted.
+
+**Hypotheses:**
+
+1. **Some of the augmentations cannot help, because the crop they produce is
+   indistinguishable from the original in every measurable property of the lesion.** A
+   horizontal flip is the clearest candidate: a leaf photographed from above has no
+   canonical orientation, and every one of the twelve Chapter 2 features is a mean, a
+   spread, a count or a threshold over a region, all of which are unchanged when the
+   pixels are permuted.
+2. **Some of them change the severity content rather than a nuisance direction.** Zoom is
+   the clearest candidate here: enlarging the sampled window adds healthy leaf around the
+   lesion, which changes lesion area, mean greenness over the leaf and the green:red pixel
+   ratio -- three of the features that track severity. The label stays fixed, so the
+   augmented crop is mislabelled.
+3. **Applying many at once compounds 2.** Each transform that shifts severity content adds
+   to the last, so a composite of six is further from its label than any single one.
+
+**Rationale:**
+
+An augmentation is worth applying only if it produces a crop that is *different* from the
+original in ways that do *not* change the label. That is two separate measurements and
+they have to be made separately:
+
+- **Displacement** -- how far the augmented crop moves in the twelve Chapter 2 features,
+  standardised on the real crops and expressed in units of the real within-class spread.
+  Near zero means the augmented copy is, in these terms, the same image again, so a model
+  has nothing new to learn from it.
+- **Label preservation** -- whether the top medoid CNN still predicts the same score for
+  the augmented crop. This is the closest available stand-in for asking a human rater
+  whether the severity changed, and it is measured on the same model that would be
+  trained on the augmented data.
+
+Crossing the two gives the decision directly:
+
+| | label preserved | label changed |
+|---|---|---|
+| **displacement ~ 0** | nothing to learn -- drop it | (cannot occur) |
+| **displacement large** | real nuisance direction -- keep it | relabels the data -- drop it |
+
+**Experimental plan:**
+
+1. Rebuild every training crop from the raw leaf photographs, applying each augmentation
+   **alone**. Validate that the identity case reproduces the stored crops exactly.
+2. Measure displacement and label preservation for each.
+3. Do the same for a composite drawn from the original grid, to measure what applying
+   several at once costs.
+4. Recommend a set.
+
+**Why the crops are rebuilt from the raw photographs.** Rotating or shearing an
+already-cropped image leaves black corners, and shifting or zooming a crop can only pad,
+never reveal. Sampling from the raw leaf photograph means every output pixel is real leaf.
+This also matches the intent of the original pipeline, which re-cropped a larger region
+before transforming.
+
+---
+
+## 1. Setup
+
+```{python}
+# 1.1
+import sys
+import warnings
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+warnings.filterwarnings("ignore")
+repo_root = next(p for p in Path.cwd().parents if (p / ".git").exists())
+HERE = repo_root / "analyses" / "05_geometric_augmentation"
+sys.path.insert(0, str(HERE))
+plt.rcParams.update({"figure.dpi": 120, "font.size": 9})
+
+z = np.load(HERE / "augmentation_effects.npz", allow_pickle=True)
+NAMES = [str(s) for s in z["names"]]
+FEATS = [str(s) for s in z["feature_names"]]
+y = z["labels"].astype(int)
+print(f"{len(y)} training crops, {len(NAMES)} variants each")
+print(f"label-preservation model: medoid CNN {z['model']}")
+print(f"variants: {', '.join(NAMES)}")
+```
+
+### 1.1 What the original pipeline actually applied
+
+The grid is copied verbatim from
+`from_HPC/models/Model_0029_Aug_Sensitivity/random_search_array_sample.py`. Each
+augmented image drew one combination from it, and the only combination excluded was the
+one where every parameter is its identity value. Seven of the nine parameters are ternary
+with one identity level and two of them are binary flips, so the expected number of
+transforms firing on a single image is 7 x (2/3) + 2 x (1/2).
+
+```{python}
+# 1.2
+n_act = z["n_active"]
+print(f"expected transforms per image: {7 * 2 / 3 + 2 * 0.5:.2f}")
+print(f"observed over {len(n_act)} draws: mean {n_act.mean():.2f}, "
+      f"median {int(np.median(n_act))}, range {n_act.min()}-{n_act.max()}")
+print("\ndistribution of how many fired at once:")
+print(pd.Series(n_act).value_counts().sort_index().to_string())
+```
+
+---
+
+## 2. Displacement: which augmentations change anything measurable?
+
+Features are standardised on the identity crops, so one unit is one standard deviation of
+the real data. Displacement is then divided by the real **within-class spread** -- the mean
+distance from a crop to its own class centroid -- so a value of 1.0 means the augmentation
+moved the crop as far as a typical crop sits from the middle of its own class.
+
+```{python}
+# 2.1
+F0 = z["feat__identity"]
+mu, sd = F0.mean(0), F0.std(0)
+sd[sd == 0] = 1.0
+
+
+def zs(F):
+    return (F - mu) / sd
+
+
+Z0 = zs(F0)
+cent = np.stack([Z0[y == c].mean(0) for c in range(7)])
+within = np.mean([np.linalg.norm(Z0[y == c] - cent[c], axis=1).mean() for c in range(7)])
+between = np.mean([np.linalg.norm(cent[a] - cent[b])
+                   for a in range(7) for b in range(a + 1, 7)])
+print(f"real within-class spread   {within:.3f}")
+print(f"real between-class distance {between:.3f}")
+
+rows = []
+for n in NAMES:
+    if n == "identity":
+        continue
+    d = np.linalg.norm(zs(z[f"feat__{n}"]) - Z0, axis=1)
+    same = (z[f"pred__{n}"] == z["pred__identity"]).mean()
+    rows.append({"augmentation": n,
+                 "displacement": d.mean() / within,
+                 "label preserved": same,
+                 "out of frame": z[f"oof__{n}"].mean()})
+D = pd.DataFrame(rows).sort_values("displacement")
+print()
+print(D.round(3).to_string(index=False))
+```
+
+```{python}
+# 2.2
+fig, ax = plt.subplots(figsize=(7.4, 5.0))
+d = D[D.augmentation != "orig_composite"]
+comp = D[D.augmentation == "orig_composite"]
+ax.scatter(d["displacement"], d["label preserved"], s=45, color="#4C72B0", zorder=3)
+ax.scatter(comp["displacement"], comp["label preserved"], s=90, marker="D",
+           color="#C44E52", zorder=3, label="original composite (~5.7 at once)")
+for _, r in D.iterrows():
+    ax.annotate(r["augmentation"], (r["displacement"], r["label preserved"]),
+                textcoords="offset points", xytext=(6, 3), fontsize=7.5)
+ax.axvline(0.5, color="grey", ls=":", lw=1)
+ax.axhline(0.9, color="grey", ls=":", lw=1)
+ax.set_xlabel("displacement (in units of the real within-class spread)")
+ax.set_ylabel("label preserved (CNN predicts the same score)")
+ax.set_title("Useful augmentations are far right and high up", fontsize=10)
+ax.legend(fontsize=8, loc="lower left")
+ax.grid(alpha=0.25)
+fig.tight_layout()
+plt.show()
+```
+
+---
+
+## 3. Which features does each augmentation move?
+
+Displacement says how far, not in which direction. This says which of the twelve
+interpretable features each augmentation actually disturbs, which is what distinguishes a
+nuisance direction from a change in severity content.
+
+```{python}
+# 3.1
+rows = []
+for n in NAMES:
+    if n == "identity":
+        continue
+    delta = np.abs(zs(z[f"feat__{n}"]) - Z0).mean(0)
+    rows.append(pd.Series(delta, index=FEATS, name=n))
+M = pd.DataFrame(rows)
+
+fig, ax = plt.subplots(figsize=(9.0, 5.4))
+im = ax.imshow(M.values, cmap="magma", aspect="auto")
+ax.set_xticks(range(len(FEATS)))
+ax.set_xticklabels(FEATS, rotation=45, ha="right", fontsize=7.5)
+ax.set_yticks(range(len(M)))
+ax.set_yticklabels(M.index, fontsize=7.5)
+fig.colorbar(im, ax=ax, label="mean |change| (SD of real crops)")
+ax.set_title("Which interpretable features each augmentation disturbs", fontsize=10)
+fig.tight_layout()
+plt.show()
+```
+
+```{python}
+# 3.2
+# Split the features by whether they carry severity, measured here on the identity crops
+# rather than taken from elsewhere: Spearman |rho| with score above 0.6.
+from scipy.stats import spearmanr
+
+rho = pd.Series({f: spearmanr(F0[:, i], y).statistic for i, f in enumerate(FEATS)})
+SEVERITY = list(rho[rho.abs() > 0.6].index)
+NUISANCE = [f for f in FEATS if f not in SEVERITY]
+print("severity-carrying (|rho| > 0.6):")
+print(rho[SEVERITY].round(3).sort_values(ascending=False).to_string())
+print("\nother:")
+print(rho[NUISANCE].round(3).to_string())
+print()
+cmp = pd.DataFrame({
+    "severity-carrying": M[SEVERITY].mean(1),
+    "other": M[NUISANCE].mean(1),
+})
+cmp["ratio"] = cmp["severity-carrying"] / cmp["other"].replace(0, np.nan)
+print(cmp.sort_values("severity-carrying").round(3).to_string())
+```
+
+---
+
+## 4. What applying several at once costs
+
+```{python}
+# 4.1
+dc = np.linalg.norm(zs(z["feat__orig_composite"]) - Z0, axis=1) / within
+same = z["pred__orig_composite"] == z["pred__identity"]
+g = pd.DataFrame({"n": z["n_active"], "displacement": dc, "preserved": same})
+print(g.groupby("n").agg(crops=("n", "size"),
+                         displacement=("displacement", "mean"),
+                         preserved=("preserved", "mean")).round(3).to_string())
+```
+
+---
+
+## 5. Examples
+
+```{python}
+# 5.1
+# Eight columns, so identity plus ten kept plus four excluded sits in two rows with a single
+# blank. The colour of each border carries the grouping, since a row at this width cannot be
+# group-pure.
+# The shift shown is the one src/augment.py applies, a tenth of the box side, not the fixed
+# 20 px the original grid used. Both were measured; the 20 px pair is dropped here because
+# it is the original pipeline's value rather than a candidate for the policy.
+# rot150 and rot300 are dropped for the same reason. They come from the original grid
+# (`ORIGINAL_GRID` in compute.py) rather than from any argument about what a rater's box
+# could plausibly have been, so showing them as rejected candidates overstates the field.
+# Their measurements stay in the section 2 table.
+KEPT_ROWS = ["flip_x", "flip_y", "rot90", "rot180", "rot270", "rot15",
+             "shift_x+10pct", "shift_y+10pct", "zoom0.8", "zoom1.2"]
+EXCL_ROWS = ["shear_x0.3", "shear_y0.3", "brightness0.8", "brightness1.2"]
+# Measured but not shown: the original grid's values, and the negative halves of the
+# symmetric perturbations, which land on top of their positive counterparts.
+EXTRA_MEASURED = ["shift_x+20", "shift_y+20", "rot150", "rot300", "rot-15",
+                  "shift_x-10pct", "shift_y-10pct", "shift_xy+10pct", "shift_xy-10pct"]
+cells = ["identity"] + KEPT_ROWS + EXCL_ROWS
+cells += [None] * ((-len(cells)) % 8)
+LABEL = {"identity": "Original", "flip_x": "Flip X", "flip_y": "Flip Y",
+         "rot90": "Rotate 90\u00b0", "rot180": "Rotate 180\u00b0", "rot270": "Rotate 270\u00b0",
+         "rot15": "Rotate 15\u00b0",
+         "rot150": "Rotate 150\u00b0", "rot300": "Rotate 300\u00b0",
+         "shift_x+10pct": "Shift X 10%", "shift_y+10pct": "Shift Y 10%",
+         "shift_x+20": "Shift X 20 px", "shift_y+20": "Shift Y 20 px",
+         "zoom0.8": "Zoom 0.8\u00d7", "zoom1.2": "Zoom 1.2\u00d7",
+         "shear_x0.3": "Shear X 0.3", "shear_y0.3": "Shear Y 0.3",
+         "brightness0.8": "Brightness 0.8\u00d7", "brightness1.2": "Brightness 1.2\u00d7"}
+EDGE = {"identity": "#3B6FB6", **{n: "#55A868" for n in KEPT_ROWS},
+        **{n: "#C44E52" for n in EXCL_ROWS}}
+idx = 3
+ncol = 8
+nrow = len(cells) // ncol
+fig, axes = plt.subplots(nrow, ncol, figsize=(1.15 * ncol, 1.32 * nrow))
+for a, n in zip(axes.ravel(), cells):
+    if n is None:
+        a.set_visible(False)
+        continue
+    # The stored crops are uint8. Dividing by 255 is required: imshow on an integer array
+    # clipped to [0, 1] renders almost every pixel as 0, which is why this panel was black.
+    a.imshow(z[f"img__{n}"][idx][:, :, ::-1] / 255.0)
+    a.set_title(LABEL[n], fontsize=6.5)
+    # Colour-coded border rather than a legend: blue original, green kept, red excluded.
+    for sp in a.spines.values():
+        sp.set_edgecolor(EDGE[n]); sp.set_linewidth(1.8); sp.set_visible(True)
+    a.set_xticks([]); a.set_yticks([])
+fig.tight_layout()
+THESIS = Path("thesis_plots"); THESIS.mkdir(exist_ok=True)
+fig.savefig(THESIS / "augmentation_examples.png", dpi=300, bbox_inches="tight")
+plt.show()
+```
+
+---
+
+## 6. Was it the geometry, or the brightness?
+
+The composite draws brightness alongside the geometric transforms, and section 2 puts
+brightness at the top of the displacement table. Section 4's decline could therefore be
+brightness appearing in more of the larger composites rather than geometry stacking up.
+The draws are reproducible -- `compute.draw_original` was seeded -- so they can be split.
+
+```{python}
+# 6.1
+import compute
+
+rng = np.random.default_rng(0)
+draws = [compute.draw_original(rng) for _ in range(len(y))]
+assert (np.array([compute.n_active(d) for d in draws]) == z["n_active"]).all(), \
+    "draws did not reproduce; the split below would be meaningless"
+
+bright = np.array([d["brightness"] != 1 for d in draws])
+geom = z["n_active"] - bright  # geometric transforms only
+dc = np.linalg.norm(zs(z["feat__orig_composite"]) - Z0, axis=1) / within
+same = z["pred__orig_composite"] == z["pred__identity"]
+
+t = pd.DataFrame({"geometric transforms": geom, "brightness": bright,
+                  "displacement": dc, "preserved": same})
+print(t.groupby(["brightness", "geometric transforms"])
+       .agg(crops=("preserved", "size"), displacement=("displacement", "mean"),
+            preserved=("preserved", "mean")).round(3).to_string())
+```
+
+### 6.1 Which features a brightness change moves, and why
+
+A global gain multiplies every channel by the same constant. Whether a feature survives
+that is a property of its arithmetic, not something that needs to be discovered:
+
+- `sep` is a ratio of between-class variance to total variance of leaf greenness. Scaling
+  greenness by `c` scales both by `c^2`, so the ratio is unchanged.
+- `log_gr` counts pixels where G >= R. A global gain multiplies G and R alike and cannot
+  reverse an inequality, so the counts are unchanged.
+- `frac_g_gt_r` is the Otsu lesion area over leaf area. Otsu's threshold is computed from
+  the data and scales with it, so the lesion mask is unchanged -- but the *leaf* mask uses
+  a fixed cut at mean RGB >= 0.15, which does not scale, so a little leakage is expected.
+- `leaf_bright`, `mean_green` and `cda_bright` are absolute intensities in 0-255 units.
+  They scale directly with `c` and cannot survive.
+
+```{python}
+# 6.2
+t = pd.DataFrame({n: np.abs(zs(z[f"feat__{n}"]) - Z0).mean(0)
+                  for n in ["brightness1.2", "brightness0.8", "zoom1.2", "flip_y"]},
+                 index=FEATS)
+t["rho with score"] = [rho[f] for f in FEATS]
+print(t.round(3).sort_values("brightness1.2", ascending=False).to_string())
+```
+
+### 6.2 A model built only on the gain-invariant features
+
+If the four features above really are immune to exposure, a model restricted to them
+should hold its accuracy when the gain changes, and should not drift towards higher
+scores. Both are testable directly.
+
+```{python}
+# 6.3
+import base_dataset
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import make_pipeline
+from sklearn.model_selection import cross_val_score, StratifiedKFold
+import chapter2_features as c2
+
+CACHE = HERE / "gain_features.npz"
+if CACHE.exists():
+    g = np.load(CACHE)
+    G = {k: g[k] for k in g.files}
+else:
+    ds = base_dataset.load_dataset(repo_root / "data/datasets/medoid_64/medoid_64.npy")
+    Xi = np.asarray(ds["train_images"], dtype="float32")
+    G = {"clean": c2.feature_table(Xi)}
+    for gain in (1.2, 0.8):
+        G[f"gain{gain}"] = c2.feature_table(np.clip(Xi * gain, 0, 1).astype("float32"))
+    np.savez_compressed(CACHE, **G)
+
+INVARIANT = ["sep", "log_gr", "frac_g_gt_r", "cda_green"]
+ii = [FEATS.index(k) for k in INVARIANT]
+cv = StratifiedKFold(5, shuffle=True, random_state=42)
+
+
+def probe():
+    return make_pipeline(StandardScaler(), LogisticRegression(max_iter=3000))
+
+
+rows = []
+for name, cols in [("all 12 features", list(range(12))),
+                   (f"{len(INVARIANT)} gain-invariant only", ii)]:
+    A = G["clean"][:, cols]
+    fit = probe().fit(A, y)
+    rows.append({"feature set": name,
+                 "CV accuracy (clean)": cross_val_score(probe(), A, y, cv=cv).mean(),
+                 "accuracy, gain x1.2": fit.score(G["gain1.2"][:, cols], y),
+                 "accuracy, gain x0.8": fit.score(G["gain0.8"][:, cols], y),
+                 "mean predicted score, clean": fit.predict(A).mean(),
+                 "mean predicted score, x1.2": fit.predict(G["gain1.2"][:, cols]).mean()})
+print(pd.DataFrame(rows).round(4).to_string(index=False))
+print(f"\ninvariant set: {', '.join(INVARIANT)}")
+```
+
+---
+
+## 7. Interpretation and Recommendation
+
+### 7.1 The geometry was not the problem
+
+Splitting the composites by whether brightness was drawn separates the two causes cleanly.
+With brightness absent, label preservation falls gently as geometric transforms stack --
+0.833 at two, 0.700 at five, 0.621 at seven -- so each extra geometric transform costs
+roughly three points. With brightness present it sits between 0.406 and 0.464 at *every*
+count, and stacking more geometry on top changes almost nothing. Brightness costs about
+twenty-five points the moment it is included; the geometry costs three points per
+transform. The earlier attempt was applying 5.69 transforms per image, two thirds of which
+included brightness.
+
+### 7.2 Flips and right angles are free, and that is exactly why they are worth applying
+
+Horizontal flip, vertical flip and 180-degree rotation move the crop by **0.000** in all
+twelve features, and 90 degrees by 0.008. This is not a small measured effect, it is an
+identity: each of these is a permutation of pixels, and every one of the twelve features
+is a mean, a spread, a count or a threshold over a region, none of which depends on where
+in the frame a pixel sits. Nothing measurable about the lesion changes.
+
+Yet the CNN changes its prediction on 17 to 22 percent of crops under exactly these
+operations. That disagreement is the model contradicting itself, not the data changing.
+Training on flips and right-angle rotations cannot mislabel anything -- the label is
+provably still correct -- and it removes an error mode that costs the model up to a fifth
+of its answers. These are the cheapest gain available here.
+
+### 7.3 Small geometry earns its place; large-angle rotation does not
+
+Rotation by 15 degrees, shear at 0.3 and a 20-pixel shift move the crop by 0.14 to 0.19
+within-class spreads while preserving the label on 83 to 92 percent of crops. Those are
+real nuisance directions: the bounding box a rater draws is a judgement, so a crop shifted
+or slightly rotated is a crop the same rater might plausibly have produced.
+
+The original grid's 150 and 300 degree rotations are not worth keeping. They achieve the
+same displacement as a 15 degree rotation (0.184 and 0.187 against 0.136) while preserving
+the label on 78 and 83 percent against 91.9 percent. A 150 degree rotation is a 180 degree
+rotation -- exact, free, label-preserving -- composed with a 30 degree one, so nothing is
+gained by asking for the large angle directly. Use exact multiples of 90 plus a small
+angle, and the interpolation cost disappears.
+
+### 7.4 Zoom changes the quantity it is measuring
+
+Zoom moves the crop further than any other geometric transform (0.58 and 0.62), and
+section 3 shows where it goes: it moves `frac_g_gt_r` by **1.12 standard deviations**, the
+largest single-feature displacement anywhere in the table. That feature is segmented lesion
+area over leaf area, and enlarging the sampled window adds healthy leaf around the lesion,
+so this is the augmentation changing the thing it is measuring rather than perturbing a
+nuisance direction. Rater bounding boxes do genuinely disagree, so some zoom is defensible,
+but at a fraction of the tested magnitude -- 10 percent rather than 20.
+
+### 7.5 Brightness must not be a fixed-label augmentation, and the reason is a confound
+
+Brightness produces the largest displacement in the whole table (0.798 and 0.833) and the
+worst label preservation (0.432 and 0.567). Section 3.2 shows why it is different in kind
+from the geometric transforms: it disturbs the severity-carrying features almost as much as
+the others (ratio 0.897), where zoom's ratio is 0.457 and the flips' is undefined at zero.
+
+The mechanism is a confound in the data itself. Three of the twelve features are absolute
+intensities -- `leaf_bright`, `mean_green`, `cda_bright` -- and all three correlate with
+severity (rho 0.454, 0.682, 0.702), because dying tissue really is brighter than healthy
+leaf. A global gain moves those three by 0.76 to 0.95 standard deviations. Brightening a
+crop therefore moves it along the same axis that severity moves along. Telling the model
+the label has not changed is telling it something false, and that is why brightness at 1.0
+outscored both 0.8 and 1.2 in the earlier sensitivity run.
+
+### 7.6 What to do about exposure shift instead
+
+The failure this was meant to defend against is real and reproducible. Applying a 1.2 gain
+to the training crops moves the top CNN's mean predicted score from 3.035 to 3.505, and a
+0.8 gain moves it to 2.395. Brighter images read as more severe, which is the reported
+behaviour on an externally supplied test set scored almost entirely as 6.
+
+**Rescaling each image to a fixed leaf brightness removes the bias but not the damage.**
+After normalising, the mean predicted score returns to 2.94, so the systematic inflation is
+gone, but per-image accuracy recovers only from 0.529 to 0.548 against 0.715 on clean
+crops. Clipping is not the explanation -- only 2.6 percent of pixels saturate under a 1.2
+gain, and repeating the test without clipping gives 0.549. The reason is the confound
+again: forcing every crop to the same leaf brightness also erases the part of brightness
+that is genuine severity.
+
+**Restricting the model to gain-invariant features does work.** Four of the twelve survive
+a global gain by construction, and the measurements confirm it: `sep` (0.055 and 0.058),
+`log_gr` (0.055 and 0.040), `frac_g_gt_r` (0.055 and 0.105) and `cda_green` (0.190 and
+0.181). A probe on those four alone scores 0.455 on clean crops against 0.606 for all
+twelve -- but under a 1.2 gain it scores 0.463 against 0.473, under a 0.8 gain 0.459
+against 0.406, and its mean predicted score moves from 3.087 to 3.047 where the full set
+drifts from 3.032 to 3.517. It gives up 15 points of clean accuracy and buys complete
+immunity to exposure.
+
+The reason this is possible at all is that gain-invariance and severity-carrying are not
+mutually exclusive here. `log_gr` and `sep` are the second and fourth strongest severity
+carriers in the whole set (rho 0.823 and 0.757) and are also the two least disturbed by
+gain. Overall brightness cannot distinguish an overexposed leaf from a dying one; these two
+can.
+
+**The deployable form of this is a two-number check.** For an incoming batch, compare
+`leaf_bright` against the training distribution and compare `sep` and `log_gr` against it.
+`leaf_bright` far out with `sep` and `log_gr` in place means an exposure shift, and the
+scores should not be trusted. All three moving together means the leaves really are more
+affected. This costs one pass of fixed arithmetic and needs no model.
+
+### 7.7 Recommended augmentation set
+
+| | apply | why |
+|---|---|---|
+| horizontal flip | yes | zero displacement in all twelve features, yet flips up to 22% of the model's answers |
+| vertical flip | yes | same |
+| rotation by 90, 180, 270 | yes | exact, no interpolation, zero displacement |
+| rotation, small angle (up to 15 deg) | yes | 0.136 displacement at 0.919 label preservation, the best ratio in the table |
+| shift, up to 10% of the box side | yes | 0.16 displacement at 0.83, and rater box centres differ from their 3-rater mean by a median 5.0% of the box side |
+| shear, up to 0.3 | no | measured harmless (0.15 displacement at 0.90), but every leaf here was photographed flat, so there is no oblique viewing for it to model |
+| zoom, 0.8 to 1.2 | yes | rater box sizes span 0.814 to 1.201 of their 3-rater mean, so this range is the raters' own disagreement rather than a guess |
+| rotation at 150 or 300 deg | no | same displacement as 15 deg at 9 points worse label preservation, and 180 deg is free |
+| brightness | no | confounded with severity; handle by feature choice, not by augmentation |
+
+**Apply one or two per image, not six.** Each additional geometric transform costs about
+three points of label preservation, and there is no measurement here suggesting a composite
+of six teaches anything a composite of two does not.
+
+### 7.8 A caveat on the label-preservation measure
+
+Label preservation is the top medoid CNN agreeing with itself, not a human re-scoring the
+augmented crop. Where a flip changes the prediction, the model is provably wrong, because
+the crop is identical in every measured property -- that direction of the argument is
+sound. Where zoom or brightness changes the prediction, the model might be right that the
+severity content moved, or it might be as brittle as the flip result shows it to be. The
+feature displacements in section 3 are what settle those cases, because they do not depend
+on any model, and they agree with the prediction changes throughout.
+
+
+## Thesis figure
+
+```{python}
+# T2  Displacement against label preservation, separating kept from excluded.
+# Same display names as the example grid above, so the two panels name the same thing twice.
+_NAME = LABEL
+_kept = {"flip_x", "flip_y", "rot90", "rot180", "rot270", "rot15", "shift_x+10pct",
+         "shift_y+10pct", "zoom0.8", "zoom1.2"}
+# The fixed 20 px shift and the 150/300 degree rotations are the original pipeline's values,
+# measured in section 2 but never candidates for the policy, so they are dropped here along
+# with the composite. The panel then shows one shift magnitude rather than two nearly
+# coincident ones, and the same thirteen augmentations as the example grid above.
+_D = D[~D.augmentation.isin(["orig_composite", "shift_x+20", "shift_y+20",
+                             "rot150", "rot300", "rot-15", "shift_x-10pct",
+                             "shift_y-10pct", "shift_xy+10pct",
+                             "shift_xy-10pct"])].sort_values(
+    ["displacement", "label preserved"]).reset_index(drop=True)
+_fig, _ax = plt.subplots(figsize=(5.6, 3.8))
+# Labels sit beside their own marker at the same height, except where markers nearly
+# coincide: those are placed on the opposite side, or directly above or below, so no label
+# can be read as belonging to a neighbour.
+_LEFT = {"flip_x", "flip_y", "rot180", "shear_y0.3", "zoom0.8",
+         "brightness1.2", "brightness0.8", "shift_y+10pct"}
+_ABOVE = set()
+_BELOW = {"rot90"}
+for _, _r in _D.iterrows():
+    _k = _r.augmentation in _kept
+    _ax.scatter(_r["displacement"], _r["label preserved"], s=46,
+                color="#55A868" if _k else "#C44E52", marker="o" if _k else "X", zorder=3)
+    if _r.augmentation in _ABOVE:
+        _off, _ha, _va = (0, 5), "center", "bottom"
+    elif _r.augmentation in _BELOW:
+        _off, _ha, _va = (0, -5), "center", "top"
+    elif _r.augmentation in _LEFT:
+        _off, _ha, _va = (-7, 0), "right", "center"
+    else:
+        _off, _ha, _va = (7, 0), "left", "center"
+    _ax.annotate(_NAME.get(_r.augmentation, _r.augmentation),
+                 (_r["displacement"], _r["label preserved"]),
+                 xytext=_off, textcoords="offset points", fontsize=6.5, ha=_ha, va=_va)
+# Room for the labels themselves: the leftmost point sits at displacement 0 with a
+# left-hand label, and the rightmost carries a right-hand one.
+_lo, _hi = _D["displacement"].min(), _D["displacement"].max()
+_ax.set_xlim(_lo - 0.22 * (_hi - _lo), _hi + 0.26 * (_hi - _lo))
+_ax.set_xlabel("Feature displacement")
+_ax.set_ylabel("Label preservation")
+_ax.scatter([], [], color="#55A868", label="Kept")
+_ax.scatter([], [], color="#C44E52", marker="X", label="Excluded")
+# Above the axes, because inside them the two legend markers read as two more data points.
+_ax.legend(fontsize=7.5, frameon=False, ncol=2, loc="lower center",
+           bbox_to_anchor=(0.5, 1.0), borderaxespad=0.0)
+_ax.grid(alpha=0.25); _ax.spines[["top", "right"]].set_visible(False)
+_fig.savefig(THESIS / "augmentation_displacement.png", dpi=300, bbox_inches="tight")
+plt.show()
+```

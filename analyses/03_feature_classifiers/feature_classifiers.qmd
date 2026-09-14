@@ -1,0 +1,872 @@
+---
+title: "Non-DL baselines on the medoid_64 splits"
+format:
+  html:
+    code-fold: true
+    toc: true
+---
+
+Date: 11/09/2026
+
+## GOHREP
+
+**Goal:**
+
+Put a floor under the deep models, using the same hand-crafted features, the same model
+families and the same code as Chapter 2's `10b_score_prediction.qmd`, but evaluated on the
+train/val/test split every model in this repository is evaluated on.
+
+**Rationale:**
+
+This is a port, not a reimplementation. Sections 1-6 reproduce `10b_score_prediction.qmd`
+line for line -- the same twelve features, the same balanced undersample, the same
+source-grouped five-fold cross validation, the same `maxnodes` sweep, the
+same proportional-odds ordinal regression, the same baselines and the same leakage check --
+so the numbers here can be checked against the ones that analysis published. Section 7 is
+the only new part: the identical models refit on the medoid_64 train split, tuned on val
+and scored once on the 308 test CDAs, which is what makes them comparable with models/03
+and models/04.
+
+Written in R for the same reason the original is: `MASS::polr` fits the proportional-odds
+model, and there is no equivalent in this project's Python environment.
+
+**The features:** eleven segmentation features plus `entropy_raw`. `frac_g_gt_r` is
+deliberately NOT a model feature -- its Otsu-artefact behaviour is discussed in
+`10_segmentation_and_feature_extraction` section 5.2 -- and is kept only for the
+single-feature "Threshold: CDA area" baseline.
+
+---
+
+## 1. Setup
+
+```{r}
+#| output: false
+# 1.1
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+requireNamespace("patchwork", quietly = TRUE)
+requireNamespace("randomForest", quietly = TRUE)
+requireNamespace("MASS", quietly = TRUE)
+requireNamespace("ordinalForest", quietly = TRUE)
+
+repo_root <- normalizePath(file.path(dirname(sys.frame(1)$ofile %||% "."), "..", ".."),
+                           mustWork = FALSE)
+if (!dir.exists(file.path(repo_root, "data"))) repo_root <- normalizePath("../..")
+uv_repo <- "/Users/jowillia/Documents/GitHub/uv-agroinfiltration-dataset"
+analysis_dir <- file.path(repo_root, "analyses", "03_feature_classifiers")
+thesis_plots <- file.path(analysis_dir, "thesis_plots")
+dir.create(thesis_plots, showWarnings = FALSE, recursive = TRUE)
+
+# The confusion matrix is drawn by _plot_confusion_matrix in src/cnn_base.py, so the
+# Python chunk below runs through reticulate against this project's environment.
+Sys.setenv(RETICULATE_PYTHON = "/Users/jowillia/miniforge3/envs/agroinfiltration_scoring/bin/python")
+repo_root_py <- repo_root
+
+# Per-chunk wall time, written to the render log (not the HTML), so the slow steps can be
+# found and cached rather than guessed at.
+local({
+  .t0 <- NULL
+  knitr::knit_hooks$set(timeit = function(before, options, envir) {
+    if (before) .t0 <<- Sys.time()
+    else message(sprintf("CHUNKTIME %-28s %6.1fs", options$label,
+                         as.numeric(difftime(Sys.time(), .t0, units = "secs"))))
+    NULL
+  })
+})
+knitr::opts_chunk$set(timeit = TRUE)
+
+# Display names for the twelve features, taken verbatim from the "Feature" column of the
+# two tables in
+# uv-agroinfiltration-dataset/analyses/10_segmentation_and_feature_extraction/
+# 10_segmentation_and_feature_extraction.qmd, so the chapter and Chapter 2 name the same
+# quantity the same way.
+FEATURE_NAME <- c(
+  ent_gap       = "CDA-leaf entropy difference",
+  cda_green     = "CDA greenness",
+  green_gap     = "CDA-leaf contrast",
+  sep           = "Greenness bimodality",
+  cda_bright    = "CDA brightness",
+  leaf_green_sd = "Whole-leaf greenness spread",
+  cda_green_sd  = "Within-CDA greenness spread",
+  cda_bright_sd = "Within-CDA brightness spread",
+  mean_green    = "Mean green",
+  log_gr        = "Log green/red ratio",
+  leaf_bright   = "Leaf brightness",
+  entropy_raw   = "Shannon entropy"
+)
+pretty_feature <- function(x) unname(ifelse(is.na(FEATURE_NAME[x]), x, FEATURE_NAME[x]))
+
+save_plot <- function(p, name, width, height) {
+  ggplot2::ggsave(file.path(thesis_plots, name), p, width = width, height = height, dpi = 300)
+}
+```
+
+## 2. Features, class balance and a leakage-safe cross validation
+
+Copied from `10b_score_prediction.qmd` section 2.1-2.3.
+
+```{r}
+# 2.1  Features and class balancing
+features <- read.csv(file.path(uv_repo, "data", "features", "cda_image_features.csv"))
+
+seg_features <- c(
+  "ent_gap", "green_gap", "cda_green", "sep",
+  "cda_green_sd", "cda_bright", "cda_bright_sd", "leaf_green_sd",
+  "mean_green", "log_gr", "leaf_bright"
+)
+other_features <- c("entropy_raw")
+all_features <- c(seg_features, other_features)
+
+feat_all <- features %>%
+  dplyr::select(image_id, source, score, frac_g_gt_r, dplyr::all_of(all_features))
+
+set.seed(42)
+min_n <- min(table(feat_all$score))
+bal_idx <- unlist(lapply(0:6, function(s) {
+  idx <- which(feat_all$score == s)
+  if (length(idx) > min_n) sample(idx, min_n) else idx
+}))
+feat <- feat_all[bal_idx, ]
+X <- as.matrix(feat[, all_features])
+y <- feat$score
+cat(sprintf(
+  "Balanced set: %d images per class, %d total, %d features\n",
+  min_n, nrow(feat), length(all_features)
+))
+```
+
+```{r}
+# 2.2  Source-grouped 5-fold assignment (a leaf's crops never split across folds)
+K <- 5
+set.seed(42)
+usrc <- unique(feat$source)
+src_fold <- setNames(sample(rep(1:K, length.out = length(usrc))), usrc)
+fold <- unname(src_fold[feat$source])
+cat(sprintf(
+  "%d source leaves assigned across %d folds; fold sizes: %s\n",
+  length(usrc), K, paste(as.integer(table(fold)), collapse = ", ")
+))
+```
+
+```{r}
+# 2.3  Leakage sanity check: shuffled labels MUST collapse to chance.
+rf_reg_cv <- function(ntree, target = y) {
+  pred <- numeric(length(target))
+  for (f in 1:K) {
+    tr <- fold != f
+    te <- fold == f
+    m <- randomForest::randomForest(x = X[tr, , drop = FALSE], y = target[tr], ntree = ntree)
+    pred[te] <- predict(m, X[te, , drop = FALSE])
+  }
+  pmin(pmax(round(pred), 0), 6)
+}
+# Cached: five 200-tree forests on shuffled labels, and the answer cannot change unless
+# the features or the folds do.
+leak_cache <- file.path(analysis_dir, "model_cache", "leakage_check.rds")
+if (file.exists(leak_cache)) {
+  shuffle_acc <- readRDS(leak_cache)
+} else {
+  set.seed(7)
+  y_shuffled <- sample(y)
+  shuffle_acc <- mean(rf_reg_cv(200, y_shuffled) == y_shuffled)
+  saveRDS(shuffle_acc, leak_cache)
+}
+cat(sprintf(
+  "Leakage check - shuffled-label cross validation exact accuracy = %.3f (chance = %.3f)\n",
+  shuffle_acc, 1 / 7
+))
+```
+
+## 3. Random forest: regularising with maxnodes
+
+```{r}
+# 3.1
+NTREE <- 200
+rf_fit_cv <- function(maxnodes) {
+  pred <- numeric(length(y))
+  for (f in 1:K) {
+    tr <- fold != f
+    te <- fold == f
+    m <- randomForest::randomForest(
+      x = X[tr, , drop = FALSE], y = y[tr], ntree = NTREE, maxnodes = maxnodes
+    )
+    pred[te] <- predict(m, X[te, , drop = FALSE])
+  }
+  pmin(pmax(round(pred), 0), 6)
+}
+rf_fit_train <- function(maxnodes) {
+  set.seed(1)
+  m <- randomForest::randomForest(x = X, y = y, ntree = NTREE, maxnodes = maxnodes)
+  pmin(pmax(round(predict(m, X)), 0), 6)
+}
+maxnodes_grid <- c(4, 8, 16, 32, 64, 128, 256)
+# Cached: 7 maxnodes x (1 resubstitution fit + 5 cross-validation fits) x 200 trees, plus
+# the refit at the chosen value. Deterministic given the features and the fold assignment.
+reg_cache <- file.path(analysis_dir, "model_cache", "rf_regularisation.rds")
+if (file.exists(reg_cache)) {
+  .rc <- readRDS(reg_cache)
+  reg_curve <- .rc$reg_curve
+  rf_best_cached <- .rc$rf_best
+} else {
+  set.seed(42)
+  reg_curve <- data.frame(
+    maxnodes = maxnodes_grid,
+    train = sapply(maxnodes_grid, function(mn) mean(rf_fit_train(mn) == y)),
+    cross_validation = sapply(maxnodes_grid, function(mn) mean(rf_fit_cv(mn) == y))
+  )
+  reg_curve$gap <- reg_curve$train - reg_curve$cross_validation
+  rf_best_cached <- rf_fit_cv(max(reg_curve$maxnodes[reg_curve$gap <= 0.15]))
+  saveRDS(list(reg_curve = reg_curve, rf_best = rf_best_cached), reg_cache)
+}
+best_maxnodes <- max(reg_curve$maxnodes[reg_curve$gap <= 0.15])
+cat(sprintf(
+  "Chosen maxnodes = %d: train = %.3f, cross validation = %.3f, gap = %.3f (<= 0.15)\n",
+  best_maxnodes,
+  reg_curve$train[reg_curve$maxnodes == best_maxnodes],
+  reg_curve$cross_validation[reg_curve$maxnodes == best_maxnodes],
+  reg_curve$gap[reg_curve$maxnodes == best_maxnodes]
+))
+rf_best <- rf_best_cached
+```
+
+```{r fig.width=8, fig.height=4.5}
+# 3.2
+p_reg <- reg_curve %>%
+  pivot_longer(c(train, cross_validation), names_to = "set", values_to = "accuracy") %>%
+  ggplot(aes(maxnodes, accuracy, colour = set)) +
+  geom_line() +
+  geom_point(size = 1.6) +
+  geom_vline(xintercept = best_maxnodes, linetype = "dashed", colour = "grey40") +
+  scale_colour_manual(
+    values = c(train = "#B2182B", cross_validation = "#2166AC"),
+    labels = c(cross_validation = "held out (grouped 5-fold cross validation)",
+               train = "training"),
+    name = NULL
+  ) +
+  scale_x_log10(breaks = maxnodes_grid) +
+  labs(x = "max leaf nodes per tree (log scale)", y = "Exact accuracy") +
+  theme_minimal() +
+  theme(axis.text = element_text(size = 12), axis.title = element_text(size = 13),
+        legend.position = "top")
+p_reg
+save_plot(p_reg, "rf_regularisation.png", width = 8, height = 4.5)
+```
+
+## 4. Ordinal regression
+
+Proportional-odds ordinal logistic regression: one linear predictor over the twelve
+features plus six ordered cut-points, so the model uses the ordering of the scale rather
+than treating the seven scores as unrelated labels.
+
+```{r}
+# 4.1
+ord_cv <- function() {
+  pred <- integer(length(y))
+  for (f in 1:K) {
+    tr <- fold != f
+    te <- fold == f
+    mu <- colMeans(X[tr, ])
+    sdv <- apply(X[tr, ], 2, sd)
+    sdv[sdv == 0] <- 1
+    dtr <- data.frame(scale(X[tr, , drop = FALSE], mu, sdv),
+      y = factor(y[tr], levels = 0:6, ordered = TRUE)
+    )
+    dte <- data.frame(scale(X[te, , drop = FALSE], mu, sdv))
+    fit <- suppressWarnings(MASS::polr(y ~ ., data = dtr, Hess = TRUE))
+    pred[te] <- as.integer(as.character(predict(fit, dte, type = "class")))
+  }
+  pred
+}
+ord_train <- function() {
+  mu <- colMeans(X)
+  sdv <- apply(X, 2, sd)
+  sdv[sdv == 0] <- 1
+  d <- data.frame(scale(X, mu, sdv), y = factor(y, levels = 0:6, ordered = TRUE))
+  fit <- suppressWarnings(MASS::polr(y ~ ., data = d, Hess = TRUE))
+  as.integer(as.character(predict(fit, data.frame(scale(X, mu, sdv)), type = "class")))
+}
+ord_best <- ord_cv()
+ord_tr <- ord_train()
+cat(sprintf(
+  "Ordinal regression: held-out exact = %.3f, near-miss = %.3f; training = %.3f, gap = %.3f\n",
+  mean(ord_best == y), mean(abs(ord_best - y) <= 1),
+  mean(ord_tr == y), mean(ord_tr == y) - mean(ord_best == y)
+))
+```
+
+## 5. Reproduction check against 10b
+
+If this port is faithful, the five rows below must match the values
+`10b_score_prediction.qmd` publishes: ordinal regression 0.615, random forest 0.565,
+CDA-area threshold 0.111, majority class 0.143.
+
+```{r}
+# 5.1
+thresh_cv <- function(x) {
+  pred <- integer(length(y))
+  for (f in 1:K) {
+    tr <- fold != f
+    te <- fold == f
+    med <- tapply(x[tr], y[tr], median)
+    sc <- as.integer(names(med))
+    o <- order(sc); med <- med[o]; sc <- sc[o]
+    cuts <- cummax((head(med, -1) + tail(med, -1)) / 2)
+    pred[te] <- sc[findInterval(x[te], cuts) + 1]
+  }
+  pred
+}
+thresh_train <- function(x) {
+  med <- tapply(x, y, median)
+  sc <- as.integer(names(med))
+  o <- order(sc); med <- med[o]; sc <- sc[o]
+  cuts <- cummax((head(med, -1) + tail(med, -1)) / 2)
+  sc[findInterval(x, cuts) + 1]
+}
+maj <- rep(as.integer(names(which.max(table(y)))), length(y))
+
+cmp_row <- function(train_pred, test_pred, name, tuning) {
+  data.frame(
+    model = name, tuning = tuning,
+    train = mean(train_pred == y), cross_validation = mean(test_pred == y),
+    gap = mean(train_pred == y) - mean(test_pred == y),
+    near_miss = mean(abs(test_pred - y) <= 1)
+  )
+}
+results <- rbind(
+  cmp_row(maj, maj, "Majority class", ""),
+  cmp_row(thresh_train(feat$frac_g_gt_r), thresh_cv(feat$frac_g_gt_r),
+          "Threshold: CDA area", "1 feature"),
+  cmp_row(ord_tr, ord_best, "Ordinal regression", "12 features"),
+  cmp_row(rf_fit_train(best_maxnodes), rf_best, "Random forest",
+          sprintf("%d nodes", best_maxnodes))
+)
+results %>%
+  mutate(across(c(train, cross_validation, gap, near_miss), ~ round(., 3))) %>%
+  arrange(desc(cross_validation)) %>%
+  as.data.frame()
+```
+
+---
+
+## 6. The medoid_64 splits
+
+The only part that is not in 10b. The same two models are refit on the medoid_64 train
+split (1,834 crops), each one's hyperparameter chosen on the val split (455), then refit on
+train+val and scored once on the 308 test CDAs -- the same crops models/03 and models/04
+report `test_acc` on.
+
+```{r}
+# 6.1
+split <- read.csv(file.path(repo_root, "data", "datasets", "medoid_64", "medoid_64.csv"))
+split$image_id <- sub("\\.tif$", "", split$filename)
+d <- merge(split, feat_all, by = "image_id")
+stopifnot(nrow(d) == nrow(split), all(d$label == d$score))
+cat(sprintf("%d crops joined; per split: %s\n", nrow(d),
+            paste(sprintf("%s=%d", names(table(d$split)), as.integer(table(d$split))),
+                  collapse = ", ")))
+
+Xtr <- as.matrix(d[d$split == "train", all_features]); ytr <- d$score[d$split == "train"]
+Xva <- as.matrix(d[d$split == "val", all_features]);   yva <- d$score[d$split == "val"]
+Xte <- as.matrix(d[d$split == "test", all_features]);  yte <- d$score[d$split == "test"]
+Xtv <- rbind(Xtr, Xva); ytv <- c(ytr, yva)
+
+zfit <- function(A) { mu <- colMeans(A); s <- apply(A, 2, sd); s[s == 0] <- 1; list(mu = mu, s = s) }
+zap  <- function(A, p) scale(A, p$mu, p$s)
+
+# Ordinal forest (Hornung 2020, J. Classification 37, 4-17, doi:10.1007/s00357-018-9302-x).
+# A regression forest whose target is a set of SCORE VALUES optimised by out-of-bag
+# performance, rather than the class values 0-6 assumed equally spaced and then rounded.
+# The polr cut-points in section 9 are not equally spaced, so that assumption is measurably
+# wrong on these crops, which is the reason for using it here.
+of_fit <- function(Xa, ya, seed = 42) {
+  set.seed(seed)
+  ordinalForest::ordfor(depvar = "y",
+                        data = data.frame(Xa, y = factor(ya, levels = 0:6, ordered = TRUE)),
+                        perffunction = "equal")
+}
+of_predict <- function(fit, Xb) {
+  as.integer(as.character(predict(fit, newdata = data.frame(Xb))$ypred))
+}
+ord_at <- function(Xa, ya, Xb) {
+  p <- zfit(Xa)
+  dtr <- data.frame(zap(Xa, p), y = factor(ya, levels = 0:6, ordered = TRUE))
+  fit <- suppressWarnings(MASS::polr(y ~ ., data = dtr, Hess = TRUE))
+  as.integer(as.character(predict(fit, data.frame(zap(Xb, p)), type = "class")))
+}
+
+# Neither model has a tuned hyperparameter: polr has none, and ordfor's defaults "were
+# found to be in a reasonable range" per its documentation. Cached, because the ordinal
+# forest grows 1,000 exploratory forests plus a 5,000-tree final one.
+of_cache <- file.path(analysis_dir, "model_cache", "ordinal_forests.rds")
+# The forest objects are ~98 MB, and reading them back costs about ten seconds even though
+# nothing downstream needs the trees themselves -- only three prediction vectors and the
+# permutation importances. Those are cached separately so a normal render never touches the
+# large file; delete of_derived.rds to rebuild them from the forests.
+of_derived <- file.path(analysis_dir, "model_cache", "ordinal_forest_outputs.rds")
+if (file.exists(of_derived)) {
+  ofo <- readRDS(of_derived)
+} else {
+  if (file.exists(of_cache)) {
+    ofs <- readRDS(of_cache)
+  } else {
+    ofs <- list(tr = of_fit(Xtr, ytr), tv = of_fit(Xtv, ytv))
+    saveRDS(ofs, of_cache)
+  }
+  ofo <- list(tr_on_va = of_predict(ofs$tr, Xva),
+              tv_on_te = of_predict(ofs$tv, Xte),
+              varimp   = ofs$tv$varimp)
+  saveRDS(ofo, of_derived)
+}
+cat(sprintf("val accuracy -- ordinal forest %.3f, ordinal regression %.3f\n",
+            mean(ofo$tr_on_va == yva), mean(ord_at(Xtr, ytr, Xva) == yva)))
+```
+
+```{r}
+# 6.2
+# Both splits scored the same way, so val and test near-miss are directly comparable.
+score_row <- function(vpred, tpred, name, tuning) {
+  data.frame(
+    model = name, tuning = tuning,
+    val_exact     = if (is.null(vpred)) NA else round(mean(vpred == yva), 4),
+    val_near_miss = if (is.null(vpred)) NA else round(mean(abs(vpred - yva) <= 1), 4),
+    test_exact     = round(mean(tpred == yte), 4),
+    test_near_miss = round(mean(abs(tpred - yte) <= 1), 4)
+  )
+}
+maj_te <- rep(as.integer(names(which.max(table(ytv)))), length(yte))
+maj_va <- rep(maj_te[1], length(yva))
+area_tv <- d$frac_g_gt_r[d$split %in% c("train", "val")]
+area_va <- d$frac_g_gt_r[d$split == "val"]
+area_te <- d$frac_g_gt_r[d$split == "test"]
+med <- tapply(area_tv, ytv, median); sc <- as.integer(names(med))
+o <- order(sc); med <- med[o]; sc <- sc[o]
+cuts <- cummax((head(med, -1) + tail(med, -1)) / 2)
+
+final <- rbind(
+  score_row(maj_va, maj_te, "Majority class", ""),
+  score_row(sc[findInterval(area_va, cuts) + 1], sc[findInterval(area_te, cuts) + 1],
+            "Threshold: CDA area", "1 feature"),
+  score_row(ord_at(Xtr, ytr, Xva), ord_at(Xtv, ytv, Xte),
+            "Ordinal regression", "12 features"),
+  score_row(ofo$tr_on_va, ofo$tv_on_te,
+            "Ordinal forest", "defaults")
+)
+final %>% arrange(desc(test_exact)) %>% as.data.frame()
+
+# Exported so the cross-model analysis can compare these against the deep models
+# per-image, rather than refitting them there.
+write.csv(
+  data.frame(
+    image_id = d$image_id[d$split == "test"],
+    true = yte,
+    ordinal_regression = ord_at(Xtv, ytv, Xte),
+    ordinal_forest = ofo$tv_on_te
+  ),
+  file.path(analysis_dir, "model_cache", "nondl_test_predictions.csv"), row.names = FALSE
+)
+
+# The same train+val fit, applied to the ENSEMBLE split as well. analyses/14 selects and
+# tunes its combiners on that split and reports test once, so it needs both. The ensemble
+# crops are held out of every model in this repository, so scoring them here is not
+# leakage; they are simply a second unseen split.
+# Class probabilities as well as the hard score, so analyses/14 can put this model into
+# probability-averaging rules on the same footing as the softmax of a network.
+ord_probs_at <- function(Xa, ya, Xb) {
+  p <- zfit(Xa)
+  dtr <- data.frame(zap(Xa, p), y = factor(ya, levels = 0:6, ordered = TRUE))
+  fit <- suppressWarnings(MASS::polr(y ~ ., data = dtr, Hess = TRUE))
+  pr <- predict(fit, data.frame(zap(Xb, p)), type = "probs")
+  colnames(pr) <- paste0("p", 0:6)
+  pr
+}
+Xen <- as.matrix(d[d$split == "ensemble", all_features])
+yen <- d$score[d$split == "ensemble"]
+write.csv(
+  rbind(
+    data.frame(image_id = d$image_id[d$split == "ensemble"], split = "ensemble",
+               true = yen, ordinal_regression = ord_at(Xtv, ytv, Xen),
+               ord_probs_at(Xtv, ytv, Xen)),
+    data.frame(image_id = d$image_id[d$split == "test"], split = "test",
+               true = yte, ordinal_regression = ord_at(Xtv, ytv, Xte),
+               ord_probs_at(Xtv, ytv, Xte))
+  ),
+  file.path(analysis_dir, "model_cache", "nondl_heldout_predictions.csv"), row.names = FALSE
+)
+cat(sprintf("ordinal regression: ensemble %.4f, test %.4f\n",
+            mean(ord_at(Xtv, ytv, Xen) == yen), mean(ord_at(Xtv, ytv, Xte) == yte)))
+```
+
+```{r}
+# 7.3  Against the deep models and the human raters, on the identical 308 test CDAs.
+deep <- data.frame(
+  model = c("CNN (models/03)", "ViT (models/04)", "Human raters (Chapter 2 Metric 3)"),
+  tuning = c("8,640 configs", "2,592 configs", ""),
+  val_exact = c(0.6457, 0.6466, NA),
+  val_near_miss = c(0.9733, 0.9720, NA),
+  test_exact = c(0.6169, 0.6429, 0.6892),
+  test_near_miss = c(0.9708, 0.9740, 0.9280)
+)
+rbind(final, deep) %>% arrange(desc(test_exact)) %>% as.data.frame()
+```
+
+
+---
+
+## 7. Confusion matrix of the best model
+
+Ported from `10b_score_prediction.qmd` section 7, drawn on the medoid_64 test split rather
+than the grouped cross validation, and using `_plot_confusion_matrix` from
+`src/cnn_base.py` so it matches every other confusion matrix in this project.
+
+```{r}
+# 7.1
+best_name <- as.character(final$model[which.max(final$test_exact)])
+best_pred <- switch(best_name,
+  "Ordinal regression" = ord_at(Xtv, ytv, Xte),
+  "Ordinal forest"     = ofo$tv_on_te
+)
+cm <- table(factor(yte, levels = 0:6), factor(best_pred, levels = 0:6))
+cat(sprintf("Best on test: %s (exact %.4f)\n", best_name, mean(best_pred == yte)))
+write.csv(as.data.frame.matrix(cm), file.path(analysis_dir, "model_cache",
+                                              "best_model_confusion.csv"))
+print(cm)
+```
+
+```{python}
+# 8.2  Drawn with the project's shared plotting function.
+import sys
+from pathlib import Path
+import numpy as np, pandas as pd
+repo_root = next(p for p in Path.cwd().parents if (p / ".git").exists())
+sys.path.append(str(repo_root / "src"))
+
+cm_csv = Path("model_cache") / "best_model_confusion.csv"
+cm = pd.read_csv(cm_csv, index_col=0).to_numpy()
+out = Path("thesis_plots") / "best_nondl_confusion_matrix.png"
+# `cnn_base` imports TensorFlow at module level, which costs about 14 s for a function that
+# only draws a matrix. The import is skipped when the PNG already corresponds to these exact
+# counts, tracked by a hash sidecar rather than mtimes -- the counts CSV is rewritten every
+# render, so an mtime test would never fire.
+import hashlib as _hl
+_sig = _hl.sha256(cm.tobytes()).hexdigest()
+_sigfile = out.with_suffix(".sha256")
+if out.exists() and _sigfile.exists() and _sigfile.read_text().strip() == _sig:
+    print(f"{out.name} already matches these counts; kept, TensorFlow import skipped")
+else:
+    from cnn_base import _plot_confusion_matrix  # noqa: E402
+    _plot_confusion_matrix(cm, np.arange(7), ("True score", "Predicted score"), str(out))
+    _sigfile.write_text(_sig)
+print(f"{cm.sum()} test crops; {np.trace(cm)} correct ({np.trace(cm) / cm.sum():.4f})")
+```
+
+---
+
+## 8. Ordinal forest: regularisation sweep and importance
+
+The same sweep the regression forest gets in section 3, on the ordinal forest's capacity
+parameter. `ordfor` passes `min.node.size` through to ranger: a larger minimum node size
+means smaller trees, so it plays the role `maxnodes` plays there, in the opposite direction.
+Training accuracy is resubstitution; held-out is the medoid_64 validation split.
+
+```{r}
+# 8.1
+of_cache2 <- file.path(analysis_dir, "model_cache", "ordinal_forest_sweep.rds")
+mns_grid <- c(1, 2, 5, 10, 20, 50, 100)
+if (file.exists(of_cache2)) {
+  of_curve <- readRDS(of_cache2)
+} else {
+  of_at <- function(mns, Xa, ya, Xb) {
+    set.seed(42)
+    m <- ordinalForest::ordfor(depvar = "y",
+                               data = data.frame(Xa, y = factor(ya, levels = 0:6, ordered = TRUE)),
+                               perffunction = "equal", min.node.size = mns)
+    as.integer(as.character(predict(m, newdata = data.frame(Xb))$ypred))
+  }
+  of_curve <- data.frame(
+    min_node_size = mns_grid,
+    train = sapply(mns_grid, function(m) mean(of_at(m, Xtr, ytr, Xtr) == ytr)),
+    held_out = sapply(mns_grid, function(m) mean(of_at(m, Xtr, ytr, Xva) == yva))
+  )
+  saveRDS(of_curve, of_cache2)
+}
+of_curve$gap <- of_curve$train - of_curve$held_out
+best_mns <- of_curve$min_node_size[which.max(of_curve$held_out)]
+cat(sprintf("Chosen min.node.size = %d: train = %.3f, held out = %.3f, gap = %.3f\n",
+            best_mns, of_curve$train[of_curve$min_node_size == best_mns],
+            of_curve$held_out[of_curve$min_node_size == best_mns],
+            of_curve$gap[of_curve$min_node_size == best_mns]))
+print(of_curve, row.names = FALSE)
+```
+
+```{r fig.width=8, fig.height=4.5}
+# 8.2
+p_ofreg <- of_curve %>%
+  pivot_longer(c(train, held_out), names_to = "set", values_to = "accuracy") %>%
+  ggplot(aes(min_node_size, accuracy, colour = set)) +
+  geom_line() +
+  geom_point(size = 1.6) +
+  geom_vline(xintercept = best_mns, linetype = "dashed", colour = "grey40") +
+  scale_colour_manual(values = c(train = "#B2182B", held_out = "#2166AC"),
+                      labels = c(held_out = "Held out (validation split)", train = "Training"),
+                      name = NULL) +
+  # min.node.size runs the opposite way to the random forest's maxnodes: ranger's
+  # "minimal node size to split at" means a LARGER value stops splitting sooner, so it is
+  # less capacity, not more. The axis is reversed so both sweeps read left-to-right as
+  # increasing capacity and the two curves are directly comparable.
+  scale_x_continuous(trans = scales::compose_trans("log10", "reverse"),
+                     breaks = mns_grid) +
+  labs(x = "Minimum node size to split at (log scale, reversed: capacity increases rightwards)",
+       y = "Exact accuracy") +
+  theme_minimal() +
+  theme(axis.text = element_text(size = 12), axis.title = element_text(size = 13),
+        legend.position = "top")
+p_ofreg
+save_plot(p_ofreg, "ordinal_forest_sweep.png", width = 8, height = 4.5)
+```
+
+```{r fig.width=7, fig.height=5}
+# 8.3  Permutation importance from the fitted ordinal forest.
+imp_df <- data.frame(feature = pretty_feature(names(ofo$varimp)),
+                     importance = as.numeric(ofo$varimp))
+p_imp <- ggplot(imp_df, aes(x = reorder(feature, importance), y = importance)) +
+  geom_col(fill = "#2166AC") +
+  coord_flip() +
+  labs(x = NULL, y = "Ordinal forest permutation importance") +
+  theme_minimal() +
+  theme(axis.text = element_text(size = 12), axis.title = element_text(size = 13))
+p_imp
+save_plot(p_imp, "ordinal_forest_importance.png", width = 7, height = 5)
+```
+
+## 8b. Confusion matrix as a change from the human baseline
+
+The model and human matrices look alike because both are band-diagonal. Differencing them
+makes the departure legible: each cell is the model's row proportion minus the human row
+proportion, so red means the model does that more often than a rater does and blue less.
+Counts are not comparable directly (917 rater judgements against 308 model predictions), so
+both are row-normalised first.
+
+```{python}
+#| fig-cap: "Best non-DL model minus human raters, as a change in row proportion on the 308 test CDAs."
+# 8b.1
+import sys as _s
+from pathlib import Path as _Pth
+import numpy as _np, pandas as _pd, matplotlib.pyplot as _plt
+from matplotlib.patches import Rectangle as _Rect
+
+# repo_root is the Python variable set in chunk 8.2; reticulate keeps one Python session
+# for the whole document, so it is still in scope here.
+_hum = _pd.read_csv(repo_root / "analyses/02_human_performance/thesis_plots/human_confusion_matrix.csv",
+                    index_col=0).to_numpy(dtype=float)
+_mod = _pd.read_csv(_Pth("model_cache") / "best_model_confusion.csv", index_col=0).to_numpy(dtype=float)
+# The human matrix carries an eighth column, the tautological judgements Metric 3
+# removes. They must stay in the row totals: without them the denominator is 875 and
+# row-normalising gives a human diagonal of 72.23%, against the 68.92% Metric 3
+# reports over all 917. A model has no such category, so its matrix is padded with a
+# zero column and the two are then directly comparable.
+_mod = _np.hstack([_mod, _np.zeros((7, 1))])
+_hn = _hum / _np.clip(_hum.sum(1, keepdims=True), 1, None)
+_mn = _mod / _np.clip(_mod.sum(1, keepdims=True), 1, None)
+_diff = _mn - _hn
+
+_fig, _ax = _plt.subplots(figsize=(6.9, 5.2))
+_v = _np.abs(_diff).max()
+_im = _ax.imshow(_diff, cmap="RdBu_r", vmin=-_v, vmax=_v)
+for i in range(7):
+    for j in range(8):
+        if abs(_diff[i, j]) > 0.005:
+            _ax.text(j, i, f"{_diff[i, j]:+.2f}", ha="center", va="center", fontsize=7,
+                     color="white" if abs(_diff[i, j]) > 0.6 * _v else "black")
+        if i == j:
+            _ax.add_patch(_Rect((j - 0.5, i - 0.5), 1, 1, fill=False, edgecolor="black", lw=_plt.rcParams["axes.linewidth"]))
+_ax.set_xticks(range(8), [*range(7), "taut."]); _ax.set_yticks(range(7))
+_ax.set_xlabel("Predicted score"); _ax.set_ylabel("True score")
+_fig.colorbar(_im, ax=_ax, fraction=0.046, label="Model minus human (row proportion)")
+_fig.savefig(_Pth("thesis_plots") / "nondl_confusion_vs_human.png", dpi=300, bbox_inches="tight")
+_plt.show()
+print(f"diagonal change: {_np.diag(_diff).round(3)}")
+```
+
+## 9. Ordinal regression: what the fitted model looks like
+
+Four candidate figures for the chapter, all read straight off the fitted `polr` object
+(train+val, 2,289 crops). Nothing here needs SHAP: a proportional-odds model exposes its
+coefficients and its cut-points directly.
+
+```{r}
+# 10.1  Refit on train+val and pull out the pieces the plots need.
+p_tv  <- zfit(Xtv)
+Ztv   <- data.frame(zap(Xtv, p_tv), y = factor(ytv, levels = 0:6, ordered = TRUE))
+ord_fit <- suppressWarnings(MASS::polr(y ~ ., data = Ztv, Hess = TRUE))
+ct    <- coef(summary(ord_fit))
+betas <- data.frame(
+  feature = rownames(ct)[seq_along(all_features)],
+  value   = ct[seq_along(all_features), "Value"],
+  se      = ct[seq_along(all_features), "Std. Error"],
+  t       = ct[seq_along(all_features), "t value"]
+)
+zeta  <- ord_fit$zeta
+lp_tv <- as.numeric(as.matrix(zap(Xtv, p_tv)) %*% coef(ord_fit))
+cat("cut-points:\n"); print(round(zeta, 3))
+cat("spacing:\n"); print(round(diff(zeta), 3))
+```
+
+### 10.1 Coefficients
+
+The ordinal model's counterpart to the random forest's Gini panel: direction and
+significance, which Gini has neither of. One standard deviation of each standardised
+feature, in log-odds.
+
+```{r fig.width=7, fig.height=5}
+# 10.2
+p_coef <- betas %>%
+  mutate(feature = reorder(pretty_feature(feature), value)) %>%
+  ggplot(aes(value, feature)) +
+  geom_vline(xintercept = 0, colour = "grey50") +
+  geom_errorbarh(aes(xmin = value - 1.96 * se, xmax = value + 1.96 * se), height = 0.25,
+                 colour = "#2166AC") +
+  geom_point(colour = "#2166AC", size = 2) +
+  labs(x = "Coefficient (log-odds per SD, 95% CI)", y = NULL) +
+  theme_minimal() +
+  theme(axis.text = element_text(size = 12), axis.title = element_text(size = 13))
+p_coef
+save_plot(p_coef, "ordinal_coefficients.png", width = 7, height = 5)
+```
+
+### 10.2 Cut-points on the latent scale
+
+The six thresholds the model places on its single latent severity score, with the crops'
+own latent scores underneath. This is the consecutive-boundary structure directly, rather
+than inferred.
+
+```{r fig.width=9, fig.height=4.5}
+# 10.3
+lat <- data.frame(lp = lp_tv, score = factor(ytv, levels = 0:6))
+# Label the band each cut-point pair encloses, not the boundaries themselves: the score a
+# crop is given is decided by which band its latent score falls in. The outer two bands are
+# unbounded, so the data range stands in for their outer edge.
+band_edges <- c(min(lat$lp), zeta, max(lat$lp))
+band_mids  <- (head(band_edges, -1) + tail(band_edges, -1)) / 2
+p_cut <- ggplot(lat, aes(lp, score)) +
+  geom_vline(xintercept = zeta, linetype = "dashed", colour = "grey30") +
+  geom_jitter(aes(colour = score), height = 0.22, alpha = 0.45, size = 0.9,
+              show.legend = FALSE) +
+  annotate("text", x = band_mids, y = 7.75, label = 0:6, size = 4.6, vjust = 0,
+           fontface = "plain", colour = "grey20") +
+  coord_cartesian(ylim = c(0.5, 8.3), clip = "off") +
+  scale_colour_viridis_d(option = "viridis", end = 0.9) +
+  labs(x = "Latent severity score (linear predictor)", y = "True score") +
+  theme_minimal() +
+  theme(axis.text = element_text(size = 12), axis.title = element_text(size = 13),
+        plot.margin = margin(20, 10, 5, 5))
+p_cut
+save_plot(p_cut, "ordinal_cutpoints.png", width = 9, height = 4.5)
+```
+
+### 10.3 Class-probability curves
+
+How the predicted probability of each score varies along the latent scale. Under
+proportional odds the seven curves are shifted copies of one shape, which this makes
+visible rather than assumed.
+
+```{r fig.width=9, fig.height=4.5}
+# 10.4
+grid_lp <- seq(min(lp_tv) - 1, max(lp_tv) + 1, length.out = 400)
+cum <- sapply(zeta, function(z) plogis(z - grid_lp))       # P(Y <= k | lp)
+probs <- cbind(cum[, 1], t(apply(cum, 1, diff)), 1 - cum[, ncol(cum)])
+colnames(probs) <- 0:6
+p_prob <- as.data.frame(probs) %>%
+  mutate(lp = grid_lp) %>%
+  pivot_longer(-lp, names_to = "score", values_to = "p") %>%
+  ggplot(aes(lp, p, colour = score)) +
+  geom_line(linewidth = 0.9) +
+  geom_vline(xintercept = zeta, linetype = "dashed", colour = "grey70") +
+  scale_colour_viridis_d(option = "viridis", end = 0.9) +
+  labs(x = "Latent severity score (linear predictor)", y = "Predicted probability",
+       colour = "Score") +
+  theme_minimal() +
+  theme(axis.text = element_text(size = 12), axis.title = element_text(size = 13),
+        legend.position = "top")
+p_prob
+save_plot(p_prob, "ordinal_class_probabilities.png", width = 9, height = 4.5)
+```
+
+### 10.4 Effect of the three strongest features
+
+Predicted class probability as each feature varies across its observed range, with every
+other feature held at its mean.
+
+```{r fig.width=11, fig.height=4}
+# 10.5
+top3 <- betas$feature[order(-abs(betas$t))][1:3]
+eff <- lapply(top3, function(v) {
+  base <- colMeans(zap(Xtv, p_tv))
+  rng  <- range(zap(Xtv, p_tv)[, v])
+  gs   <- seq(rng[1], rng[2], length.out = 150)
+  M <- matrix(rep(base, each = length(gs)), nrow = length(gs))
+  colnames(M) <- names(base); M[, v] <- gs
+  lp <- as.numeric(M %*% coef(ord_fit))
+  cum <- sapply(zeta, function(z) plogis(z - lp))
+  pr <- cbind(cum[, 1], t(apply(cum, 1, diff)), 1 - cum[, ncol(cum)])
+  colnames(pr) <- 0:6
+  as.data.frame(pr) %>% mutate(x = gs, feature = v) %>%
+    pivot_longer(-c(x, feature), names_to = "score", values_to = "p")
+}) %>% bind_rows()
+p_eff <- ggplot(eff, aes(x, p, colour = score)) +
+  geom_line(linewidth = 0.8) +
+  facet_wrap(~feature, nrow = 1, scales = "free_x") +
+  scale_colour_viridis_d(option = "viridis", end = 0.9) +
+  labs(x = "Feature value (standardised)", y = "Predicted probability", colour = "Score") +
+  theme_minimal() +
+  theme(axis.text = element_text(size = 11), axis.title = element_text(size = 12),
+        legend.position = "top")
+p_eff
+save_plot(p_eff, "ordinal_effects.png", width = 11, height = 4)
+```
+
+## 10. Summary against the deep models and human raters
+
+Exact accuracy with the near-miss band stacked on top, so each bar's full height is
+near-miss and the solid part is exact. The framework is the same one the augmented and
+ensemble models drop into once those runs land.
+
+```{r fig.width=8, fig.height=4.5}
+# 10.1
+summ <- rbind(final, deep) %>%
+  mutate(model = factor(model, levels = model[order(-test_exact)])) %>%
+  transmute(model,
+            Exact = test_exact,
+            `Off by one` = test_near_miss - test_exact) %>%
+  pivot_longer(-model, names_to = "band", values_to = "value") %>%
+  mutate(band = factor(band, levels = c("Off by one", "Exact")))
+
+# Upright bars, so the models run along the x axis and the shared 0-1 proportion is the
+# vertical scale. The human exact line is named in a legend rather than written along it.
+# Shortened only on the axis: the rotated full names run off the left of a fixed-width
+# ggsave, and the model provenance belongs in the prose rather than on a tick.
+short <- c("Human raters (Chapter 2 Metric 3)" = "Human raters",
+           "CNN (models/03)" = "CNN", "ViT (models/04)" = "ViT",
+           "Threshold: CDA area" = "CDA area threshold")
+summ <- summ %>% mutate(model = factor(dplyr::recode(as.character(model), !!!short),
+                                       levels = dplyr::recode(levels(model), !!!short)))
+
+p_summ <- ggplot(summ, aes(model, value, fill = band)) +
+  geom_col(width = 0.7) +
+  geom_hline(aes(yintercept = 0.6892, linetype = "Human exact (0.689)"),
+             colour = "grey30") +
+  scale_fill_manual(values = c(Exact = "#2166AC", `Off by one` = "#92C5DE"), name = NULL) +
+  scale_linetype_manual(values = c("Human exact (0.689)" = "dashed"), name = NULL) +
+  scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
+  labs(x = NULL, y = "Proportion of the 308 test CDAs") +
+  theme_minimal() +
+  theme(axis.text = element_text(size = 11), axis.title = element_text(size = 12),
+        axis.text.x = element_text(angle = 30, hjust = 1),
+        legend.position = "top")
+p_summ
+save_plot(p_summ, "summary_vs_human.png", width = 8, height = 5.2)
+```
+
+## 11. Interpretation
+
+_Written after reading the rendered output._

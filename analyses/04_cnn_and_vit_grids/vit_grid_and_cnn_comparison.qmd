@@ -1,0 +1,695 @@
+---
+title: "The Medoid ViT grid: what the 2,592 configs show, and how they compare to the CNNs"
+format:
+  html:
+    code-fold: true
+    toc: true
+jupyter: autocdascorer-analyses
+---
+
+Date: 09/09/2026
+
+## GOHREP
+
+**Goal:**
+
+Analyse the completed Medoid-ViT grid search (2,592 configs, 5-fold CV) on the same
+footing as `analyses/03` and `analyses/04` did for the CNN grid, and then compare
+the two model classes. Four questions: (1) did the search actually complete and are the
+numbers trustworthy; (2) is the top of the ViT grid a rankable ordering or a noise
+plateau, as it was for the CNNs; (3) which hyperparameters move accuracy, and in
+particular **did the axes added to this grid earn their cost**; (4) how does the best ViT
+compare with the best CNN, and what can and cannot be concluded from that comparison.
+
+**Hypotheses:**
+
+1. The ViT grid will show the same noise plateau as the CNN grid. `analyses/03` found
+   ~210 CNN configs statistically tied at the top and CV-to-test correlation collapsing
+   from 0.89 to 0.04 within the top 100. Nothing about swapping the architecture should
+   change the measurement noise, which is set by the size of the evaluation set.
+2. Learning rate will dominate, as it did for the CNNs (`analyses/04`: mean |SHAP| for
+   learning rate was ~29x that of dropout).
+3. The two capacity axes this grid added — `projection_dim` 256 and `mlp_ratio` 4 —
+   will not pay for themselves. They were added because a single pilot config with
+   `projection_dim` 128 scored best, which is a sample of one.
+4. The best ViT and the best CNN will land within noise of each other, consistent with
+   `analyses/03`'s conclusion that ~62-65% is a ceiling set by label noise rather than
+   by architecture.
+
+**Rationale:**
+
+A grid search produces two things: a best model, and a dataset of 2,592 (hyperparameters
+→ accuracy) observations. `analyses/03` showed the first is largely noise, which makes
+the second the more valuable output. Treating the grid as data is also the only way to
+answer whether the grid was *well designed* — a question that matters here because this
+grid's shape was chosen partly on the basis of one pilot run, and that reasoning deserves
+auditing against 2,592 results.
+
+The CNN/ViT comparison is **matched**: `models/03_Medoid_CNN_RandomSearch` and
+`models/04_Medoid_ViT_RandomSearch` both ran the same 5-fold CV harness, with the same
+`cv_seed`, on the same `medoid_64` dataset. Nothing differs but the architecture and its
+hyperparameter grid, so a difference here is attributable to the model class rather than
+to the crop.
+
+**Experimental plan:**
+
+1. Validate: every grid index present exactly once, and a saved model reproducing its
+   recorded test accuracy.
+2. Distributions, then the noise-floor treatment of `analyses/03` applied to the ViT grid.
+3. A random-forest surrogate over the hyperparameters, as in `analyses/04`, plus explicit
+   per-axis marginals with confidence intervals.
+4. A direct audit of the three grid-design decisions, and a costing of what a corrected
+   grid would have been.
+5. CNN versus ViT, matched on the same dataset, splits and CV seed.
+
+---
+
+## 1. Setup and validation
+
+### 1.1 Packages
+
+```{python}
+# 1.1
+import sys
+import warnings
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from scipy.stats import norm as normal_dist
+
+warnings.filterwarnings("ignore")
+repo_root = next(p for p in Path.cwd().parents if (p / ".git").exists())
+sys.path.append(str(repo_root / "src"))
+
+plt.rcParams.update({"figure.dpi": 120, "font.size": 9})
+
+VIT = repo_root / "models/04_Medoid_ViT_RandomSearch/01_Categorical_Loss"
+CNN = repo_root / "models/03_Medoid_CNN_RandomSearch/01_Categorical_Loss"
+```
+
+### 1.2 Load both grids, and check the ViT grid is complete
+
+A self-scheduling grid can silently lose a config: `JobCounter.claim()` advances the
+shared counter *before* training, so a task killed mid-config leaves that index claimed
+and never trained, absent from the results with no error raised anywhere. That is exactly
+what the `--max_configs` clean-exit budget was added to prevent, so the first thing to
+check is whether it worked.
+
+```{python}
+# 1.2
+def load_grid(root):
+    """Main results CSV plus any un-merged per-task part files."""
+    frames = [pd.read_csv(root / "random_search_results.csv")]
+    parts = sorted((root / "parts").glob("*.csv")) if (root / "parts").exists() else []
+    frames += [pd.read_csv(p) for p in parts]
+    return pd.concat(frames, ignore_index=True), len(parts)
+
+
+vit, vit_parts = load_grid(VIT)
+cnn, cnn_parts = load_grid(CNN)
+
+expected = 2592
+missing = sorted(set(range(expected)) - set(vit.model_id))
+dupes = vit.model_id.duplicated().sum()
+
+print(f"ViT grid : {len(vit)} rows, {vit.model_id.nunique()} unique ids, "
+      f"{vit_parts} un-merged part files")
+print(f"           id range {vit.model_id.min()}-{vit.model_id.max()}, "
+      f"{vit.task.nunique()} task-lifetimes")
+print(f"           missing indices: {missing if missing else 'NONE'}")
+print(f"           duplicate indices: {dupes}")
+print(f"CNN grid : {len(cnn)} rows, {cnn.model_id.nunique()} unique ids, "
+      f"{cnn_parts} un-merged part files")
+
+assert not missing, f"grid incomplete: {len(missing)} configs never trained"
+assert dupes == 0, "a config was trained more than once"
+print("\nBoth grids complete; every config trained exactly once.")
+
+total_gpu_h = vit.train_seconds.sum() / 3600
+print(f"\nViT search cost: {total_gpu_h:.1f} GPU-hours "
+      f"({vit.train_seconds.mean():.0f} s per config, 5-fold CV)")
+```
+
+### 1.3 Does a saved model reproduce its recorded number?
+
+The CSV is written by the search harness. Re-scoring a saved model against the held-out
+test split independently checks that the recorded numbers describe the models that were
+actually saved.
+
+```{python}
+# 1.3
+import keras  # noqa: E402
+
+import base_dataset  # noqa: E402
+
+# Importing model_builders is REQUIRED before loading a saved ViT, even though nothing
+# below references it. ClassToken, AddPositionEmbedding and ExtractClassToken are
+# registered with @register_keras_serializable at module import time, and that decorator
+# is what lets keras.models.load_model resolve them without a custom_objects dict. Without
+# this import the load fails with "Could not locate class 'ClassToken'".
+import model_builders  # noqa: E402,F401
+
+best_id = int(vit.sort_values("avg_vaf", ascending=False).iloc[0].model_id)
+best_dir = next((VIT / "results").glob(f"*_{best_id}"))
+
+ds = base_dataset.load_dataset(str(repo_root / "data/datasets/medoid_64/medoid_64.npy"))
+X_test = np.asarray(ds["test_images"], dtype="float32")
+y_test = np.asarray(ds["test_labels"]).astype(int)
+
+m = keras.models.load_model(best_dir / "model.keras")
+p = np.argmax(m.predict(X_test, verbose=0), axis=1)
+acc = float((p == y_test).mean())
+rec = float(vit.loc[vit.model_id == best_id, "test_acc"].iloc[0])
+print(f"best ViT (model_id {best_id}, {best_dir.name})")
+print(f"  recomputed test_acc = {acc:.10f}")
+print(f"  recorded   test_acc = {rec:.10f}")
+print(f"  difference          = {abs(acc - rec):.2e}")
+assert abs(acc - rec) < 1e-6, "saved model does not reproduce its recorded accuracy"
+
+kept = len(list((VIT / "results").glob("*/model.keras")))
+print(f"\nsaved models in results/: {kept}")
+```
+
+---
+
+## 2. What the grid produced
+
+```{python}
+# 2.1
+cols = ["avg_vaf", "test_acc", "avg_val_nearmiss", "test_nearmiss", "avg_val_qwk",
+        "train_seconds"]
+summary = vit[cols].describe().T[["min", "25%", "50%", "75%", "max", "mean"]].round(4)
+print(summary.to_string())
+
+fig, axes = plt.subplots(1, 3, figsize=(13, 3.4))
+axes[0].hist(vit.avg_vaf, bins=60, color="#4C72B0", edgecolor="white")
+axes[0].axvline(1 / 7, color="firebrick", ls="--", lw=1, label="chance (1/7)")
+axes[0].set_xlabel("avg_vaf (mean 5-fold CV accuracy)")
+axes[0].set_ylabel("configs")
+axes[0].legend(fontsize=8)
+axes[1].scatter(vit.avg_vaf, vit.test_acc, s=5, alpha=0.3, color="#DD8452")
+axes[1].plot([0.1, 0.7], [0.1, 0.7], color="grey", ls="--", lw=1)
+axes[1].set_xlabel("avg_vaf")
+axes[1].set_ylabel("test_acc")
+axes[2].hist(vit.avg_val_nearmiss, bins=60, color="#55A868", edgecolor="white")
+axes[2].set_xlabel("near-miss accuracy (within +/-1 score)")
+for ax in axes:
+    ax.grid(alpha=0.25)
+axes[0].set_title("the grid is bimodal: a dead cluster and a live one", fontsize=9)
+axes[1].set_title("CV vs held-out test", fontsize=9)
+axes[2].set_title("near-miss saturates near the ceiling", fontsize=9)
+fig.tight_layout()
+plt.show()
+
+dead = vit.avg_vaf < 0.25
+print(f"\nconfigs at or near chance (avg_vaf < 0.25): {dead.sum()} of {len(vit)} "
+      f"({dead.mean():.1%})")
+print(vit.loc[dead].groupby("learning_rate").size().to_string())
+```
+
+---
+
+## 3. Is the top of the ViT grid rankable, or a noise plateau?
+
+`analyses/03` established the method for the CNN grid. `avg_vaf` is the mean accuracy
+over 5 folds, and because each pooled image appears in validation exactly once, it is
+effectively one accuracy measured over all **N = 2,289** train+val images. The standard
+error of such a proportion is `sqrt(p(1-p)/N)`, and the standard error of the
+*difference* between two configs is `sqrt(2)` times that.
+
+```{python}
+# 3.1
+N_CV = 2289
+N_TEST = 308
+
+top = vit.sort_values("avg_vaf", ascending=False).reset_index(drop=True)
+p_top = top.avg_vaf.iloc[0]
+se_cv = np.sqrt(p_top * (1 - p_top) / N_CV)
+se_diff = np.sqrt(2) * se_cv
+se_test = np.sqrt(p_top * (1 - p_top) / N_TEST)
+spread100 = top.avg_vaf.iloc[0] - top.avg_vaf.iloc[99]
+
+print(f"best avg_vaf                       {p_top:.4f}")
+print(f"SE of one config (N={N_CV})        {se_cv*100:.2f} pp")
+print(f"SE of a difference                 {se_diff*100:.2f} pp")
+print(f"top-100 spread                     {spread100*100:.2f} pp "
+      f"= {spread100/se_diff:.2f} difference-SE")
+print(f"SE on the test set (N={N_TEST})      {se_test*100:.2f} pp "
+      f"(95% CI +/-{1.96*se_test*100:.1f} pp)")
+
+# One-sided two-proportion z-test of every config against the best.
+z = (p_top - vit.avg_vaf) / se_diff
+for alpha, label in [(0.05, "5%"), (0.01, "1%")]:
+    crit = normal_dist.ppf(1 - alpha)
+    print(f"configs NOT significantly worse than the best at {label}: {(z < crit).sum()}")
+```
+
+This count is **conservative**: all configs share the same CV folds (`cv_seed` is fixed at
+42 across every task), so their errors are positively correlated and the true
+difference-SE is smaller than the independent-proportions value used here. It also
+ignores training stochasticity. `analyses/04` measured that separately on the CNN grid,
+where 960 triples of functionally identical configs gave a median within-triple SD of
+1.00 pp — the same magnitude as the sampling SE above.
+
+### 3.2 The winner's curse, measured
+
+If the CV ranking carried real information at the top, the CV winner should also do well
+on the held-out test set, which took no part in selection.
+
+```{python}
+# 3.2
+best_row = top.iloc[0]
+test_rank = int((vit.test_acc > best_row.test_acc).sum() + 1)
+print(f"CV-best config (model_id {int(best_row.model_id)}): "
+      f"avg_vaf {best_row.avg_vaf:.4f} (rank 1 of {len(vit)})")
+print(f"  its test_acc {best_row.test_acc:.4f} -> rank {test_rank} of {len(vit)}")
+print(f"  best test_acc achieved by any config: {vit.test_acc.max():.4f}")
+
+rows = []
+for k in [50, 100, 250, 500, 1000, len(vit)]:
+    s = top.head(k)
+    rows.append({"pool": f"top-{k}" if k < len(vit) else "all",
+                 "n": k,
+                 "corr(avg_vaf, test_acc)": s.avg_vaf.corr(s.test_acc),
+                 "mean test_acc": s.test_acc.mean()})
+corr_tab = pd.DataFrame(rows).round(4)
+print("\n" + corr_tab.to_string(index=False))
+```
+
+### 3.3 Extreme-value check
+
+Over `M` noisy configs the largest observed value exceeds the true mean by roughly
+`sigma * sqrt(2 ln M)` through selection alone. If the winner's margin is smaller than
+that, it is within what noise produces without any config being genuinely better.
+
+```{python}
+# 3.3
+pool = top.head(500)
+sigma = pool.avg_vaf.std()
+margin = top.avg_vaf.iloc[0] - pool.avg_vaf.mean()
+expected_max = sigma * np.sqrt(2 * np.log(len(vit)))
+print(f"SD of the top-500                 {sigma*100:.2f} pp")
+print(f"winner's margin over top-500 mean {margin*100:.2f} pp")
+print(f"expected max-above-mean from noise over {len(vit)} configs: "
+      f"{expected_max*100:.2f} pp")
+print("=> " + ("margin is WITHIN what noise alone produces"
+                if margin < expected_max else
+                "margin EXCEEDS the pure-noise expectation"))
+```
+
+---
+
+## 4. Which hyperparameters matter
+
+### 4.1 A surrogate model over the grid
+
+Same method as `analyses/04`: fit a random forest mapping hyperparameters to `avg_vaf`
+and report honest out-of-bag R². Constant columns carry no information and are dropped.
+
+```{python}
+# 4.1
+from sklearn.ensemble import RandomForestRegressor  # noqa: E402
+
+NUMERIC = ["patch_size", "projection_dim", "num_heads", "num_transformer_layers",
+           "mlp_ratio", "learning_rate", "dropout", "reg_strength"]
+CATEG = ["reg"]
+
+work = vit.copy()
+work["reg"] = work["reg"].fillna("None")
+varying = [c for c in NUMERIC if work[c].nunique() > 1]
+dropped = [c for c in NUMERIC if work[c].nunique() == 1]
+X = pd.get_dummies(work[varying + CATEG], columns=CATEG)
+y = work.avg_vaf
+
+forest = RandomForestRegressor(n_estimators=400, min_samples_leaf=3, oob_score=True,
+                               random_state=0, n_jobs=-1).fit(X, y)
+print(f"features: {list(X.columns)}")
+print(f"constant, dropped: {dropped}")
+print(f"\nout-of-bag R^2 (hyperparameters -> avg_vaf) = {forest.oob_score_:.3f}")
+
+imp = pd.Series(forest.feature_importances_, index=X.columns).sort_values(ascending=False)
+fig, ax = plt.subplots(figsize=(6.5, 3.4))
+imp.iloc[::-1].plot.barh(ax=ax, color="#4C72B0")
+ax.set_xlabel("Gini importance")
+ax.grid(alpha=0.25, axis="x")
+ax.set_title(f"Hyperparameter importance, ViT grid (OOB $R^2$ = {forest.oob_score_:.3f})",
+             fontsize=10)
+fig.tight_layout()
+plt.show()
+print(imp.round(4).to_string())
+```
+
+### 4.2 Does the signal survive inside the plateau?
+
+```{python}
+# 4.2
+rows = []
+for k in [len(vit), 1500, 1000, 500, 250]:
+    idx = top.head(k).index
+    Xs = pd.get_dummies(
+        top.head(k).assign(reg=top.head(k)["reg"].fillna("None"))[varying + CATEG],
+        columns=CATEG,
+    ).reindex(columns=X.columns, fill_value=0)
+    f = RandomForestRegressor(n_estimators=300, min_samples_leaf=3, oob_score=True,
+                              random_state=0, n_jobs=-1).fit(Xs, top.head(k).avg_vaf)
+    rows.append({"pool": "all" if k == len(vit) else f"top-{k}", "n": k,
+                 "OOB R^2": f.oob_score_})
+plateau = pd.DataFrame(rows).round(3)
+print(plateau.to_string(index=False))
+```
+
+### 4.3 Per-axis marginals, with uncertainty
+
+Gini importance says an axis matters but not which value to choose. The marginal mean of
+`avg_vaf` at each level, with a 95% CI on the mean, says that directly. The CI is what
+separates a real level difference from grid noise.
+
+```{python}
+# 4.3
+axes_to_plot = varying + ["reg"]
+fig, axs = plt.subplots(3, 3, figsize=(12, 8))
+for ax, col in zip(axs.ravel(), axes_to_plot):
+    g = work.groupby(col, dropna=False)["avg_vaf"].agg(["mean", "std", "count"])
+    ci = 1.96 * g["std"] / np.sqrt(g["count"])
+    xs = np.arange(len(g))
+    ax.errorbar(xs, g["mean"], yerr=ci, fmt="o-", color="#4C72B0", capsize=3)
+    ax.set_xticks(xs)
+    ax.set_xticklabels([str(v) for v in g.index], fontsize=8)
+    ax.set_title(col, fontsize=9)
+    ax.grid(alpha=0.25)
+for ax in axs.ravel()[len(axes_to_plot):]:
+    ax.axis("off")
+axs[0, 0].set_ylabel("mean avg_vaf")
+fig.suptitle("Marginal effect of each hyperparameter (95% CI on the mean)", fontsize=11)
+fig.tight_layout()
+plt.show()
+```
+
+---
+
+## 5. Auditing the grid design
+
+This grid was not the obvious one. Three decisions were made before it ran, and 2,592
+results are now available to judge them. Two of the three were made on the evidence of a
+**single pilot config**, which `analyses/03` is precisely the argument against.
+
+Marginal means alone would be misleading here, because the levels are not balanced across
+the other axes in a way that guarantees comparability. Two views are reported: the
+marginal mean, and the share of the global top-100, which asks whether a level ever
+produces a competitive model.
+
+```{python}
+# 5.1
+def audit(col, note):
+    g = work.groupby(col, dropna=False)["avg_vaf"].agg(["count", "mean", "max"])
+    g["top100"] = top.head(100).assign(reg=top.head(100)["reg"].fillna("None")) \
+                     .groupby(col, dropna=False).size().reindex(g.index).fillna(0).astype(int)
+    g["top100_rate"] = (g.top100 / g["count"]).round(4)
+    print(f"--- {col} --- {note}")
+    print(g.round(4).to_string())
+    print()
+
+
+audit("projection_dim", "extended to 256 because one pilot config with 128 scored best")
+audit("mlp_ratio", "unfrozen to [2, 4]; 4 is the standard ViT expansion")
+audit("num_transformer_layers", "kept at [2, 4, 6]")
+audit("reg", "kept, with reg_strength swept over two values")
+audit("reg_strength", "two values, chosen from the CNN grid's results")
+```
+
+### 5.2 What would a corrected grid have cost?
+
+```{python}
+# 5.2
+best_proj = work.groupby("projection_dim")["avg_vaf"].mean().idxmax()
+proj_keep = [v for v in sorted(work.projection_dim.unique()) if v <= 64]
+mlp_matters = abs(work.groupby("mlp_ratio")["avg_vaf"].mean().diff().iloc[-1])
+
+n_now = len(vit)
+n_trim = (
+    work.patch_size.nunique()
+    * len(proj_keep)
+    * work.num_heads.nunique()
+    * work.num_transformer_layers.nunique()
+    * work.learning_rate.nunique()
+    * work.dropout.nunique()
+    * 1  # mlp_ratio fixed at 2
+    * 3  # reg=None x1 + reg=L2 x2 strengths
+)
+print(f"best projection_dim by marginal mean : {best_proj}")
+print(f"|mean avg_vaf difference| between mlp_ratio 2 and 4 : {mlp_matters:.4f} "
+      f"(SE of one config is {se_cv:.4f})")
+print(f"\ngrid as run                    : {n_now} configs, {total_gpu_h:.0f} GPU-hours")
+print(f"grid with proj<=64, mlp_ratio=2 : {n_trim} configs, "
+      f"~{total_gpu_h * n_trim / n_now:.0f} GPU-hours")
+print(f"saving                          : {100*(1-n_trim/n_now):.0f}%")
+
+best_in_trim = work[(work.projection_dim <= 64) & (work.mlp_ratio == 2)].avg_vaf.max()
+print(f"\nbest avg_vaf in the full grid    : {work.avg_vaf.max():.4f}")
+print(f"best avg_vaf in the trimmed grid : {best_in_trim:.4f}")
+print(f"difference                       : {work.avg_vaf.max()-best_in_trim:.4f} "
+      f"({(work.avg_vaf.max()-best_in_trim)/se_diff:.2f} difference-SE)")
+```
+
+---
+
+## 6. ViT versus CNN
+
+Both grids ran the same harness, same `cv_seed`, same 5 folds, on the same `medoid_64`
+dataset. The comparison is therefore matched and any difference is attributable to the
+architecture and its grid, not to the data.
+
+```{python}
+# 6.1
+comp = pd.DataFrame(
+    {
+        "Medoid CNN (medoid_64)": [
+            len(cnn), cnn.avg_vaf.max(), cnn.test_acc.max(),
+            cnn.sort_values("avg_vaf", ascending=False).iloc[0].test_acc,
+            cnn.avg_val_nearmiss.max(), cnn.test_nearmiss.max(),
+            cnn.train_seconds.sum() / 3600,
+        ],
+        "Medoid ViT (medoid_64)": [
+            len(vit), vit.avg_vaf.max(), vit.test_acc.max(),
+            vit.sort_values("avg_vaf", ascending=False).iloc[0].test_acc,
+            vit.avg_val_nearmiss.max(), vit.test_nearmiss.max(),
+            total_gpu_h,
+        ],
+    },
+    index=["configs trained", "best avg_vaf", "best test_acc (any config)",
+           "test_acc of the CV-best config", "best CV near-miss", "best test near-miss",
+           "compute (core- or GPU-hours)"],
+).round(4)
+print(comp.to_string())
+
+d_cv = vit.avg_vaf.max() - cnn.avg_vaf.max()
+print(f"\nbest-avg_vaf gap (ViT - CNN) = {d_cv*100:+.2f} pp, "
+      f"against a difference-SE of {se_diff*100:.2f} pp "
+      f"=> {d_cv/se_diff:.2f} SE")
+```
+
+```{python}
+# 6.2
+fig, axes = plt.subplots(1, 2, figsize=(11, 3.8))
+# Proportion of each grid's own configurations per bin, not density and not counts: the
+# CNN grid has 8,640 configs against the ViT's 2,592, so counts are not comparable, and
+# density integrates to 1 over the x-axis rather than summing to 1 over the bars.
+_cnn_v, _vit_v = cnn.avg_vaf.dropna(), vit.avg_vaf.dropna()
+_bins = np.histogram_bin_edges(np.concatenate([_cnn_v, _vit_v]), bins=60)
+axes[0].hist(_cnn_v, bins=_bins, alpha=0.6, label=f"CNN (n={len(_cnn_v)})",
+             color="#4C72B0", weights=np.full(len(_cnn_v), 1 / len(_cnn_v)))
+axes[0].hist(_vit_v, bins=_bins, alpha=0.6, label=f"ViT (n={len(_vit_v)})",
+             color="#DD8452", weights=np.full(len(_vit_v), 1 / len(_vit_v)))
+axes[0].axvline(0.6892, color="#C44E52", ls="--", lw=1.3,
+                label="human exact agreement")
+axes[0].set_xlabel("avg_vaf")
+axes[0].set_ylabel("proportion of configurations")
+axes[0].legend(fontsize=8)
+axes[0].set_title("whole-grid distributions", fontsize=10)
+
+ct = cnn.sort_values("avg_vaf", ascending=False).head(100).avg_vaf.values
+vt = top.head(100).avg_vaf.values
+axes[1].plot(np.arange(1, 101), ct, label="CNN top-100", color="#4C72B0")
+axes[1].plot(np.arange(1, 101), vt, label="ViT top-100", color="#DD8452")
+axes[1].fill_between(np.arange(1, 101), vt - se_cv, vt + se_cv, color="#DD8452",
+                     alpha=0.2, label="+/-1 SE (ViT)")
+axes[1].set_xlabel("rank")
+axes[1].set_ylabel("avg_vaf")
+axes[1].legend(fontsize=8)
+axes[1].set_title("the top-100 of each grid, with the noise floor", fontsize=10)
+from pathlib import Path as _P
+_tp = _P("thesis_plots"); _tp.mkdir(exist_ok=True)
+for ax in axes:
+    ax.grid(alpha=0.25)
+fig.tight_layout()
+plt.show()
+```
+
+```{python}
+# T1  Thesis figure: the same whole-grid distribution for exact and for near-miss
+# validation accuracy, stacked, with one legend for both.
+_HUMAN_EXACT, _HUMAN_NEAR = 0.6892, 0.9280   # Chapter 2 Metric 3, corrected, 308 test CDAs
+_fig, _ax = plt.subplots(2, 1, figsize=(6.4, 6.6))
+for _k, (_col, _human, _xlab) in enumerate([
+        ("avg_vaf", _HUMAN_EXACT, "Average Validation Accuracy across Folds"),
+        ("avg_val_nearmiss", _HUMAN_NEAR,
+         "Average Validation Near-Miss Accuracy across Folds")]):
+    _c, _v = cnn[_col].dropna(), vit[_col].dropna()
+    _b = np.histogram_bin_edges(np.concatenate([_c, _v]), bins=60)
+    # Proportion of each grid's own configurations per bin: the CNN grid has 8,640 configs
+    # against the ViT's 2,592, so raw counts are not comparable between the two.
+    _ax[_k].hist(_c, bins=_b, alpha=0.6, color="#4C72B0",
+                 weights=np.full(len(_c), 1 / len(_c)), label=f"CNN (n={len(_c)})")
+    _ax[_k].hist(_v, bins=_b, alpha=0.6, color="#DD8452",
+                 weights=np.full(len(_v), 1 / len(_v)), label=f"ViT (n={len(_v)})")
+    # No number in the label: the shared legend is built from panel A's handles, and the
+    # two panels mark different human values (0.6892 exact, 0.9280 near-miss). The value is
+    # annotated on each panel instead.
+    _ax[_k].axvline(_human, color="#C44E52", ls="--", lw=1.3, label="Human raters")
+    # Exact sits at 0.6892 with the grids to its left, so its label goes right of the line;
+    # near-miss sits at 0.9280 with mass to its right, so that one stays on the left.
+    _dx, _ha = (3, "left") if _k == 0 else (-3, "right")
+    _ax[_k].annotate(f"{_human:.4f}", (_human, _ax[_k].get_ylim()[1]),
+                     xytext=(_dx, -3), textcoords="offset points", ha=_ha, va="top",
+                     fontsize=8, color="#C44E52")
+    _ax[_k].set_xlabel(_xlab)
+    _ax[_k].set_ylabel("Proportion of Configurations")
+    # Both panels on the full 0-1 accuracy range, so the exact and near-miss distributions
+    # are read against the same scale rather than each against its own data range.
+    _ax[_k].set_xlim(0, 1)
+    _ax[_k].spines[["top", "right"]].set_visible(False)
+# One legend for both panels, above them, so neither carries its own.
+_h, _l = _ax[0].get_legend_handles_labels()
+_fig.legend(_h, _l, loc="upper center", bbox_to_anchor=(0.5, 1.0), ncol=3,
+            frameon=False, fontsize=9)
+_fig.tight_layout(rect=(0, 0, 1, 0.955))
+_fig.savefig(_tp / "cnn_vit_accuracy_distributions.png", dpi=300, bbox_inches="tight")
+
+# The thesis assembler letters one image per panel, so each axis is also written on its own
+# and the shared legend as a third strip placed beneath them.
+_fig.canvas.draw()
+for _n, _a in zip("ab", _ax):
+    _bb = _a.get_tightbbox(_fig.canvas.get_renderer()).transformed(
+        _fig.dpi_scale_trans.inverted())
+    _fig.savefig(_tp / f"cnn_vit_accuracy_distributions_{_n}.png", dpi=300, bbox_inches=_bb)
+_lf = plt.figure(figsize=(6.4, 0.32))
+_lf.legend(_h, _l, loc="center", ncol=3, frameon=False, fontsize=9)
+_lf.savefig(_tp / "cnn_vit_accuracy_distributions_legend.png", dpi=300, bbox_inches="tight")
+plt.close(_lf)
+plt.show()
+```
+
+### 6.3 Against the human benchmark
+
+`analyses/02` measured human agreement on the identical 308 test CDAs.
+
+```{python}
+# 6.3
+HUMAN_EXACT, HUMAN_NEAR = 0.6892, 0.9280  # analyses/02, Metric 3 on the same test split
+bench = pd.DataFrame(
+    {
+        "exact": [HUMAN_EXACT, cnn.test_acc.max(), vit.test_acc.max()],
+        "near-miss (+/-1)": [HUMAN_NEAR, cnn.test_nearmiss.max(), vit.test_nearmiss.max()],
+    },
+    index=["human raters (analyses/02)", "best CNN (test)", "best ViT (test)"],
+).round(4)
+print(bench.to_string())
+print(f"\nnote: the model rows are the MAXIMUM over {len(cnn)} and {len(vit)} configs "
+      f"selected on the test set itself, so they are optimistically biased;\n"
+      f"the CV-selected configs score {cnn.sort_values('avg_vaf',ascending=False).iloc[0].test_acc:.4f} "
+      f"(CNN) and {top.iloc[0].test_acc:.4f} (ViT).")
+```
+
+---
+
+## 7. Interpretation and Discussion
+
+- **The search is sound, and the clean-exit budget is what made it so.** All 2,592
+  indices appear exactly once across 138 task-lifetimes. That is the outcome the
+  `--max_configs` budget existed to guarantee: because `claim()` advances the shared
+  counter *before* training, an OOM-killed task would have left its index claimed and
+  never trained, missing from the results with nothing raised anywhere. The failure mode
+  is silent, so a completeness assertion belongs in every analysis that reads a
+  self-scheduled grid, not only this one.
+
+- **The ViT plateau is if anything tighter than the CNN's.** The top-100 spans 1.31 pp
+  against a difference-SE of 1.41 pp, so the entire top hundred fits inside **0.93** of
+  one standard error — where `analyses/03` found 1.64 for the CNN grid. 351 configs are
+  not significantly worse than the winner at 5%, and that count is conservative for the
+  same two reasons as before: shared CV folds correlate the errors, and training
+  stochasticity is excluded. Changing the architecture did not change the measurement
+  noise, because that is set by the 2,289 evaluation images, not by the model.
+
+- **The winner's curse reproduces exactly.** The CV-best config ranks **138th of 2,592**
+  on the held-out test set, and CV-to-test correlation falls from 0.928 across the whole
+  grid to ~0.21 within the top 1,000 and 0.10 within the top 250. The winner's margin
+  over the top-500 mean is 1.88 pp against the 2.47 pp that selecting a maximum from
+  2,592 noisy draws produces on its own. The ranking carries real information across the
+  full range and none of it survives into the plateau.
+
+- **Learning rate is the whole story, and it acts as a switch rather than a dial.** It
+  takes 0.557 of the Gini importance, more than double `projection_dim` at 0.215. The
+  mechanism is visible in the distribution: 307 configs (11.8%) sit at chance, and
+  **every one of them uses `learning_rate` 0.01**. The grid is bimodal because one
+  learning-rate level fails to train at all, so most of what the surrogate "explains" is
+  the separation of dead configs from live ones, not fine discrimination among good ones.
+
+- **Inside the plateau the surrogate has nothing left.** OOB R² falls 0.963 → 0.279
+  (top-500) → **−0.032** (top-250). A negative out-of-bag R² means the forest predicts
+  worse than the pool mean, which is what zero remaining signal looks like. This is a
+  sharper collapse than the CNN grid's 0.933 → 0.337, and it closes the same loop
+  `analyses/04` drew: hyperparameters determine whether you reach the plateau, and
+  nothing determines where on it you land.
+
+- **Two of the three grid-design decisions did not pay for themselves, and both were
+  made from a single pilot run.** `projection_dim` was extended to 256 because one pilot
+  config at 128 scored best. In the event 256 is the *worst* of the four levels
+  (marginal mean 0.4693) and contributes 16 of the top 100 against 59 for
+  `projection_dim` 32 — the optimum is at the small end, in the opposite direction to the
+  extension. `mlp_ratio` 4 separates from 2 by 0.0040, well inside the 0.0100 single-config
+  SE. Restricting to `projection_dim <= 64` with `mlp_ratio` fixed at 2 would have been
+  **648 configs and roughly 68 GPU-hours instead of 2,592 and 273**, and would have found
+  a best `avg_vaf` of 0.6431 against 0.6466 — a gap of **0.25 difference-SE**, which is
+  indistinguishable. 75% of the compute bought a quarter of one standard error. The
+  general lesson is the one `analyses/03` already established and this grid re-learned the
+  expensive way: a single configuration is not evidence about an axis.
+
+- **The regularisation axis was cheap and inert.** L2 versus none differs by 0.0014 in
+  marginal mean, and the two strengths by 0.0014. Both are an order of magnitude below the
+  1.00 pp noise floor. Splitting the grid into sub-grids so `reg=None` was not duplicated
+  across strengths avoided 864 redundant configs, which was worth doing, but the axis
+  itself answered nothing.
+
+- **On matched data the two architectures are indistinguishable.** Both grids ran the
+  same harness and `cv_seed` on the same `medoid_64` dataset, so this is a clean
+  architecture comparison. Best `avg_vaf` is 0.6466 (ViT) against 0.6457 (CNN), a gap of
+  0.09 pp against a 1.41 pp difference-SE — 0.06 SE, which is as close to identical as the
+  measurement can resolve. The best test accuracy reached by any config is **0.6818 in
+  both grids**. The CV-selected models differ by more (0.6429 against 0.6169), but that is
+  1 test-SE and is the winner's-curse lottery described above rather than an architecture
+  effect. The ViT reached this with 2,592 configs and 273 GPU-hours against the CNN's
+  8,640 configs and 1,194 CPU-hours, so the architectures tie on accuracy while differing
+  in search cost and hardware, which are not comparable in the same units.
+
+- **Both model classes remain below human exact agreement and above it on near-miss.**
+  Against the 0.6892 exact and 0.9280 near-miss that `analyses/02` measured for human
+  raters on these same 308 CDAs, the best ViT reaches 0.6818 and 0.9903. The first of
+  those is a maximum taken over 2,592 configs *selected on the test set*, so it is
+  optimistically biased and should not be read as a headline; the CV-selected model scores
+  0.6429. The near-miss figure is the robust one, and it says the same thing as every
+  earlier analysis: the coarse task is solved and the residual error is adjacent-score
+  confusion, which is where the human raters disagree too.
+
+- **What to do next.** With the architecture question answered as a tie, the remaining
+  headroom is not in the model. Since 351 ViT configs are statistically tied here, the
+  useful object is the committee rather than the argmax: `analyses/05` showed a 100-model
+  CNN vote matched the best single model with none of the per-model lottery. Both grids
+  now have a kept top-100 on the same splits, so the informative test is a **mixed
+  CNN+ViT committee**, where the two classes may fail on different images even though
+  they reach the same accuracy separately. Their agreement rate is the quantity to
+  measure first, because a tie in accuracy with low agreement is exactly the situation in
+  which ensembling pays.
+
