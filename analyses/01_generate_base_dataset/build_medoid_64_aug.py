@@ -32,21 +32,23 @@ import argparse
 import sys
 from pathlib import Path
 
+import cv2 as cv
 import numpy as np
 import pandas as pd
-import cv2 as cv
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "src"))
 
-import base_dataset  # noqa: E402
 import augment  # noqa: E402
+import base_dataset  # noqa: E402
 
 CROPS = REPO / "data/cropped_images_medoid"
 RAW = REPO / "data/raw_images_rotated"
-MEDOID_COORDS = Path("/Users/jowillia/Documents/GitHub/uv-agroinfiltration-dataset/"
-                     "analyses/01_generate_raw_data/04_representative_bounding_box_and_score/"
-                     "combined_cda_data_medoid.csv")
+MEDOID_COORDS = Path(
+    "/Users/jowillia/Documents/GitHub/uv-agroinfiltration-dataset/"
+    "analyses/01_generate_raw_data/04_representative_bounding_box_and_score/"
+    "combined_cda_data_medoid.csv"
+)
 OUT = REPO / "data/datasets/medoid_64_aug"
 
 
@@ -54,8 +56,16 @@ def boxes():
     """Medoid bounding box per crop filename, from the rater whose box was the IoU medoid."""
     m = pd.read_csv(MEDOID_COORDS)
     m["stem"] = m.Basename.str.replace(r"\.(TIF|tif)$", "", regex=True)
-    m["key"] = (m.stem + "_" + m.Row.astype(str) + "_" + m.Col.astype(str)
-                + "_" + m.Pos.astype(str) + ".tif")
+    m["key"] = (
+        m.stem
+        + "_"
+        + m.Row.astype(str)
+        + "_"
+        + m.Col.astype(str)
+        + "_"
+        + m.Pos.astype(str)
+        + ".tif"
+    )
     m = m.set_index("key")
     k = m.Medoid_Coords.astype(int)
     out = {}
@@ -75,9 +85,15 @@ def main():
     args = p.parse_args()
 
     images, labels, filepaths = base_dataset.load_images_and_labels(CROPS, image_size=64)
-    split = base_dataset.split_dataset(images=images, labels=labels, filepaths=filepaths,
-                                       train_ratio=0.6, val_ratio=0.15,
-                                       ensemble_ratio=0.15, seed=42)
+    split = base_dataset.split_dataset(
+        images=images,
+        labels=labels,
+        filepaths=filepaths,
+        train_ratio=0.6,
+        val_ratio=0.15,
+        ensemble_ratio=0.15,
+        seed=42,
+    )
     y = np.asarray(split["train_labels"]).astype(int)
     names = np.array([Path(str(f)).name for f in split["train_filepaths"]])
     print(f"full train split: {len(y)} crops, per class {np.bincount(y).tolist()}")
@@ -102,7 +118,7 @@ def main():
             continue
         # Round-robin over the class's real crops so every one is augmented a near-equal
         # number of times, rather than sampling with replacement and leaving some unused.
-        picks = np.tile(idx, int(np.ceil(need[c] / len(idx))))[:need[c]]
+        picks = np.tile(idx, int(np.ceil(need[c] / len(idx))))[: need[c]]
         rng.shuffle(picks)
         for src in picks:
             box, base = bx[names[src]]
@@ -124,9 +140,11 @@ def main():
         if n % 2000 == 0:
             print(f"  {n}/{len(plan)}", flush=True)
 
-    real = (np.asarray(split["train_images"]) * 255).round().astype(np.uint8) \
-        if np.asarray(split["train_images"]).max() <= 1.0 \
+    real = (
+        (np.asarray(split["train_images"]) * 255).round().astype(np.uint8)
+        if np.asarray(split["train_images"]).max() <= 1.0
         else np.asarray(split["train_images"]).astype(np.uint8)
+    )
 
     X = np.concatenate([real, aug])
     Y = np.concatenate([y, np.array([p[1] for p in plan], dtype=int)])
@@ -134,11 +152,19 @@ def main():
     is_aug = np.concatenate([np.zeros(len(y), bool), np.ones(len(plan), bool)])
 
     OUT.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(OUT / "medoid_64_aug.npz", images=X, labels=Y, source=source,
-                        is_aug=is_aug, source_names=names, target=args.target,
-                        seed=args.seed)
-    pd.DataFrame([{"source_index": p[0], "label": p[1], "source_name": names[p[0]],
-                   **p[5]} for p in plan]).to_csv(OUT / "augmentation_log.csv", index=False)
+    np.savez_compressed(
+        OUT / "medoid_64_aug.npz",
+        images=X,
+        labels=Y,
+        source=source,
+        is_aug=is_aug,
+        source_names=names,
+        target=args.target,
+        seed=args.seed,
+    )
+    pd.DataFrame(
+        [{"source_index": p[0], "label": p[1], "source_name": names[p[0]], **p[5]} for p in plan]
+    ).to_csv(OUT / "augmentation_log.csv", index=False)
 
     # Val / ensemble / test, real only, saved in the same file so a run needs one input.
     extra = {}
@@ -153,8 +179,10 @@ def main():
     print(f"  real {int((~is_aug).sum())}, augmented {int(is_aug.sum())}")
     print(f"wrote {OUT / 'medoid_64_aug.npz'}")
     for s in ("val", "ensemble", "test"):
-        print(f"  {s}: {len(extra[f'{s}_labels'])} "
-              f"per class {np.bincount(extra[f'{s}_labels']).tolist()}")
+        print(
+            f"  {s}: {len(extra[f'{s}_labels'])} "
+            f"per class {np.bincount(extra[f'{s}_labels']).tolist()}"
+        )
 
 
 if __name__ == "__main__":

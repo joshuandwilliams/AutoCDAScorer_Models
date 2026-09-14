@@ -31,8 +31,9 @@ GRIDS = {
 
 def main():
     sys.path.append(str(ROOT / "src"))
-    import base_dataset
     import tensorflow as tf
+
+    import base_dataset
 
     # Importing model_builders runs the @register_keras_serializable decorators on the
     # ViT's custom layers (ClassToken, AddPositionEmbedding, ExtractClassToken). Without
@@ -45,14 +46,17 @@ def main():
     out = {
         "ye": np.asarray(ds["ensemble_labels"]).astype(int),
         "yt": np.asarray(ds["test_labels"]).astype(int),
-        "files_e": np.array([Path(str(f)).name for f in np.asarray(ds["ensemble_filepaths"]).tolist()]),
+        "files_e": np.array(
+            [Path(str(f)).name for f in np.asarray(ds["ensemble_filepaths"]).tolist()]
+        ),
         "files_t": np.array([Path(str(f)).name for f in np.asarray(ds["test_filepaths"]).tolist()]),
     }
     print(f"ensemble {Xe.shape}  test {Xt.shape}", flush=True)
 
     for tag, results in GRIDS.items():
-        dirs = sorted((p for p in results.iterdir() if (p / "model.keras").exists()),
-                      key=lambda p: p.name)
+        dirs = sorted(
+            (p for p in results.iterdir() if (p / "model.keras").exists()), key=lambda p: p.name
+        )
         Pe = np.zeros((len(dirs), len(Xe), 7), np.float32)
         Pt = np.zeros((len(dirs), len(Xt), 7), np.float32)
         ids = []
@@ -68,7 +72,8 @@ def main():
         assert len(set(ids)) == len(ids), (
             f"duplicate model_id under {results}: a stale sync can leave two folders for "
             f"one config (different avg_vaf in the name, identical weights), which would "
-            f"double-weight that member in every committee below.")
+            f"double-weight that member in every committee below."
+        )
         out[f"{tag}_e"] = Pe
         out[f"{tag}_t"] = Pt
         out[f"{tag}_ids"] = np.array(ids)

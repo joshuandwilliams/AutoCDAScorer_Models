@@ -365,8 +365,22 @@ cm = (pd.crosstab(corrected.loc[keep, "Median_Score"].astype(int),
                   corrected.loc[keep, "Score"].astype(int))
       .reindex(index=range(7), columns=range(7), fill_value=0).to_numpy())
 
-_plot_confusion_matrix(cm, np.arange(7), ("Median severity score", "Individual rater score"),
-                       str(thesis_plots_dir / "human_confusion_matrix.png"))
+# The eighth column is plotted, not just exported. Without it the figure sums to 875
+# judgements with 632 on the diagonal, so a reader adding it up gets 72.23% while the
+# text beside it reports the Metric 3 rate of 68.92%, which divides the same 632 by all
+# 917. The 42 tautological judgements cannot go in any other cell -- each has
+# Score == Median_Score exactly, so its only home is the diagonal, which is the cell the
+# correction forbids -- so they get their own column and the figure reconciles with the
+# text. It also matches the eight-column form analyses/10 and analyses/14 difference
+# against.
+taut_col = (corrected.loc[
+    (corrected.Agreement_Pattern == "All different") & corrected.Raw_Exact_Match,
+    "Median_Score"].astype(int).value_counts().reindex(range(7), fill_value=0).to_numpy())
+cm_plot = np.hstack([cm, taut_col[:, None]])
+_plot_confusion_matrix(cm_plot, np.arange(7),
+                       ("Median severity score", "Individual rater score"),
+                       str(thesis_plots_dir / "human_confusion_matrix.png"),
+                       col_labels=[*range(7), "Tautological"])
 # Exported so other analyses can difference their own matrices against this baseline.
 # Counts are not comparable across analyses (917 rater judgements here against 308 model
 # predictions), so consumers must row-normalise both before subtracting.

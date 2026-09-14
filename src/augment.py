@@ -29,8 +29,8 @@ Here the window is instead translated back inside the frame, and `out_of_frame` 
 how much of the requested window fell outside so the two can be told apart.
 """
 
-import numpy as np
 import cv2 as cv
+import numpy as np
 
 OUT = 64
 
@@ -60,8 +60,10 @@ def _matrix(box, shift_x=0, shift_y=0, zoom=1.0, rotation=0.0, shear_x=0.0, shea
     th = np.radians(rotation)
     R = np.array([[np.cos(th), -np.sin(th), 0], [np.sin(th), np.cos(th), 0], [0, 0, 1]])
     H = np.array([[1, shear_x, 0], [shear_y, 1, 0], [0, 0, 1]], dtype=np.float64)
-    T = np.array([[1, 0, (x1 + x2 - 1) / 2 + shift_x],
-                  [0, 1, (y1 + y2 - 1) / 2 + shift_y], [0, 0, 1]], dtype=np.float64)
+    T = np.array(
+        [[1, 0, (x1 + x2 - 1) / 2 + shift_x], [0, 1, (y1 + y2 - 1) / 2 + shift_y], [0, 0, 1]],
+        dtype=np.float64,
+    )
     return (T @ H @ R @ Z @ S)[:2], (int(round(w)), int(round(h)))
 
 
@@ -69,11 +71,12 @@ def out_of_frame(raw_shape, box, **kw):
     """Fraction of the sampled window's corners that fall outside the raw image."""
     kw = {k: v for k, v in kw.items() if k not in ("flip_x", "flip_y", "brightness")}
     M, (w, h) = _matrix(box, **kw)
-    corners = np.array([[0, 0, 1], [w - 1, 0, 1], [w - 1, h - 1, 1], [0, h - 1, 1]],
-                       dtype=np.float64).T
+    corners = np.array(
+        [[0, 0, 1], [w - 1, 0, 1], [w - 1, h - 1, 1], [0, h - 1, 1]], dtype=np.float64
+    ).T
     pts = M @ corners
     raw_h, raw_w = raw_shape[:2]
-    outside = ((pts[0] < 0) | (pts[0] > raw_w - 1) | (pts[1] < 0) | (pts[1] > raw_h - 1))
+    outside = (pts[0] < 0) | (pts[0] > raw_w - 1) | (pts[1] < 0) | (pts[1] > raw_h - 1)
     return float(outside.mean())
 
 
@@ -86,8 +89,13 @@ def crop(raw, box, flip_x=False, flip_y=False, brightness=1.0, **kw):
     the measured leaf area rather than the thing the augmentation was meant to change.
     """
     M, (w, h) = _matrix(box, **kw)
-    img = cv.warpAffine(raw, M, (w, h), flags=cv.INTER_LINEAR | cv.WARP_INVERSE_MAP,
-                        borderMode=cv.BORDER_REFLECT_101)
+    img = cv.warpAffine(
+        raw,
+        M,
+        (w, h),
+        flags=cv.INTER_LINEAR | cv.WARP_INVERSE_MAP,
+        borderMode=cv.BORDER_REFLECT_101,
+    )
     img = cv.resize(img, (OUT, OUT))
     if flip_x:
         img = cv.flip(img, 0)
@@ -162,8 +170,7 @@ def random_params(rng, box, n_perturb=None):
     x1, x2, y1, y2 = box
     side = ((x2 - x1) + (y2 - y1)) / 2
 
-    p = {"rotation": 0.0, "shift_x": 0, "shift_y": 0, "zoom": 1.0,
-         "flip_x": False, "flip_y": False}
+    p = {"rotation": 0.0, "shift_x": 0, "shift_y": 0, "zoom": 1.0, "flip_x": False, "flip_y": False}
 
     # Dihedral element: one of 4 right-angle rotations, optionally flipped. Free.
     quarter = int(rng.integers(4))
@@ -183,5 +190,8 @@ def random_params(rng, box, n_perturb=None):
             # Added to the right-angle rotation, so the total stays within one dihedral
             # element of upright and only the small part ever needs interpolation.
             p["rotation"] += float(rng.uniform(-MAX_ANGLE, MAX_ANGLE))
-    return p, {"quarter": quarter, "flip_x": p["flip_x"],
-               "perturbations": ",".join(sorted(PERTURBATIONS[c] for c in chosen))}
+    return p, {
+        "quarter": quarter,
+        "flip_x": p["flip_x"],
+        "perturbations": ",".join(sorted(PERTURBATIONS[c] for c in chosen)),
+    }

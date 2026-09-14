@@ -49,8 +49,9 @@ NUM_CLASSES = 7
 def feature_model():
     res = pd.read_csv(CNN_RESULTS / "random_search_results.csv")
     best = int(res.sort_values("avg_vaf", ascending=False).iloc[0].model_id)
-    return cgan.FrechetCDADistance(next((CNN_RESULTS / "results").glob(f"*_{best}"))
-                                   / "model.keras")
+    return cgan.FrechetCDADistance(
+        next((CNN_RESULTS / "results").glob(f"*_{best}")) / "model.keras"
+    )
 
 
 def load_generated(gan_dir: Path, n_per_class: int, seed: int = 0):
@@ -76,11 +77,16 @@ def load_generated(gan_dir: Path, n_per_class: int, seed: int = 0):
 def main():
     p = argparse.ArgumentParser(description="Feature extraction for the GAN diversity check")
     p.add_argument("--gan_dir", type=str, default=str(Path.home() / "data/GAN_images_2"))
-    p.add_argument("--dataset", type=str,
-                   default=str(REPO_ROOT / "data/datasets/medoid_64/medoid_64.npy"))
-    p.add_argument("--n_per_class", type=int, default=262,
-                   help="match the real train split's per-class count so spread is not a "
-                        "sample-size artefact")
+    p.add_argument(
+        "--dataset", type=str, default=str(REPO_ROOT / "data/datasets/medoid_64/medoid_64.npy")
+    )
+    p.add_argument(
+        "--n_per_class",
+        type=int,
+        default=262,
+        help="match the real train split's per-class count so spread is not a "
+        "sample-size artefact",
+    )
     p.add_argument("--out", type=str, default=str(Path(__file__).parent / "features.npz"))
     args = p.parse_args()
 
@@ -104,9 +110,18 @@ def main():
     Fr, Fg = feats(Xr), feats(Xg)
     print(f"feature dimension: {Fr.shape[1]}")
 
-    np.savez_compressed(args.out, real=Fr, real_y=yr, real_names=fr_names,
-                        gen=Fg, gen_y=yg, gen_names=gnames,
-                        gan_dir=str(args.gan_dir), layer=fx.layer, model=fx.name)
+    np.savez_compressed(
+        args.out,
+        real=Fr,
+        real_y=yr,
+        real_names=fr_names,
+        gen=Fg,
+        gen_y=yg,
+        gen_names=gnames,
+        gan_dir=str(args.gan_dir),
+        layer=fx.layer,
+        model=fx.name,
+    )
     print(f"wrote {args.out}")
 
 

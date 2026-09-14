@@ -92,8 +92,10 @@ def build_soft_targets(
 
     n_partial = int((counts < scores.shape[1]).sum())
     if n_partial:
-        print(f"note: {n_partial} CDAs were scored by fewer than {scores.shape[1]} raters; "
-              f"their targets are normalised over the raters present")
+        print(
+            f"note: {n_partial} CDAs were scored by fewer than {scores.shape[1]} raters; "
+            f"their targets are normalised over the raters present"
+        )
     return targets, merged
 
 
