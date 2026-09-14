@@ -1,0 +1,19 @@
+2026-09-10 19:06:36.867476: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+generator: config 48, best_fcd 3.659 at epoch 3650, latent_dim 100
+full train split: 3818 crops, per class [1627, 262, 262, 422, 508, 419, 318]
+generated crops needed per class: [3373, 4738, 4738, 4578, 4492, 4581, 4682]
+  drawn 500/4738 per class
+  drawn 1000/4738 per class
+  drawn 1500/4738 per class
+  drawn 2000/4738 per class
+  drawn 2500/4738 per class
+  drawn 3000/4738 per class
+  drawn 3500/4738 per class
+  drawn 4000/4738 per class
+  drawn 4500/4738 per class
+  drawn 4738/4738 per class
+
+pool: 35000 crops, per class [5000, 5000, 5000, 5000, 5000, 5000, 5000]
+  real 3818, generated 31182
+wrote /Users/jowillia/Documents/GitHub/AutoCDAScorer_Models/data/datasets/medoid_64_cgan/medoid_64_cgan.npz

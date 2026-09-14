@@ -17,9 +17,20 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.append(str(REPO_ROOT / "src"))
 
+import tensorflow as tf  # noqa: E402
+
 import base_dataset  # noqa: E402
 from model_builders import ViTModelBuilder  # noqa: E402
 from random_search import RandomSearch  # noqa: E402
+
+# Grow GPU memory on demand instead of pre-allocating the whole device, so the many
+# ViT models a self-scheduling task builds don't fragment VRAM into an OOM. Must run
+# before any GPU op (it does -- nothing above touches the GPU).
+for _gpu in tf.config.list_physical_devices("GPU"):
+    try:
+        tf.config.experimental.set_memory_growth(_gpu, True)
+    except RuntimeError:
+        pass
 
 # The base dataset travels with the repo (data/ is synced to the HPC), so default
 # to the repo-relative copy. Override with --dataset to point elsewhere.
@@ -49,7 +60,11 @@ PARAM_SPACE = {
     "reg": [None, "L2"],
     "reg_strength": [0.0001],
     "opt": ["Adam", "AdamW"],
-    "batch_size": [64],
+    # 32, not 64: the largest configs (patch 4 -> 256 tokens, proj 128, depth 6) ran
+    # the GPU out of memory at batch 64. Attention activations scale with the batch, so
+    # halving it roughly halves peak VRAM/step; paired with more --mem and fewer
+    # concurrent array tasks in run_search.slurm.sh.
+    "batch_size": [32],
 }
 
 

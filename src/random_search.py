@@ -19,7 +19,8 @@ import time
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from sklearn.model_selection import ParameterGrid, StratifiedKFold
+from sklearn.model_selection import (ParameterGrid, StratifiedGroupKFold,
+                                     StratifiedKFold)
 
 from cnn_base import (
     _CustomEarlyStoppingAndSave,
@@ -31,6 +32,22 @@ from cnn_base import (
 from metrics import near_miss_accuracy, quadratic_weighted_kappa
 from model_builders import ModelBuilder
 from results_store import JobCounter, TopNStore, append_rows_to_csv
+
+
+def _rss_mb():
+    """This process's resident set size in MB, or None where unavailable.
+
+    Reads /proc/self/status, so it returns None off Linux (macOS has no procfs). The
+    callers treat None as "no ceiling", which is the safe default: the HPC is Linux.
+    """
+    try:
+        with open("/proc/self/status") as fh:
+            for line in fh:
+                if line.startswith("VmRSS:"):
+                    return int(line.split()[1]) / 1024
+    except (OSError, ValueError, IndexError):
+        pass
+    return None
 
 
 class RandomSearch:
@@ -71,16 +88,46 @@ class RandomSearch:
         self.cv_seed = cv_seed
         self.run_id = str(run_id)
 
-    def _folds(self, images: np.ndarray, labels: np.ndarray) -> list:
+    def _folds(self, images: np.ndarray, labels: np.ndarray,
+               groups: np.ndarray | None = None) -> list:
         """Stratified k-fold split. Uses ``cv_seed`` (shared across tasks), not the
-        per-task sampling ``seed``, so all models are compared on the same folds."""
-        skf = StratifiedKFold(n_splits=self.k, shuffle=True, random_state=self.cv_seed)
-        return list(skf.split(images, labels))
+        per-task sampling ``seed``, so all models are compared on the same folds.
 
-    def _cross_validate(self, params: dict, images: np.ndarray, labels: np.ndarray, class_labels):
-        """Run stratified k-fold CV for a single config and collect per-fold results."""
-        # Free the previous config's Keras graphs so memory stays flat across the many
-        # models a self-scheduling grid task trains (TF otherwise accumulates them -> OOM).
+        ``groups`` keeps rows that share a group in the same fold. For the augmented runs
+        the group is the index of the real crop an augmented copy was made from, so a crop
+        and its augmentations are never split across the training and validation sides.
+        Without that, a validation fold would hold augmented copies of images whose
+        originals were trained on, and the validation accuracy would measure recall of the
+        training set rather than generalisation.
+        """
+        if groups is None:
+            skf = StratifiedKFold(n_splits=self.k, shuffle=True, random_state=self.cv_seed)
+            return list(skf.split(images, labels))
+        sgk = StratifiedGroupKFold(n_splits=self.k, shuffle=True, random_state=self.cv_seed)
+        return list(sgk.split(images, labels, groups=groups))
+
+    def _cross_validate(
+        self, params: dict, images: np.ndarray, labels: np.ndarray, class_labels,
+        soft_targets: np.ndarray | None = None,
+        groups: np.ndarray | None = None, is_aug: np.ndarray | None = None,
+    ):
+        """Run stratified k-fold CV for a single config and collect per-fold results.
+
+        ``soft_targets`` optionally replaces the one-hot TRAINING target with a full
+        probability vector per image -- for this project, the distribution of the three
+        scorers' scores rather than a one-hot of their median. Validation is deliberately
+        left on the hard median label, so ``avg_vaf`` keeps the same meaning as in every
+        other search and the runs stay comparable. Fold assignment also still uses the
+        hard label, so the stratification is unchanged.
+
+        Memory is freed per FOLD, not just per config: each fold's model graph is released
+        (``clear_session`` + ``gc``) before the next fold builds, so only ONE model is ever
+        alive at a time. The previous code cleared only once per config and held the best
+        fold's live model object, so all k folds' graphs accumulated within a single config
+        -- fine for the tiny CNNs but enough to exhaust GPU memory for the much larger ViTs.
+        The best fold is instead kept as its *weights* (detached numpy arrays that survive
+        ``clear_session``); its model is rebuilt once at the end for saving and test scoring.
+        """
         tf.keras.backend.clear_session()
         gc.collect()
 
@@ -90,16 +137,24 @@ class RandomSearch:
         batch_size = params["batch_size"]
 
         val_acc_fold, train_acc_fold = [], []
+        # Accuracy split by whether the crop is a real photograph or an augmented copy.
+        # A model that scores far higher on the augmented half has learned something about
+        # the augmentation rather than about severity, which the pooled number would hide.
+        val_acc_orig_fold, val_acc_aug_fold = [], []
+        train_acc_orig_fold, train_acc_aug_fold = [], []
         val_nearmiss_fold, val_qwk_fold = [], []
         val_acc_epoch, train_acc_epoch = [], []
         confusion_matrices = []
-        best_model, best_val_acc, best_epoch = None, -1.0, None
+        best_weights, best_val_acc, best_epoch = None, -1.0, None
 
-        for fold, (train_idx, val_idx) in enumerate(self._folds(images, labels)):
+        for fold, (train_idx, val_idx) in enumerate(self._folds(images, labels, groups)):
             print(f"  Fold {fold + 1}/{self.k}")
             x_train, x_val = images[train_idx], images[val_idx]
             y_train, y_val = labels[train_idx], labels[val_idx]
-            y_train_enc = tf.keras.utils.to_categorical(y_train, num_classes)
+            if soft_targets is not None:
+                y_train_enc = soft_targets[train_idx]
+            else:
+                y_train_enc = tf.keras.utils.to_categorical(y_train, num_classes)
             y_val_enc = tf.keras.utils.to_categorical(y_val, num_classes)
 
             model = self.model_builder.build(params, input_shape, num_classes)
@@ -116,26 +171,62 @@ class RandomSearch:
                 callbacks=[early_stop],
             )
 
-            _, acc = model.evaluate(x_val, y_val_enc, verbose=0)
-            _, tacc = model.evaluate(x_train, y_train_enc, verbose=0)
             val_preds = np.argmax(model.predict(x_val, verbose=0), axis=1)
+            # Train accuracy is scored against the HARD label even when training on soft
+            # targets. Categorical accuracy compares argmax(y_true) to argmax(y_pred), and
+            # the argmax of a soft target is the modal scorer's score, which is not always
+            # the median. Using the hard label keeps avg_taf and avg_divergence directly
+            # comparable with the one-hot runs.
+            train_preds = np.argmax(model.predict(x_train, verbose=0), axis=1)
+            acc = float(np.mean(val_preds == y_val))
+            tacc = float(np.mean(train_preds == y_train))
+
+            def _split(correct, mask):
+                """Accuracy over a subset; nan when the subset is empty (e.g. class 0 in
+                the class-0-matched run receives no augmented crops at all)."""
+                return float(np.mean(correct[mask])) if mask.any() else float("nan")
+
+            if is_aug is not None:
+                va, ta = is_aug[val_idx], is_aug[train_idx]
+                val_acc_orig_fold.append(_split(val_preds == y_val, ~va))
+                val_acc_aug_fold.append(_split(val_preds == y_val, va))
+                train_acc_orig_fold.append(_split(train_preds == y_train, ~ta))
+                train_acc_aug_fold.append(_split(train_preds == y_train, ta))
 
             val_acc_fold.append(acc)
             train_acc_fold.append(tacc)
             val_nearmiss_fold.append(near_miss_accuracy(y_val, val_preds))
             val_qwk_fold.append(quadratic_weighted_kappa(y_val, val_preds, labels=class_labels))
-            val_acc_epoch.append(history.history["val_accuracy"])
-            train_acc_epoch.append(history.history["accuracy"])
+            # Copy the per-epoch history out (plain lists) so the History object can be freed.
+            val_acc_epoch.append(list(history.history["val_accuracy"]))
+            train_acc_epoch.append(list(history.history["accuracy"]))
             confusion_matrices.append({"predicted_values": val_preds, "ground_truth_values": y_val})
 
             if acc > best_val_acc:
+                # Keep the best fold's WEIGHTS (numpy copies), not the live model -- they
+                # survive the clear_session below, so nothing is held across folds.
                 best_val_acc = acc
-                best_model = model
+                best_weights = model.get_weights()
                 best_epoch = int(np.argmax(history.history["val_accuracy"])) + 1
+
+            # Release this fold's graph/GPU memory before the next fold's model is built.
+            del model, history, early_stop
+            tf.keras.backend.clear_session()
+            gc.collect()
+
+        # Rebuild the best fold's model once, from its saved weights, for artefacts + test.
+        best_model = None
+        if best_weights is not None:
+            best_model = self.model_builder.build(params, input_shape, num_classes)
+            best_model.set_weights(best_weights)
 
         return {
             "val_acc_fold": val_acc_fold,
             "train_acc_fold": train_acc_fold,
+            "val_acc_orig_fold": val_acc_orig_fold,
+            "val_acc_aug_fold": val_acc_aug_fold,
+            "train_acc_orig_fold": train_acc_orig_fold,
+            "train_acc_aug_fold": train_acc_aug_fold,
             "val_nearmiss_fold": val_nearmiss_fold,
             "val_qwk_fold": val_qwk_fold,
             "val_acc_epoch": val_acc_epoch,
@@ -237,12 +328,14 @@ class RandomSearch:
             pass
 
     def _train_one(
-        self, params, model_id, images, labels, class_labels, store, test_images, test_labels
+        self, params, model_id, images, labels, class_labels, store, test_images, test_labels,
+        soft_targets=None, groups=None, is_aug=None,
     ):
         """CV-train one config, offer its artefacts to the store, return its row (or None)."""
         start = time.perf_counter()
         try:
-            cv = self._cross_validate(params, images, labels, class_labels)
+            cv = self._cross_validate(params, images, labels, class_labels, soft_targets,
+                                      groups=groups, is_aug=is_aug)
         except Exception as exc:  # defensive: a runtime failure shouldn't abort the sweep
             print(f"Model {model_id} failed to build/train ({exc}); skipping.")
             return None
@@ -259,6 +352,16 @@ class RandomSearch:
                 "avg_divergence": avg_taf - avg_vaf,
                 "avg_val_nearmiss": float(np.mean(cv["val_nearmiss_fold"])),
                 "avg_val_qwk": float(np.mean(cv["val_qwk_fold"])),
+                # Real-only and augmented-only accuracy alongside the pooled figure.
+                # avg_vaf stays the all-data number so it means the same thing as in every
+                # other search in this project and the runs remain comparable.
+                **({"avg_vaf_orig": float(np.nanmean(cv["val_acc_orig_fold"])),
+                    "avg_vaf_aug": float(np.nanmean(cv["val_acc_aug_fold"])),
+                    "avg_taf_orig": float(np.nanmean(cv["train_acc_orig_fold"])),
+                    "avg_taf_aug": float(np.nanmean(cv["train_acc_aug_fold"])),
+                    "aug_minus_orig_vaf": float(np.nanmean(cv["val_acc_aug_fold"])
+                                                - np.nanmean(cv["val_acc_orig_fold"]))}
+                   if cv["val_acc_orig_fold"] else {}),
                 "best_epoch": cv["best_epoch"],
                 "train_seconds": round(train_seconds, 1),
                 "cv_seed": self.cv_seed,
@@ -282,6 +385,8 @@ class RandomSearch:
         n_models: int = 4,
         global_dir: str = ".",
         top_n: int = 100,
+        groups: np.ndarray | None = None,
+        is_aug: np.ndarray | None = None,
     ) -> pd.DataFrame:
         """Random search: sample ``n_models`` configs, contributing to a shared global top-N.
 
@@ -308,6 +413,8 @@ class RandomSearch:
                 store,
                 test_images,
                 test_labels,
+                groups=groups,
+                is_aug=is_aug,
             )
             if row is None:
                 continue
@@ -331,6 +438,11 @@ class RandomSearch:
         test_labels: np.ndarray = None,
         global_dir: str = ".",
         top_n: int = 100,
+        max_configs: int | None = None,
+        max_rss_mb: int | None = None,
+        soft_targets: np.ndarray | None = None,
+        groups: np.ndarray | None = None,
+        is_aug: np.ndarray | None = None,
     ) -> pd.DataFrame:
         """Full grid search by self-scheduling.
 
@@ -339,6 +451,24 @@ class RandomSearch:
         Launch many of these as a SLURM array: together they cover every valid config
         exactly once, load-balanced automatically, and a re-submit resumes from the
         counter. Returns this task's rows.
+
+        ``max_configs`` stops this task after that many configs and returns normally,
+        leaving the rest of the grid for other tasks. Use it to bound a task's lifetime
+        when memory grows with the number of models trained in one process.
+
+        TensorFlow retains memory across repeated ``model.fit`` calls, and neither
+        ``del model``, ``clear_session()`` nor ``gc.collect()`` releases it -- see
+        tensorflow/tensorflow#113529, reported against TF 2.21.0, the version this
+        project's container pins. Measured here at roughly 2.5 GB of host RSS per config.
+        The task must therefore END before it is killed, not be killed: ``claim()``
+        advances the shared counter BEFORE training, so a task that dies mid-config
+        leaves that index claimed but never trained, and it is silently absent from the
+        results with no error anywhere. Exiting cleanly instead runs ``_merge_part`` and
+        loses nothing, and a queued array task resumes from the counter.
+
+        ``max_rss_mb`` is the backstop for ``max_configs`` being mis-sized: the task also
+        stops once its own resident set reaches that ceiling. Set it below the job's
+        ``--mem`` so the task ends on its own terms rather than being killed.
         """
         train_labels = np.asarray(train_labels).astype(int)
         class_labels = sorted(np.unique(train_labels).tolist())
@@ -367,6 +497,9 @@ class RandomSearch:
                 store,
                 test_images,
                 test_labels,
+                soft_targets=soft_targets,
+                groups=groups,
+                is_aug=is_aug,
             )
             if row is None:
                 continue
@@ -374,6 +507,29 @@ class RandomSearch:
             rows.append(row)
             pd.DataFrame([row]).to_csv(part_csv, mode="a", header=not header_written, index=False)
             header_written = True
+
+            # Log RSS every config: it rises steadily (TF retains memory across fit calls,
+            # tensorflow/tensorflow#113529) and this trend is what sizes max_configs.
+            rss_now = _rss_mb()
+            if rss_now is not None:
+                print(f"  [rss] after {len(rows)} config(s): {rss_now:.0f} MB", flush=True)
+
+            if max_configs is not None and len(rows) >= max_configs:
+                print(
+                    f"Task {self.run_id}: hit the {max_configs}-config budget; exiting "
+                    f"cleanly so a queued task can resume from the counter."
+                )
+                break
+
+            if max_rss_mb is not None and rss_now is not None and rss_now >= max_rss_mb:
+                # Backstop for the config budget being mis-sized. Being OOM-killed here
+                # would silently drop the next claimed config, so stop while we can still
+                # merge. Costs one task restart; the alternative costs a missing result.
+                print(
+                    f"Task {self.run_id}: RSS {rss_now:.0f} MB reached the {max_rss_mb} MB "
+                    f"ceiling after {len(rows)} configs; exiting cleanly."
+                )
+                break
 
         if rows:
             self._merge_part(global_dir, parts_dir, part_csv, rows)

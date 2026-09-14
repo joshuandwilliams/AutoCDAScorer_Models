@@ -1,0 +1,20 @@
+{
+  "batch_size": 64,
+  "beta_1": 0.9,
+  "disc_dropout": 0.3,
+  "discriminator_filters": "[64, 128, 256]",
+  "generator_filters": "[256, 128, 64, 32]",
+  "label_smoothing": 0.0,
+  "latent_dim": 100,
+  "learning_rate": 1e-05,
+  "lr_ratio_d": 4.0,
+  "slurm_array": 44,
+  "epochs": 5000,
+  "best_fcd": 3.8734002443940767,
+  "best_epoch": 4800,
+  "epochs_run": 5000,
+  "early_stopped_at": null,
+  "mean_epoch_seconds": 0.4825758899596985,
+  "final_gen_loss": 2.8145422765186856,
+  "final_disc_loss": 0.490019077701228
+}
