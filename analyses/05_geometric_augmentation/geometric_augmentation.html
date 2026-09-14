@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.38">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Which geometric augmentations are worth applying to CDA crops</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="geometric_augmentation_files/libs/clipboard/clipboard.min.js"></script>
+<script src="geometric_augmentation_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="geometric_augmentation_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="geometric_augmentation_files/libs/quarto-html/popper.min.js"></script>
+<script src="geometric_augmentation_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="geometric_augmentation_files/libs/quarto-html/anchor.min.js"></script>
+<link href="geometric_augmentation_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="geometric_augmentation_files/libs/quarto-html/quarto-syntax-highlighting-15634bcf2e68342d4ad2dfa704d543f6.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="geometric_augmentation_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="geometric_augmentation_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="geometric_augmentation_files/libs/bootstrap/bootstrap-138a6193a3bd40baf1e627da441a4734.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#gohrep" id="toc-gohrep" class="nav-link active" data-scroll-target="#gohrep">GOHREP</a></li>
+  <li><a href="#setup" id="toc-setup" class="nav-link" data-scroll-target="#setup">1. Setup</a>
+  <ul class="collapse">
+  <li><a href="#what-the-original-pipeline-actually-applied" id="toc-what-the-original-pipeline-actually-applied" class="nav-link" data-scroll-target="#what-the-original-pipeline-actually-applied">1.1 What the original pipeline actually applied</a></li>
+  </ul></li>
+  <li><a href="#displacement-which-augmentations-change-anything-measurable" id="toc-displacement-which-augmentations-change-anything-measurable" class="nav-link" data-scroll-target="#displacement-which-augmentations-change-anything-measurable">2. Displacement: which augmentations change anything measurable?</a></li>
+  <li><a href="#which-features-does-each-augmentation-move" id="toc-which-features-does-each-augmentation-move" class="nav-link" data-scroll-target="#which-features-does-each-augmentation-move">3. Which features does each augmentation move?</a></li>
+  <li><a href="#what-applying-several-at-once-costs" id="toc-what-applying-several-at-once-costs" class="nav-link" data-scroll-target="#what-applying-several-at-once-costs">4. What applying several at once costs</a></li>
+  <li><a href="#examples" id="toc-examples" class="nav-link" data-scroll-target="#examples">5. Examples</a></li>
+  <li><a href="#was-it-the-geometry-or-the-brightness" id="toc-was-it-the-geometry-or-the-brightness" class="nav-link" data-scroll-target="#was-it-the-geometry-or-the-brightness">6. Was it the geometry, or the brightness?</a>
+  <ul class="collapse">
+  <li><a href="#which-features-a-brightness-change-moves-and-why" id="toc-which-features-a-brightness-change-moves-and-why" class="nav-link" data-scroll-target="#which-features-a-brightness-change-moves-and-why">6.1 Which features a brightness change moves, and why</a></li>
+  <li><a href="#a-model-built-only-on-the-gain-invariant-features" id="toc-a-model-built-only-on-the-gain-invariant-features" class="nav-link" data-scroll-target="#a-model-built-only-on-the-gain-invariant-features">6.2 A model built only on the gain-invariant features</a></li>
+  </ul></li>
+  <li><a href="#interpretation-and-recommendation" id="toc-interpretation-and-recommendation" class="nav-link" data-scroll-target="#interpretation-and-recommendation">7. Interpretation and Recommendation</a>
+  <ul class="collapse">
+  <li><a href="#the-geometry-was-not-the-problem" id="toc-the-geometry-was-not-the-problem" class="nav-link" data-scroll-target="#the-geometry-was-not-the-problem">7.1 The geometry was not the problem</a></li>
+  <li><a href="#flips-and-right-angles-are-free-and-that-is-exactly-why-they-are-worth-applying" id="toc-flips-and-right-angles-are-free-and-that-is-exactly-why-they-are-worth-applying" class="nav-link" data-scroll-target="#flips-and-right-angles-are-free-and-that-is-exactly-why-they-are-worth-applying">7.2 Flips and right angles are free, and that is exactly why they are worth applying</a></li>
+  <li><a href="#small-geometry-earns-its-place-large-angle-rotation-does-not" id="toc-small-geometry-earns-its-place-large-angle-rotation-does-not" class="nav-link" data-scroll-target="#small-geometry-earns-its-place-large-angle-rotation-does-not">7.3 Small geometry earns its place; large-angle rotation does not</a></li>
+  <li><a href="#zoom-changes-the-quantity-it-is-measuring" id="toc-zoom-changes-the-quantity-it-is-measuring" class="nav-link" data-scroll-target="#zoom-changes-the-quantity-it-is-measuring">7.4 Zoom changes the quantity it is measuring</a></li>
+  <li><a href="#brightness-must-not-be-a-fixed-label-augmentation-and-the-reason-is-a-confound" id="toc-brightness-must-not-be-a-fixed-label-augmentation-and-the-reason-is-a-confound" class="nav-link" data-scroll-target="#brightness-must-not-be-a-fixed-label-augmentation-and-the-reason-is-a-confound">7.5 Brightness must not be a fixed-label augmentation, and the reason is a confound</a></li>
+  <li><a href="#what-to-do-about-exposure-shift-instead" id="toc-what-to-do-about-exposure-shift-instead" class="nav-link" data-scroll-target="#what-to-do-about-exposure-shift-instead">7.6 What to do about exposure shift instead</a></li>
+  <li><a href="#recommended-augmentation-set" id="toc-recommended-augmentation-set" class="nav-link" data-scroll-target="#recommended-augmentation-set">7.7 Recommended augmentation set</a></li>
+  <li><a href="#a-caveat-on-the-label-preservation-measure" id="toc-a-caveat-on-the-label-preservation-measure" class="nav-link" data-scroll-target="#a-caveat-on-the-label-preservation-measure">7.8 A caveat on the label-preservation measure</a></li>
+  </ul></li>
+  <li><a href="#thesis-figure" id="toc-thesis-figure" class="nav-link" data-scroll-target="#thesis-figure">Thesis figure</a></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Which geometric augmentations are worth applying to CDA crops</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p>Date: 10/09/2026</p>
+<section id="gohrep" class="level2">
+<h2 class="anchored" data-anchor-id="gohrep">GOHREP</h2>
+<p><strong>Goal:</strong></p>
+<p>Decide which geometric augmentations to apply to the medoid CDA crops, and how many at once. An earlier attempt applied a large set of them together and did not improve validation accuracy. This works out which of them could have helped, which could not, and which were actively changing the thing being predicted.</p>
+<p><strong>Hypotheses:</strong></p>
+<ol type="1">
+<li><strong>Some of the augmentations cannot help, because the crop they produce is indistinguishable from the original in every measurable property of the lesion.</strong> A horizontal flip is the clearest candidate: a leaf photographed from above has no canonical orientation, and every one of the twelve Chapter 2 features is a mean, a spread, a count or a threshold over a region, all of which are unchanged when the pixels are permuted.</li>
+<li><strong>Some of them change the severity content rather than a nuisance direction.</strong> Zoom is the clearest candidate here: enlarging the sampled window adds healthy leaf around the lesion, which changes lesion area, mean greenness over the leaf and the green:red pixel ratio – three of the features that track severity. The label stays fixed, so the augmented crop is mislabelled.</li>
+<li><strong>Applying many at once compounds 2.</strong> Each transform that shifts severity content adds to the last, so a composite of six is further from its label than any single one.</li>
+</ol>
+<p><strong>Rationale:</strong></p>
+<p>An augmentation is worth applying only if it produces a crop that is <em>different</em> from the original in ways that do <em>not</em> change the label. That is two separate measurements and they have to be made separately:</p>
+<ul>
+<li><strong>Displacement</strong> – how far the augmented crop moves in the twelve Chapter 2 features, standardised on the real crops and expressed in units of the real within-class spread. Near zero means the augmented copy is, in these terms, the same image again, so a model has nothing new to learn from it.</li>
+<li><strong>Label preservation</strong> – whether the top medoid CNN still predicts the same score for the augmented crop. This is the closest available stand-in for asking a human rater whether the severity changed, and it is measured on the same model that would be trained on the augmented data.</li>
+</ul>
+<p>Crossing the two gives the decision directly:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th>label preserved</th>
+<th>label changed</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>displacement ~ 0</strong></td>
+<td>nothing to learn – drop it</td>
+<td>(cannot occur)</td>
+</tr>
+<tr class="even">
+<td><strong>displacement large</strong></td>
+<td>real nuisance direction – keep it</td>
+<td>relabels the data – drop it</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Experimental plan:</strong></p>
+<ol type="1">
+<li>Rebuild every training crop from the raw leaf photographs, applying each augmentation <strong>alone</strong>. Validate that the identity case reproduces the stored crops exactly.</li>
+<li>Measure displacement and label preservation for each.</li>
+<li>Do the same for a composite drawn from the original grid, to measure what applying several at once costs.</li>
+<li>Recommend a set.</li>
+</ol>
+<p><strong>Why the crops are rebuilt from the raw photographs.</strong> Rotating or shearing an already-cropped image leaves black corners, and shifting or zooming a crop can only pad, never reveal. Sampling from the raw leaf photograph means every output pixel is real leaf. This also matches the intent of the original pipeline, which re-cropped a larger region before transforming.</p>
+<hr>
+</section>
+<section id="setup" class="level2">
+<h2 class="anchored" data-anchor-id="setup">1. Setup</h2>
+<div id="41946f2f" class="cell" data-execution_count="1">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.1</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> sys</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> warnings</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>warnings.filterwarnings(<span class="st">"ignore"</span>)</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>repo_root <span class="op">=</span> <span class="bu">next</span>(p <span class="cf">for</span> p <span class="kw">in</span> Path.cwd().parents <span class="cf">if</span> (p <span class="op">/</span> <span class="st">".git"</span>).exists())</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>HERE <span class="op">=</span> repo_root <span class="op">/</span> <span class="st">"analyses"</span> <span class="op">/</span> <span class="st">"05_geometric_augmentation"</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>sys.path.insert(<span class="dv">0</span>, <span class="bu">str</span>(HERE))</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>plt.rcParams.update({<span class="st">"figure.dpi"</span>: <span class="dv">120</span>, <span class="st">"font.size"</span>: <span class="dv">9</span>})</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>z <span class="op">=</span> np.load(HERE <span class="op">/</span> <span class="st">"augmentation_effects.npz"</span>, allow_pickle<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>NAMES <span class="op">=</span> [<span class="bu">str</span>(s) <span class="cf">for</span> s <span class="kw">in</span> z[<span class="st">"names"</span>]]</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>FEATS <span class="op">=</span> [<span class="bu">str</span>(s) <span class="cf">for</span> s <span class="kw">in</span> z[<span class="st">"feature_names"</span>]]</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>y <span class="op">=</span> z[<span class="st">"labels"</span>].astype(<span class="bu">int</span>)</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="bu">len</span>(y)<span class="sc">}</span><span class="ss"> training crops, </span><span class="sc">{</span><span class="bu">len</span>(NAMES)<span class="sc">}</span><span class="ss"> variants each"</span>)</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"label-preservation model: medoid CNN </span><span class="sc">{</span>z[<span class="st">'model'</span>]<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"variants: </span><span class="sc">{</span><span class="st">', '</span><span class="sc">.</span>join(NAMES)<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>1834 training crops, 25 variants each
+label-preservation model: medoid CNN 0.645702_3606
+variants: identity, flip_x, flip_y, rot90, rot180, rot270, rot15, rot-15, shift_x-10pct, shift_y-10pct, shift_xy+10pct, shift_xy-10pct, rot150, rot300, shift_x+20, shift_y+20, shift_x+10pct, shift_y+10pct, zoom0.8, zoom1.2, shear_x0.3, shear_y0.3, brightness1.2, brightness0.8, orig_composite</code></pre>
+</div>
+</div>
+<section id="what-the-original-pipeline-actually-applied" class="level3">
+<h3 class="anchored" data-anchor-id="what-the-original-pipeline-actually-applied">1.1 What the original pipeline actually applied</h3>
+<p>The grid is copied verbatim from <code>from_HPC/models/Model_0029_Aug_Sensitivity/random_search_array_sample.py</code>. Each augmented image drew one combination from it, and the only combination excluded was the one where every parameter is its identity value. Seven of the nine parameters are ternary with one identity level and two of them are binary flips, so the expected number of transforms firing on a single image is 7 x (2/3) + 2 x (1/2).</p>
+<div id="693e4140" class="cell" data-execution_count="2">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.2</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>n_act <span class="op">=</span> z[<span class="st">"n_active"</span>]</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"expected transforms per image: </span><span class="sc">{</span><span class="dv">7</span> <span class="op">*</span> <span class="dv">2</span> <span class="op">/</span> <span class="dv">3</span> <span class="op">+</span> <span class="dv">2</span> <span class="op">*</span> <span class="fl">0.5</span><span class="sc">:.2f}</span><span class="ss">"</span>)</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"observed over </span><span class="sc">{</span><span class="bu">len</span>(n_act)<span class="sc">}</span><span class="ss"> draws: mean </span><span class="sc">{</span>n_act<span class="sc">.</span>mean()<span class="sc">:.2f}</span><span class="ss">, "</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"median </span><span class="sc">{</span><span class="bu">int</span>(np.median(n_act))<span class="sc">}</span><span class="ss">, range </span><span class="sc">{</span>n_act<span class="sc">.</span><span class="bu">min</span>()<span class="sc">}</span><span class="ss">-</span><span class="sc">{</span>n_act<span class="sc">.</span><span class="bu">max</span>()<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">distribution of how many fired at once:"</span>)</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(pd.Series(n_act).value_counts().sort_index().to_string())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>expected transforms per image: 5.67
+observed over 1834 draws: mean 5.69, median 6, range 1-9
+
+distribution of how many fired at once:
+1      1
+2     14
+3     95
+4    246
+5    467
+6    485
+7    352
+8    146
+9     28</code></pre>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="displacement-which-augmentations-change-anything-measurable" class="level2">
+<h2 class="anchored" data-anchor-id="displacement-which-augmentations-change-anything-measurable">2. Displacement: which augmentations change anything measurable?</h2>
+<p>Features are standardised on the identity crops, so one unit is one standard deviation of the real data. Displacement is then divided by the real <strong>within-class spread</strong> – the mean distance from a crop to its own class centroid – so a value of 1.0 means the augmentation moved the crop as far as a typical crop sits from the middle of its own class.</p>
+<div id="509cd599" class="cell" data-execution_count="3">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2.1</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>F0 <span class="op">=</span> z[<span class="st">"feat__identity"</span>]</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>mu, sd <span class="op">=</span> F0.mean(<span class="dv">0</span>), F0.std(<span class="dv">0</span>)</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>sd[sd <span class="op">==</span> <span class="dv">0</span>] <span class="op">=</span> <span class="fl">1.0</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> zs(F):</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (F <span class="op">-</span> mu) <span class="op">/</span> sd</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>Z0 <span class="op">=</span> zs(F0)</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>cent <span class="op">=</span> np.stack([Z0[y <span class="op">==</span> c].mean(<span class="dv">0</span>) <span class="cf">for</span> c <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>)])</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>within <span class="op">=</span> np.mean([np.linalg.norm(Z0[y <span class="op">==</span> c] <span class="op">-</span> cent[c], axis<span class="op">=</span><span class="dv">1</span>).mean() <span class="cf">for</span> c <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>)])</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>between <span class="op">=</span> np.mean([np.linalg.norm(cent[a] <span class="op">-</span> cent[b])</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>                   <span class="cf">for</span> a <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>) <span class="cf">for</span> b <span class="kw">in</span> <span class="bu">range</span>(a <span class="op">+</span> <span class="dv">1</span>, <span class="dv">7</span>)])</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"real within-class spread   </span><span class="sc">{</span>within<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"real between-class distance </span><span class="sc">{</span>between<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>rows <span class="op">=</span> []</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> n <span class="kw">in</span> NAMES:</span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> n <span class="op">==</span> <span class="st">"identity"</span>:</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>        <span class="cf">continue</span></span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>    d <span class="op">=</span> np.linalg.norm(zs(z[<span class="ss">f"feat__</span><span class="sc">{</span>n<span class="sc">}</span><span class="ss">"</span>]) <span class="op">-</span> Z0, axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>    same <span class="op">=</span> (z[<span class="ss">f"pred__</span><span class="sc">{</span>n<span class="sc">}</span><span class="ss">"</span>] <span class="op">==</span> z[<span class="st">"pred__identity"</span>]).mean()</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>    rows.append({<span class="st">"augmentation"</span>: n,</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>                 <span class="st">"displacement"</span>: d.mean() <span class="op">/</span> within,</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>                 <span class="st">"label preserved"</span>: same,</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>                 <span class="st">"out of frame"</span>: z[<span class="ss">f"oof__</span><span class="sc">{</span>n<span class="sc">}</span><span class="ss">"</span>].mean()})</span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>D <span class="op">=</span> pd.DataFrame(rows).sort_values(<span class="st">"displacement"</span>)</span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>()</span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(D.<span class="bu">round</span>(<span class="dv">3</span>).to_string(index<span class="op">=</span><span class="va">False</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>real within-class spread   2.517
+real between-class distance 3.006
+
+  augmentation  displacement  label preserved  out of frame
+        flip_y         0.000            0.829           0.0
+        rot180         0.000            0.785           0.0
+        flip_x         0.000            0.802           0.0
+         rot90         0.008            0.781           0.0
+        rot270         0.008            0.802           0.0
+         rot15         0.136            0.919           0.0
+        rot-15         0.139            0.912           0.0
+    shear_x0.3         0.144            0.902           0.0
+    shear_y0.3         0.148            0.902           0.0
+    shift_y+20         0.160            0.827           0.0
+    shift_x+20         0.166            0.833           0.0
+        rot150         0.184            0.783           0.0
+        rot300         0.187            0.828           0.0
+ shift_y+10pct         0.196            0.786           0.0
+ shift_y-10pct         0.209            0.796           0.0
+ shift_x+10pct         0.211            0.796           0.0
+ shift_x-10pct         0.214            0.787           0.0
+shift_xy+10pct         0.285            0.645           0.0
+shift_xy-10pct         0.299            0.684           0.0
+       zoom0.8         0.582            0.817           0.0
+       zoom1.2         0.622            0.820           0.0
+ brightness0.8         0.798            0.432           0.0
+orig_composite         0.814            0.523           0.0
+ brightness1.2         0.833            0.567           0.0</code></pre>
+</div>
+</div>
+<div id="10b8b2bf" class="cell" data-execution_count="4">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2.2</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="fl">7.4</span>, <span class="fl">5.0</span>))</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>d <span class="op">=</span> D[D.augmentation <span class="op">!=</span> <span class="st">"orig_composite"</span>]</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>comp <span class="op">=</span> D[D.augmentation <span class="op">==</span> <span class="st">"orig_composite"</span>]</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>ax.scatter(d[<span class="st">"displacement"</span>], d[<span class="st">"label preserved"</span>], s<span class="op">=</span><span class="dv">45</span>, color<span class="op">=</span><span class="st">"#4C72B0"</span>, zorder<span class="op">=</span><span class="dv">3</span>)</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>ax.scatter(comp[<span class="st">"displacement"</span>], comp[<span class="st">"label preserved"</span>], s<span class="op">=</span><span class="dv">90</span>, marker<span class="op">=</span><span class="st">"D"</span>,</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>           color<span class="op">=</span><span class="st">"#C44E52"</span>, zorder<span class="op">=</span><span class="dv">3</span>, label<span class="op">=</span><span class="st">"original composite (~5.7 at once)"</span>)</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _, r <span class="kw">in</span> D.iterrows():</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    ax.annotate(r[<span class="st">"augmentation"</span>], (r[<span class="st">"displacement"</span>], r[<span class="st">"label preserved"</span>]),</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>                textcoords<span class="op">=</span><span class="st">"offset points"</span>, xytext<span class="op">=</span>(<span class="dv">6</span>, <span class="dv">3</span>), fontsize<span class="op">=</span><span class="fl">7.5</span>)</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>ax.axvline(<span class="fl">0.5</span>, color<span class="op">=</span><span class="st">"grey"</span>, ls<span class="op">=</span><span class="st">":"</span>, lw<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>ax.axhline(<span class="fl">0.9</span>, color<span class="op">=</span><span class="st">"grey"</span>, ls<span class="op">=</span><span class="st">":"</span>, lw<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"displacement (in units of the real within-class spread)"</span>)</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"label preserved (CNN predicts the same score)"</span>)</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">"Useful augmentations are far right and high up"</span>, fontsize<span class="op">=</span><span class="dv">10</span>)</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>ax.legend(fontsize<span class="op">=</span><span class="dv">8</span>, loc<span class="op">=</span><span class="st">"lower left"</span>)</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>ax.grid(alpha<span class="op">=</span><span class="fl">0.25</span>)</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>fig.tight_layout()</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="geometric_augmentation_files/figure-html/cell-5-output-1.png" width="874" height="591" class="figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+<hr>
+</section>
+<section id="which-features-does-each-augmentation-move" class="level2">
+<h2 class="anchored" data-anchor-id="which-features-does-each-augmentation-move">3. Which features does each augmentation move?</h2>
+<p>Displacement says how far, not in which direction. This says which of the twelve interpretable features each augmentation actually disturbs, which is what distinguishes a nuisance direction from a change in severity content.</p>
+<div id="1ed2c36d" class="cell" data-execution_count="5">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3.1</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>rows <span class="op">=</span> []</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> n <span class="kw">in</span> NAMES:</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> n <span class="op">==</span> <span class="st">"identity"</span>:</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">continue</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    delta <span class="op">=</span> np.<span class="bu">abs</span>(zs(z[<span class="ss">f"feat__</span><span class="sc">{</span>n<span class="sc">}</span><span class="ss">"</span>]) <span class="op">-</span> Z0).mean(<span class="dv">0</span>)</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    rows.append(pd.Series(delta, index<span class="op">=</span>FEATS, name<span class="op">=</span>n))</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>M <span class="op">=</span> pd.DataFrame(rows)</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="fl">9.0</span>, <span class="fl">5.4</span>))</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>im <span class="op">=</span> ax.imshow(M.values, cmap<span class="op">=</span><span class="st">"magma"</span>, aspect<span class="op">=</span><span class="st">"auto"</span>)</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>ax.set_xticks(<span class="bu">range</span>(<span class="bu">len</span>(FEATS)))</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>ax.set_xticklabels(FEATS, rotation<span class="op">=</span><span class="dv">45</span>, ha<span class="op">=</span><span class="st">"right"</span>, fontsize<span class="op">=</span><span class="fl">7.5</span>)</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>ax.set_yticks(<span class="bu">range</span>(<span class="bu">len</span>(M)))</span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>ax.set_yticklabels(M.index, fontsize<span class="op">=</span><span class="fl">7.5</span>)</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>fig.colorbar(im, ax<span class="op">=</span>ax, label<span class="op">=</span><span class="st">"mean |change| (SD of real crops)"</span>)</span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">"Which interpretable features each augmentation disturbs"</span>, fontsize<span class="op">=</span><span class="dv">10</span>)</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>fig.tight_layout()</span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="geometric_augmentation_files/figure-html/cell-6-output-1.png" width="1009" height="635" class="figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+<div id="cfc671d4" class="cell" data-execution_count="6">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3.2</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Split the features by whether they carry severity, measured here on the identity crops</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="co"># rather than taken from elsewhere: Spearman |rho| with score above 0.6.</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.stats <span class="im">import</span> spearmanr</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>rho <span class="op">=</span> pd.Series({f: spearmanr(F0[:, i], y).statistic <span class="cf">for</span> i, f <span class="kw">in</span> <span class="bu">enumerate</span>(FEATS)})</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>SEVERITY <span class="op">=</span> <span class="bu">list</span>(rho[rho.<span class="bu">abs</span>() <span class="op">&gt;</span> <span class="fl">0.6</span>].index)</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>NUISANCE <span class="op">=</span> [f <span class="cf">for</span> f <span class="kw">in</span> FEATS <span class="cf">if</span> f <span class="kw">not</span> <span class="kw">in</span> SEVERITY]</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"severity-carrying (|rho| &gt; 0.6):"</span>)</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(rho[SEVERITY].<span class="bu">round</span>(<span class="dv">3</span>).sort_values(ascending<span class="op">=</span><span class="va">False</span>).to_string())</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">other:"</span>)</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(rho[NUISANCE].<span class="bu">round</span>(<span class="dv">3</span>).to_string())</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>()</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a><span class="bu">cmp</span> <span class="op">=</span> pd.DataFrame({</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>    <span class="st">"severity-carrying"</span>: M[SEVERITY].mean(<span class="dv">1</span>),</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>    <span class="st">"other"</span>: M[NUISANCE].mean(<span class="dv">1</span>),</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>})</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a><span class="bu">cmp</span>[<span class="st">"ratio"</span>] <span class="op">=</span> <span class="bu">cmp</span>[<span class="st">"severity-carrying"</span>] <span class="op">/</span> <span class="bu">cmp</span>[<span class="st">"other"</span>].replace(<span class="dv">0</span>, np.nan)</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="bu">cmp</span>.sort_values(<span class="st">"severity-carrying"</span>).<span class="bu">round</span>(<span class="dv">3</span>).to_string())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>severity-carrying (|rho| &gt; 0.6):
+cda_green        0.826
+log_gr           0.823
+cda_bright_sd    0.786
+sep              0.757
+cda_bright       0.702
+mean_green       0.682
+green_gap        0.643
+
+other:
+frac_g_gt_r     -0.177
+cda_green_sd     0.008
+leaf_green_sd    0.589
+leaf_bright      0.454
+ent_gap          0.435
+
+                severity-carrying  other  ratio
+flip_x                      0.000  0.000  0.501
+rot180                      0.000  0.000  0.542
+flip_y                      0.000  0.000  0.561
+rot270                      0.002  0.004  0.530
+rot90                       0.002  0.004  0.530
+rot15                       0.053  0.086  0.611
+rot-15                      0.053  0.089  0.595
+shear_x0.3                  0.055  0.097  0.574
+shear_y0.3                  0.058  0.097  0.597
+shift_y+20                  0.063  0.106  0.597
+shift_x+20                  0.065  0.114  0.572
+rot150                      0.072  0.121  0.593
+rot300                      0.073  0.123  0.589
+shift_y+10pct               0.079  0.131  0.605
+shift_y-10pct               0.081  0.140  0.576
+shift_x+10pct               0.083  0.143  0.583
+shift_x-10pct               0.084  0.144  0.585
+shift_xy+10pct              0.117  0.190  0.613
+shift_xy-10pct              0.118  0.202  0.583
+zoom0.8                     0.192  0.421  0.456
+zoom1.2                     0.209  0.457  0.457
+orig_composite              0.378  0.583  0.649
+brightness1.2               0.398  0.552  0.721
+brightness0.8               0.432  0.482  0.897</code></pre>
+</div>
+</div>
+<hr>
+</section>
+<section id="what-applying-several-at-once-costs" class="level2">
+<h2 class="anchored" data-anchor-id="what-applying-several-at-once-costs">4. What applying several at once costs</h2>
+<div id="5ee36a4b" class="cell" data-execution_count="7">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.1</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>dc <span class="op">=</span> np.linalg.norm(zs(z[<span class="st">"feat__orig_composite"</span>]) <span class="op">-</span> Z0, axis<span class="op">=</span><span class="dv">1</span>) <span class="op">/</span> within</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>same <span class="op">=</span> z[<span class="st">"pred__orig_composite"</span>] <span class="op">==</span> z[<span class="st">"pred__identity"</span>]</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>g <span class="op">=</span> pd.DataFrame({<span class="st">"n"</span>: z[<span class="st">"n_active"</span>], <span class="st">"displacement"</span>: dc, <span class="st">"preserved"</span>: same})</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(g.groupby(<span class="st">"n"</span>).agg(crops<span class="op">=</span>(<span class="st">"n"</span>, <span class="st">"size"</span>),</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>                         displacement<span class="op">=</span>(<span class="st">"displacement"</span>, <span class="st">"mean"</span>),</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>                         preserved<span class="op">=</span>(<span class="st">"preserved"</span>, <span class="st">"mean"</span>)).<span class="bu">round</span>(<span class="dv">3</span>).to_string())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>   crops  displacement  preserved
+n                                
+1      1         0.073      1.000
+2     14         0.459      0.857
+3     95         0.600      0.653
+4    246         0.711      0.606
+5    467         0.763      0.540
+6    485         0.821      0.501
+7    352         0.930      0.446
+8    146         0.989      0.479
+9     28         1.032      0.464</code></pre>
+</div>
+</div>
+<hr>
+</section>
+<section id="examples" class="level2">
+<h2 class="anchored" data-anchor-id="examples">5. Examples</h2>
+<div id="f404aa50" class="cell" data-execution_count="8">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 5.1</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Eight columns, so identity plus ten kept plus four excluded sits in two rows with a single</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="co"># blank. The colour of each border carries the grouping, since a row at this width cannot be</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="co"># group-pure.</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="co"># The shift shown is the one src/augment.py applies, a tenth of the box side, not the fixed</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 20 px the original grid used. Both were measured; the 20 px pair is dropped here because</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="co"># it is the original pipeline's value rather than a candidate for the policy.</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a><span class="co"># rot150 and rot300 are dropped for the same reason. They come from the original grid</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a><span class="co"># (`ORIGINAL_GRID` in compute.py) rather than from any argument about what a rater's box</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a><span class="co"># could plausibly have been, so showing them as rejected candidates overstates the field.</span></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Their measurements stay in the section 2 table.</span></span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>KEPT_ROWS <span class="op">=</span> [<span class="st">"flip_x"</span>, <span class="st">"flip_y"</span>, <span class="st">"rot90"</span>, <span class="st">"rot180"</span>, <span class="st">"rot270"</span>, <span class="st">"rot15"</span>,</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>             <span class="st">"shift_x+10pct"</span>, <span class="st">"shift_y+10pct"</span>, <span class="st">"zoom0.8"</span>, <span class="st">"zoom1.2"</span>]</span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>EXCL_ROWS <span class="op">=</span> [<span class="st">"shear_x0.3"</span>, <span class="st">"shear_y0.3"</span>, <span class="st">"brightness0.8"</span>, <span class="st">"brightness1.2"</span>]</span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Measured but not shown: the original grid's values, and the negative halves of the</span></span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a><span class="co"># symmetric perturbations, which land on top of their positive counterparts.</span></span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>EXTRA_MEASURED <span class="op">=</span> [<span class="st">"shift_x+20"</span>, <span class="st">"shift_y+20"</span>, <span class="st">"rot150"</span>, <span class="st">"rot300"</span>, <span class="st">"rot-15"</span>,</span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>                  <span class="st">"shift_x-10pct"</span>, <span class="st">"shift_y-10pct"</span>, <span class="st">"shift_xy+10pct"</span>, <span class="st">"shift_xy-10pct"</span>]</span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>cells <span class="op">=</span> [<span class="st">"identity"</span>] <span class="op">+</span> KEPT_ROWS <span class="op">+</span> EXCL_ROWS</span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>cells <span class="op">+=</span> [<span class="va">None</span>] <span class="op">*</span> ((<span class="op">-</span><span class="bu">len</span>(cells)) <span class="op">%</span> <span class="dv">8</span>)</span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>LABEL <span class="op">=</span> {<span class="st">"identity"</span>: <span class="st">"Original"</span>, <span class="st">"flip_x"</span>: <span class="st">"Flip X"</span>, <span class="st">"flip_y"</span>: <span class="st">"Flip Y"</span>,</span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>         <span class="st">"rot90"</span>: <span class="st">"Rotate 90</span><span class="ch">\u00b0</span><span class="st">"</span>, <span class="st">"rot180"</span>: <span class="st">"Rotate 180</span><span class="ch">\u00b0</span><span class="st">"</span>, <span class="st">"rot270"</span>: <span class="st">"Rotate 270</span><span class="ch">\u00b0</span><span class="st">"</span>,</span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>         <span class="st">"rot15"</span>: <span class="st">"Rotate 15</span><span class="ch">\u00b0</span><span class="st">"</span>,</span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>         <span class="st">"rot150"</span>: <span class="st">"Rotate 150</span><span class="ch">\u00b0</span><span class="st">"</span>, <span class="st">"rot300"</span>: <span class="st">"Rotate 300</span><span class="ch">\u00b0</span><span class="st">"</span>,</span>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a>         <span class="st">"shift_x+10pct"</span>: <span class="st">"Shift X 10%"</span>, <span class="st">"shift_y+10pct"</span>: <span class="st">"Shift Y 10%"</span>,</span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a>         <span class="st">"shift_x+20"</span>: <span class="st">"Shift X 20 px"</span>, <span class="st">"shift_y+20"</span>: <span class="st">"Shift Y 20 px"</span>,</span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a>         <span class="st">"zoom0.8"</span>: <span class="st">"Zoom 0.8</span><span class="ch">\u00d7</span><span class="st">"</span>, <span class="st">"zoom1.2"</span>: <span class="st">"Zoom 1.2</span><span class="ch">\u00d7</span><span class="st">"</span>,</span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a>         <span class="st">"shear_x0.3"</span>: <span class="st">"Shear X 0.3"</span>, <span class="st">"shear_y0.3"</span>: <span class="st">"Shear Y 0.3"</span>,</span>
+<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a>         <span class="st">"brightness0.8"</span>: <span class="st">"Brightness 0.8</span><span class="ch">\u00d7</span><span class="st">"</span>, <span class="st">"brightness1.2"</span>: <span class="st">"Brightness 1.2</span><span class="ch">\u00d7</span><span class="st">"</span>}</span>
+<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a>EDGE <span class="op">=</span> {<span class="st">"identity"</span>: <span class="st">"#3B6FB6"</span>, <span class="op">**</span>{n: <span class="st">"#55A868"</span> <span class="cf">for</span> n <span class="kw">in</span> KEPT_ROWS},</span>
+<span id="cb13-31"><a href="#cb13-31" aria-hidden="true" tabindex="-1"></a>        <span class="op">**</span>{n: <span class="st">"#C44E52"</span> <span class="cf">for</span> n <span class="kw">in</span> EXCL_ROWS}}</span>
+<span id="cb13-32"><a href="#cb13-32" aria-hidden="true" tabindex="-1"></a>idx <span class="op">=</span> <span class="dv">3</span></span>
+<span id="cb13-33"><a href="#cb13-33" aria-hidden="true" tabindex="-1"></a>ncol <span class="op">=</span> <span class="dv">8</span></span>
+<span id="cb13-34"><a href="#cb13-34" aria-hidden="true" tabindex="-1"></a>nrow <span class="op">=</span> <span class="bu">len</span>(cells) <span class="op">//</span> ncol</span>
+<span id="cb13-35"><a href="#cb13-35" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(nrow, ncol, figsize<span class="op">=</span>(<span class="fl">1.15</span> <span class="op">*</span> ncol, <span class="fl">1.32</span> <span class="op">*</span> nrow))</span>
+<span id="cb13-36"><a href="#cb13-36" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> a, n <span class="kw">in</span> <span class="bu">zip</span>(axes.ravel(), cells):</span>
+<span id="cb13-37"><a href="#cb13-37" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> n <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb13-38"><a href="#cb13-38" aria-hidden="true" tabindex="-1"></a>        a.set_visible(<span class="va">False</span>)</span>
+<span id="cb13-39"><a href="#cb13-39" aria-hidden="true" tabindex="-1"></a>        <span class="cf">continue</span></span>
+<span id="cb13-40"><a href="#cb13-40" aria-hidden="true" tabindex="-1"></a>    <span class="co"># The stored crops are uint8. Dividing by 255 is required: imshow on an integer array</span></span>
+<span id="cb13-41"><a href="#cb13-41" aria-hidden="true" tabindex="-1"></a>    <span class="co"># clipped to [0, 1] renders almost every pixel as 0, which is why this panel was black.</span></span>
+<span id="cb13-42"><a href="#cb13-42" aria-hidden="true" tabindex="-1"></a>    a.imshow(z[<span class="ss">f"img__</span><span class="sc">{</span>n<span class="sc">}</span><span class="ss">"</span>][idx][:, :, ::<span class="op">-</span><span class="dv">1</span>] <span class="op">/</span> <span class="fl">255.0</span>)</span>
+<span id="cb13-43"><a href="#cb13-43" aria-hidden="true" tabindex="-1"></a>    a.set_title(LABEL[n], fontsize<span class="op">=</span><span class="fl">6.5</span>)</span>
+<span id="cb13-44"><a href="#cb13-44" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Colour-coded border rather than a legend: blue original, green kept, red excluded.</span></span>
+<span id="cb13-45"><a href="#cb13-45" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> sp <span class="kw">in</span> a.spines.values():</span>
+<span id="cb13-46"><a href="#cb13-46" aria-hidden="true" tabindex="-1"></a>        sp.set_edgecolor(EDGE[n])<span class="op">;</span> sp.set_linewidth(<span class="fl">1.8</span>)<span class="op">;</span> sp.set_visible(<span class="va">True</span>)</span>
+<span id="cb13-47"><a href="#cb13-47" aria-hidden="true" tabindex="-1"></a>    a.set_xticks([])<span class="op">;</span> a.set_yticks([])</span>
+<span id="cb13-48"><a href="#cb13-48" aria-hidden="true" tabindex="-1"></a>fig.tight_layout()</span>
+<span id="cb13-49"><a href="#cb13-49" aria-hidden="true" tabindex="-1"></a>THESIS <span class="op">=</span> Path(<span class="st">"thesis_plots"</span>)<span class="op">;</span> THESIS.mkdir(exist_ok<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb13-50"><a href="#cb13-50" aria-hidden="true" tabindex="-1"></a>fig.savefig(THESIS <span class="op">/</span> <span class="st">"augmentation_examples.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb13-51"><a href="#cb13-51" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="geometric_augmentation_files/figure-html/cell-9-output-1.png" width="1095" height="307" class="figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+<hr>
+</section>
+<section id="was-it-the-geometry-or-the-brightness" class="level2">
+<h2 class="anchored" data-anchor-id="was-it-the-geometry-or-the-brightness">6. Was it the geometry, or the brightness?</h2>
+<p>The composite draws brightness alongside the geometric transforms, and section 2 puts brightness at the top of the displacement table. Section 4’s decline could therefore be brightness appearing in more of the larger composites rather than geometry stacking up. The draws are reproducible – <code>compute.draw_original</code> was seeded – so they can be split.</p>
+<div id="f86f7709" class="cell" data-execution_count="9">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6.1</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> compute</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">0</span>)</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>draws <span class="op">=</span> [compute.draw_original(rng) <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(y))]</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> (np.array([compute.n_active(d) <span class="cf">for</span> d <span class="kw">in</span> draws]) <span class="op">==</span> z[<span class="st">"n_active"</span>]).<span class="bu">all</span>(), <span class="op">\</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"draws did not reproduce; the split below would be meaningless"</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>bright <span class="op">=</span> np.array([d[<span class="st">"brightness"</span>] <span class="op">!=</span> <span class="dv">1</span> <span class="cf">for</span> d <span class="kw">in</span> draws])</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>geom <span class="op">=</span> z[<span class="st">"n_active"</span>] <span class="op">-</span> bright  <span class="co"># geometric transforms only</span></span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>dc <span class="op">=</span> np.linalg.norm(zs(z[<span class="st">"feat__orig_composite"</span>]) <span class="op">-</span> Z0, axis<span class="op">=</span><span class="dv">1</span>) <span class="op">/</span> within</span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>same <span class="op">=</span> z[<span class="st">"pred__orig_composite"</span>] <span class="op">==</span> z[<span class="st">"pred__identity"</span>]</span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a>t <span class="op">=</span> pd.DataFrame({<span class="st">"geometric transforms"</span>: geom, <span class="st">"brightness"</span>: bright,</span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>                  <span class="st">"displacement"</span>: dc, <span class="st">"preserved"</span>: same})</span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(t.groupby([<span class="st">"brightness"</span>, <span class="st">"geometric transforms"</span>])</span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a>       .agg(crops<span class="op">=</span>(<span class="st">"preserved"</span>, <span class="st">"size"</span>), displacement<span class="op">=</span>(<span class="st">"displacement"</span>, <span class="st">"mean"</span>),</span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a>            preserved<span class="op">=</span>(<span class="st">"preserved"</span>, <span class="st">"mean"</span>)).<span class="bu">round</span>(<span class="dv">3</span>).to_string())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>                                 crops  displacement  preserved
+brightness geometric transforms                                
+False      1                         1         0.073      1.000
+           2                        12         0.315      0.833
+           3                        62         0.440      0.710
+           4                       130         0.495      0.708
+           5                       190         0.474      0.700
+           6                       143         0.534      0.636
+           7                        66         0.595      0.621
+           8                        17         0.587      0.647
+True       1                         2         1.327      1.000
+           2                        33         0.902      0.545
+           3                       116         0.953      0.491
+           4                       277         0.962      0.430
+           5                       342         0.940      0.444
+           6                       286         1.008      0.406
+           7                       129         1.042      0.457
+           8                        28         1.032      0.464</code></pre>
+</div>
+</div>
+<section id="which-features-a-brightness-change-moves-and-why" class="level3">
+<h3 class="anchored" data-anchor-id="which-features-a-brightness-change-moves-and-why">6.1 Which features a brightness change moves, and why</h3>
+<p>A global gain multiplies every channel by the same constant. Whether a feature survives that is a property of its arithmetic, not something that needs to be discovered:</p>
+<ul>
+<li><code>sep</code> is a ratio of between-class variance to total variance of leaf greenness. Scaling greenness by <code>c</code> scales both by <code>c^2</code>, so the ratio is unchanged.</li>
+<li><code>log_gr</code> counts pixels where G &gt;= R. A global gain multiplies G and R alike and cannot reverse an inequality, so the counts are unchanged.</li>
+<li><code>frac_g_gt_r</code> is the Otsu lesion area over leaf area. Otsu’s threshold is computed from the data and scales with it, so the lesion mask is unchanged – but the <em>leaf</em> mask uses a fixed cut at mean RGB &gt;= 0.15, which does not scale, so a little leakage is expected.</li>
+<li><code>leaf_bright</code>, <code>mean_green</code> and <code>cda_bright</code> are absolute intensities in 0-255 units. They scale directly with <code>c</code> and cannot survive.</li>
+</ul>
+<div id="7ba1724e" class="cell" data-execution_count="10">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6.2</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>t <span class="op">=</span> pd.DataFrame({n: np.<span class="bu">abs</span>(zs(z[<span class="ss">f"feat__</span><span class="sc">{</span>n<span class="sc">}</span><span class="ss">"</span>]) <span class="op">-</span> Z0).mean(<span class="dv">0</span>)</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>                  <span class="cf">for</span> n <span class="kw">in</span> [<span class="st">"brightness1.2"</span>, <span class="st">"brightness0.8"</span>, <span class="st">"zoom1.2"</span>, <span class="st">"flip_y"</span>]},</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>                 index<span class="op">=</span>FEATS)</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>t[<span class="st">"rho with score"</span>] <span class="op">=</span> [rho[f] <span class="cf">for</span> f <span class="kw">in</span> FEATS]</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(t.<span class="bu">round</span>(<span class="dv">3</span>).sort_values(<span class="st">"brightness1.2"</span>, ascending<span class="op">=</span><span class="va">False</span>).to_string())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>               brightness1.2  brightness0.8  zoom1.2  flip_y  rho with score
+leaf_bright            0.909          0.947    0.289     0.0           0.454
+mean_green             0.786          0.817    0.479     0.0           0.682
+cda_bright             0.755          0.819    0.079     0.0           0.702
+cda_green_sd           0.679          0.700    0.355     0.0           0.008
+ent_gap                0.568          0.077    0.241     0.0           0.435
+leaf_green_sd          0.547          0.580    0.282     0.0           0.589
+green_gap              0.476          0.516    0.167     0.0           0.643
+cda_bright_sd          0.467          0.592    0.168     0.0           0.786
+cda_green              0.190          0.181    0.086     0.0           0.826
+sep                    0.055          0.058    0.305     0.0           0.757
+frac_g_gt_r            0.055          0.105    1.120     0.0          -0.177
+log_gr                 0.055          0.040    0.179     0.0           0.823</code></pre>
+</div>
+</div>
+</section>
+<section id="a-model-built-only-on-the-gain-invariant-features" class="level3">
+<h3 class="anchored" data-anchor-id="a-model-built-only-on-the-gain-invariant-features">6.2 A model built only on the gain-invariant features</h3>
+<p>If the four features above really are immune to exposure, a model restricted to them should hold its accuracy when the gain changes, and should not drift towards higher scores. Both are testable directly.</p>
+<div id="84bfcae8" class="cell" data-execution_count="11">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6.3</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> base_dataset</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.linear_model <span class="im">import</span> LogisticRegression</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.pipeline <span class="im">import</span> make_pipeline</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> cross_val_score, StratifiedKFold</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> chapter2_features <span class="im">as</span> c2</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>CACHE <span class="op">=</span> HERE <span class="op">/</span> <span class="st">"gain_features.npz"</span></span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> CACHE.exists():</span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>    g <span class="op">=</span> np.load(CACHE)</span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>    G <span class="op">=</span> {k: g[k] <span class="cf">for</span> k <span class="kw">in</span> g.files}</span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a>    ds <span class="op">=</span> base_dataset.load_dataset(repo_root <span class="op">/</span> <span class="st">"data/datasets/medoid_64/medoid_64.npy"</span>)</span>
+<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a>    Xi <span class="op">=</span> np.asarray(ds[<span class="st">"train_images"</span>], dtype<span class="op">=</span><span class="st">"float32"</span>)</span>
+<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a>    G <span class="op">=</span> {<span class="st">"clean"</span>: c2.feature_table(Xi)}</span>
+<span id="cb18-17"><a href="#cb18-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> gain <span class="kw">in</span> (<span class="fl">1.2</span>, <span class="fl">0.8</span>):</span>
+<span id="cb18-18"><a href="#cb18-18" aria-hidden="true" tabindex="-1"></a>        G[<span class="ss">f"gain</span><span class="sc">{</span>gain<span class="sc">}</span><span class="ss">"</span>] <span class="op">=</span> c2.feature_table(np.clip(Xi <span class="op">*</span> gain, <span class="dv">0</span>, <span class="dv">1</span>).astype(<span class="st">"float32"</span>))</span>
+<span id="cb18-19"><a href="#cb18-19" aria-hidden="true" tabindex="-1"></a>    np.savez_compressed(CACHE, <span class="op">**</span>G)</span>
+<span id="cb18-20"><a href="#cb18-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-21"><a href="#cb18-21" aria-hidden="true" tabindex="-1"></a>INVARIANT <span class="op">=</span> [<span class="st">"sep"</span>, <span class="st">"log_gr"</span>, <span class="st">"frac_g_gt_r"</span>, <span class="st">"cda_green"</span>]</span>
+<span id="cb18-22"><a href="#cb18-22" aria-hidden="true" tabindex="-1"></a>ii <span class="op">=</span> [FEATS.index(k) <span class="cf">for</span> k <span class="kw">in</span> INVARIANT]</span>
+<span id="cb18-23"><a href="#cb18-23" aria-hidden="true" tabindex="-1"></a>cv <span class="op">=</span> StratifiedKFold(<span class="dv">5</span>, shuffle<span class="op">=</span><span class="va">True</span>, random_state<span class="op">=</span><span class="dv">42</span>)</span>
+<span id="cb18-24"><a href="#cb18-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-25"><a href="#cb18-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-26"><a href="#cb18-26" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> probe():</span>
+<span id="cb18-27"><a href="#cb18-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> make_pipeline(StandardScaler(), LogisticRegression(max_iter<span class="op">=</span><span class="dv">3000</span>))</span>
+<span id="cb18-28"><a href="#cb18-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-29"><a href="#cb18-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-30"><a href="#cb18-30" aria-hidden="true" tabindex="-1"></a>rows <span class="op">=</span> []</span>
+<span id="cb18-31"><a href="#cb18-31" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, cols <span class="kw">in</span> [(<span class="st">"all 12 features"</span>, <span class="bu">list</span>(<span class="bu">range</span>(<span class="dv">12</span>))),</span>
+<span id="cb18-32"><a href="#cb18-32" aria-hidden="true" tabindex="-1"></a>                   (<span class="ss">f"</span><span class="sc">{</span><span class="bu">len</span>(INVARIANT)<span class="sc">}</span><span class="ss"> gain-invariant only"</span>, ii)]:</span>
+<span id="cb18-33"><a href="#cb18-33" aria-hidden="true" tabindex="-1"></a>    A <span class="op">=</span> G[<span class="st">"clean"</span>][:, cols]</span>
+<span id="cb18-34"><a href="#cb18-34" aria-hidden="true" tabindex="-1"></a>    fit <span class="op">=</span> probe().fit(A, y)</span>
+<span id="cb18-35"><a href="#cb18-35" aria-hidden="true" tabindex="-1"></a>    rows.append({<span class="st">"feature set"</span>: name,</span>
+<span id="cb18-36"><a href="#cb18-36" aria-hidden="true" tabindex="-1"></a>                 <span class="st">"CV accuracy (clean)"</span>: cross_val_score(probe(), A, y, cv<span class="op">=</span>cv).mean(),</span>
+<span id="cb18-37"><a href="#cb18-37" aria-hidden="true" tabindex="-1"></a>                 <span class="st">"accuracy, gain x1.2"</span>: fit.score(G[<span class="st">"gain1.2"</span>][:, cols], y),</span>
+<span id="cb18-38"><a href="#cb18-38" aria-hidden="true" tabindex="-1"></a>                 <span class="st">"accuracy, gain x0.8"</span>: fit.score(G[<span class="st">"gain0.8"</span>][:, cols], y),</span>
+<span id="cb18-39"><a href="#cb18-39" aria-hidden="true" tabindex="-1"></a>                 <span class="st">"mean predicted score, clean"</span>: fit.predict(A).mean(),</span>
+<span id="cb18-40"><a href="#cb18-40" aria-hidden="true" tabindex="-1"></a>                 <span class="st">"mean predicted score, x1.2"</span>: fit.predict(G[<span class="st">"gain1.2"</span>][:, cols]).mean()})</span>
+<span id="cb18-41"><a href="#cb18-41" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(pd.DataFrame(rows).<span class="bu">round</span>(<span class="dv">4</span>).to_string(index<span class="op">=</span><span class="va">False</span>))</span>
+<span id="cb18-42"><a href="#cb18-42" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">invariant set: </span><span class="sc">{</span><span class="st">', '</span><span class="sc">.</span>join(INVARIANT)<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stderr">
+<pre><code>2026-09-13 23:28:45.121134: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>          feature set  CV accuracy (clean)  accuracy, gain x1.2  accuracy, gain x0.8  mean predicted score, clean  mean predicted score, x1.2
+      all 12 features               0.6063               0.4727               0.4062                       3.0322                      3.5169
+4 gain-invariant only               0.4553               0.4629               0.4586                       3.0867                      3.0469
+
+invariant set: sep, log_gr, frac_g_gt_r, cda_green</code></pre>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="interpretation-and-recommendation" class="level2">
+<h2 class="anchored" data-anchor-id="interpretation-and-recommendation">7. Interpretation and Recommendation</h2>
+<section id="the-geometry-was-not-the-problem" class="level3">
+<h3 class="anchored" data-anchor-id="the-geometry-was-not-the-problem">7.1 The geometry was not the problem</h3>
+<p>Splitting the composites by whether brightness was drawn separates the two causes cleanly. With brightness absent, label preservation falls gently as geometric transforms stack – 0.833 at two, 0.700 at five, 0.621 at seven – so each extra geometric transform costs roughly three points. With brightness present it sits between 0.406 and 0.464 at <em>every</em> count, and stacking more geometry on top changes almost nothing. Brightness costs about twenty-five points the moment it is included; the geometry costs three points per transform. The earlier attempt was applying 5.69 transforms per image, two thirds of which included brightness.</p>
+</section>
+<section id="flips-and-right-angles-are-free-and-that-is-exactly-why-they-are-worth-applying" class="level3">
+<h3 class="anchored" data-anchor-id="flips-and-right-angles-are-free-and-that-is-exactly-why-they-are-worth-applying">7.2 Flips and right angles are free, and that is exactly why they are worth applying</h3>
+<p>Horizontal flip, vertical flip and 180-degree rotation move the crop by <strong>0.000</strong> in all twelve features, and 90 degrees by 0.008. This is not a small measured effect, it is an identity: each of these is a permutation of pixels, and every one of the twelve features is a mean, a spread, a count or a threshold over a region, none of which depends on where in the frame a pixel sits. Nothing measurable about the lesion changes.</p>
+<p>Yet the CNN changes its prediction on 17 to 22 percent of crops under exactly these operations. That disagreement is the model contradicting itself, not the data changing. Training on flips and right-angle rotations cannot mislabel anything – the label is provably still correct – and it removes an error mode that costs the model up to a fifth of its answers. These are the cheapest gain available here.</p>
+</section>
+<section id="small-geometry-earns-its-place-large-angle-rotation-does-not" class="level3">
+<h3 class="anchored" data-anchor-id="small-geometry-earns-its-place-large-angle-rotation-does-not">7.3 Small geometry earns its place; large-angle rotation does not</h3>
+<p>Rotation by 15 degrees, shear at 0.3 and a 20-pixel shift move the crop by 0.14 to 0.19 within-class spreads while preserving the label on 83 to 92 percent of crops. Those are real nuisance directions: the bounding box a rater draws is a judgement, so a crop shifted or slightly rotated is a crop the same rater might plausibly have produced.</p>
+<p>The original grid’s 150 and 300 degree rotations are not worth keeping. They achieve the same displacement as a 15 degree rotation (0.184 and 0.187 against 0.136) while preserving the label on 78 and 83 percent against 91.9 percent. A 150 degree rotation is a 180 degree rotation – exact, free, label-preserving – composed with a 30 degree one, so nothing is gained by asking for the large angle directly. Use exact multiples of 90 plus a small angle, and the interpolation cost disappears.</p>
+</section>
+<section id="zoom-changes-the-quantity-it-is-measuring" class="level3">
+<h3 class="anchored" data-anchor-id="zoom-changes-the-quantity-it-is-measuring">7.4 Zoom changes the quantity it is measuring</h3>
+<p>Zoom moves the crop further than any other geometric transform (0.58 and 0.62), and section 3 shows where it goes: it moves <code>frac_g_gt_r</code> by <strong>1.12 standard deviations</strong>, the largest single-feature displacement anywhere in the table. That feature is segmented lesion area over leaf area, and enlarging the sampled window adds healthy leaf around the lesion, so this is the augmentation changing the thing it is measuring rather than perturbing a nuisance direction. Rater bounding boxes do genuinely disagree, so some zoom is defensible, but at a fraction of the tested magnitude – 10 percent rather than 20.</p>
+</section>
+<section id="brightness-must-not-be-a-fixed-label-augmentation-and-the-reason-is-a-confound" class="level3">
+<h3 class="anchored" data-anchor-id="brightness-must-not-be-a-fixed-label-augmentation-and-the-reason-is-a-confound">7.5 Brightness must not be a fixed-label augmentation, and the reason is a confound</h3>
+<p>Brightness produces the largest displacement in the whole table (0.798 and 0.833) and the worst label preservation (0.432 and 0.567). Section 3.2 shows why it is different in kind from the geometric transforms: it disturbs the severity-carrying features almost as much as the others (ratio 0.897), where zoom’s ratio is 0.457 and the flips’ is undefined at zero.</p>
+<p>The mechanism is a confound in the data itself. Three of the twelve features are absolute intensities – <code>leaf_bright</code>, <code>mean_green</code>, <code>cda_bright</code> – and all three correlate with severity (rho 0.454, 0.682, 0.702), because dying tissue really is brighter than healthy leaf. A global gain moves those three by 0.76 to 0.95 standard deviations. Brightening a crop therefore moves it along the same axis that severity moves along. Telling the model the label has not changed is telling it something false, and that is why brightness at 1.0 outscored both 0.8 and 1.2 in the earlier sensitivity run.</p>
+</section>
+<section id="what-to-do-about-exposure-shift-instead" class="level3">
+<h3 class="anchored" data-anchor-id="what-to-do-about-exposure-shift-instead">7.6 What to do about exposure shift instead</h3>
+<p>The failure this was meant to defend against is real and reproducible. Applying a 1.2 gain to the training crops moves the top CNN’s mean predicted score from 3.035 to 3.505, and a 0.8 gain moves it to 2.395. Brighter images read as more severe, which is the reported behaviour on an externally supplied test set scored almost entirely as 6.</p>
+<p><strong>Rescaling each image to a fixed leaf brightness removes the bias but not the damage.</strong> After normalising, the mean predicted score returns to 2.94, so the systematic inflation is gone, but per-image accuracy recovers only from 0.529 to 0.548 against 0.715 on clean crops. Clipping is not the explanation – only 2.6 percent of pixels saturate under a 1.2 gain, and repeating the test without clipping gives 0.549. The reason is the confound again: forcing every crop to the same leaf brightness also erases the part of brightness that is genuine severity.</p>
+<p><strong>Restricting the model to gain-invariant features does work.</strong> Four of the twelve survive a global gain by construction, and the measurements confirm it: <code>sep</code> (0.055 and 0.058), <code>log_gr</code> (0.055 and 0.040), <code>frac_g_gt_r</code> (0.055 and 0.105) and <code>cda_green</code> (0.190 and 0.181). A probe on those four alone scores 0.455 on clean crops against 0.606 for all twelve – but under a 1.2 gain it scores 0.463 against 0.473, under a 0.8 gain 0.459 against 0.406, and its mean predicted score moves from 3.087 to 3.047 where the full set drifts from 3.032 to 3.517. It gives up 15 points of clean accuracy and buys complete immunity to exposure.</p>
+<p>The reason this is possible at all is that gain-invariance and severity-carrying are not mutually exclusive here. <code>log_gr</code> and <code>sep</code> are the second and fourth strongest severity carriers in the whole set (rho 0.823 and 0.757) and are also the two least disturbed by gain. Overall brightness cannot distinguish an overexposed leaf from a dying one; these two can.</p>
+<p><strong>The deployable form of this is a two-number check.</strong> For an incoming batch, compare <code>leaf_bright</code> against the training distribution and compare <code>sep</code> and <code>log_gr</code> against it. <code>leaf_bright</code> far out with <code>sep</code> and <code>log_gr</code> in place means an exposure shift, and the scores should not be trusted. All three moving together means the leaves really are more affected. This costs one pass of fixed arithmetic and needs no model.</p>
+</section>
+<section id="recommended-augmentation-set" class="level3">
+<h3 class="anchored" data-anchor-id="recommended-augmentation-set">7.7 Recommended augmentation set</h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th>apply</th>
+<th>why</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>horizontal flip</td>
+<td>yes</td>
+<td>zero displacement in all twelve features, yet flips up to 22% of the model’s answers</td>
+</tr>
+<tr class="even">
+<td>vertical flip</td>
+<td>yes</td>
+<td>same</td>
+</tr>
+<tr class="odd">
+<td>rotation by 90, 180, 270</td>
+<td>yes</td>
+<td>exact, no interpolation, zero displacement</td>
+</tr>
+<tr class="even">
+<td>rotation, small angle (up to 15 deg)</td>
+<td>yes</td>
+<td>0.136 displacement at 0.919 label preservation, the best ratio in the table</td>
+</tr>
+<tr class="odd">
+<td>shift, up to 10% of the box side</td>
+<td>yes</td>
+<td>0.16 displacement at 0.83, and rater box centres differ from their 3-rater mean by a median 5.0% of the box side</td>
+</tr>
+<tr class="even">
+<td>shear, up to 0.3</td>
+<td>no</td>
+<td>measured harmless (0.15 displacement at 0.90), but every leaf here was photographed flat, so there is no oblique viewing for it to model</td>
+</tr>
+<tr class="odd">
+<td>zoom, 0.8 to 1.2</td>
+<td>yes</td>
+<td>rater box sizes span 0.814 to 1.201 of their 3-rater mean, so this range is the raters’ own disagreement rather than a guess</td>
+</tr>
+<tr class="even">
+<td>rotation at 150 or 300 deg</td>
+<td>no</td>
+<td>same displacement as 15 deg at 9 points worse label preservation, and 180 deg is free</td>
+</tr>
+<tr class="odd">
+<td>brightness</td>
+<td>no</td>
+<td>confounded with severity; handle by feature choice, not by augmentation</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Apply one or two per image, not six.</strong> Each additional geometric transform costs about three points of label preservation, and there is no measurement here suggesting a composite of six teaches anything a composite of two does not.</p>
+</section>
+<section id="a-caveat-on-the-label-preservation-measure" class="level3">
+<h3 class="anchored" data-anchor-id="a-caveat-on-the-label-preservation-measure">7.8 A caveat on the label-preservation measure</h3>
+<p>Label preservation is the top medoid CNN agreeing with itself, not a human re-scoring the augmented crop. Where a flip changes the prediction, the model is provably wrong, because the crop is identical in every measured property – that direction of the argument is sound. Where zoom or brightness changes the prediction, the model might be right that the severity content moved, or it might be as brittle as the flip result shows it to be. The feature displacements in section 3 are what settle those cases, because they do not depend on any model, and they agree with the prediction changes throughout.</p>
+</section>
+</section>
+<section id="thesis-figure" class="level2">
+<h2 class="anchored" data-anchor-id="thesis-figure">Thesis figure</h2>
+<div id="aa2e0548" class="cell" data-execution_count="12">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># T2  Displacement against label preservation, separating kept from excluded.</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Same display names as the example grid above, so the two panels name the same thing twice.</span></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>_NAME <span class="op">=</span> LABEL</span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>_kept <span class="op">=</span> {<span class="st">"flip_x"</span>, <span class="st">"flip_y"</span>, <span class="st">"rot90"</span>, <span class="st">"rot180"</span>, <span class="st">"rot270"</span>, <span class="st">"rot15"</span>, <span class="st">"shift_x+10pct"</span>,</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>         <span class="st">"shift_y+10pct"</span>, <span class="st">"zoom0.8"</span>, <span class="st">"zoom1.2"</span>}</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a><span class="co"># The fixed 20 px shift and the 150/300 degree rotations are the original pipeline's values,</span></span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a><span class="co"># measured in section 2 but never candidates for the policy, so they are dropped here along</span></span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a><span class="co"># with the composite. The panel then shows one shift magnitude rather than two nearly</span></span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a><span class="co"># coincident ones, and the same thirteen augmentations as the example grid above.</span></span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>_D <span class="op">=</span> D[<span class="op">~</span>D.augmentation.isin([<span class="st">"orig_composite"</span>, <span class="st">"shift_x+20"</span>, <span class="st">"shift_y+20"</span>,</span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>                             <span class="st">"rot150"</span>, <span class="st">"rot300"</span>, <span class="st">"rot-15"</span>, <span class="st">"shift_x-10pct"</span>,</span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>                             <span class="st">"shift_y-10pct"</span>, <span class="st">"shift_xy+10pct"</span>,</span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a>                             <span class="st">"shift_xy-10pct"</span>])].sort_values(</span>
+<span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a>    [<span class="st">"displacement"</span>, <span class="st">"label preserved"</span>]).reset_index(drop<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a>_fig, _ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="fl">5.6</span>, <span class="fl">3.8</span>))</span>
+<span id="cb21-16"><a href="#cb21-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Labels sit beside their own marker at the same height, except where markers nearly</span></span>
+<span id="cb21-17"><a href="#cb21-17" aria-hidden="true" tabindex="-1"></a><span class="co"># coincide: those are placed on the opposite side, or directly above or below, so no label</span></span>
+<span id="cb21-18"><a href="#cb21-18" aria-hidden="true" tabindex="-1"></a><span class="co"># can be read as belonging to a neighbour.</span></span>
+<span id="cb21-19"><a href="#cb21-19" aria-hidden="true" tabindex="-1"></a>_LEFT <span class="op">=</span> {<span class="st">"flip_x"</span>, <span class="st">"flip_y"</span>, <span class="st">"rot180"</span>, <span class="st">"shear_y0.3"</span>, <span class="st">"zoom0.8"</span>,</span>
+<span id="cb21-20"><a href="#cb21-20" aria-hidden="true" tabindex="-1"></a>         <span class="st">"brightness1.2"</span>, <span class="st">"brightness0.8"</span>, <span class="st">"shift_y+10pct"</span>}</span>
+<span id="cb21-21"><a href="#cb21-21" aria-hidden="true" tabindex="-1"></a>_ABOVE <span class="op">=</span> <span class="bu">set</span>()</span>
+<span id="cb21-22"><a href="#cb21-22" aria-hidden="true" tabindex="-1"></a>_BELOW <span class="op">=</span> {<span class="st">"rot90"</span>}</span>
+<span id="cb21-23"><a href="#cb21-23" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _, _r <span class="kw">in</span> _D.iterrows():</span>
+<span id="cb21-24"><a href="#cb21-24" aria-hidden="true" tabindex="-1"></a>    _k <span class="op">=</span> _r.augmentation <span class="kw">in</span> _kept</span>
+<span id="cb21-25"><a href="#cb21-25" aria-hidden="true" tabindex="-1"></a>    _ax.scatter(_r[<span class="st">"displacement"</span>], _r[<span class="st">"label preserved"</span>], s<span class="op">=</span><span class="dv">46</span>,</span>
+<span id="cb21-26"><a href="#cb21-26" aria-hidden="true" tabindex="-1"></a>                color<span class="op">=</span><span class="st">"#55A868"</span> <span class="cf">if</span> _k <span class="cf">else</span> <span class="st">"#C44E52"</span>, marker<span class="op">=</span><span class="st">"o"</span> <span class="cf">if</span> _k <span class="cf">else</span> <span class="st">"X"</span>, zorder<span class="op">=</span><span class="dv">3</span>)</span>
+<span id="cb21-27"><a href="#cb21-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> _r.augmentation <span class="kw">in</span> _ABOVE:</span>
+<span id="cb21-28"><a href="#cb21-28" aria-hidden="true" tabindex="-1"></a>        _off, _ha, _va <span class="op">=</span> (<span class="dv">0</span>, <span class="dv">5</span>), <span class="st">"center"</span>, <span class="st">"bottom"</span></span>
+<span id="cb21-29"><a href="#cb21-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">elif</span> _r.augmentation <span class="kw">in</span> _BELOW:</span>
+<span id="cb21-30"><a href="#cb21-30" aria-hidden="true" tabindex="-1"></a>        _off, _ha, _va <span class="op">=</span> (<span class="dv">0</span>, <span class="op">-</span><span class="dv">5</span>), <span class="st">"center"</span>, <span class="st">"top"</span></span>
+<span id="cb21-31"><a href="#cb21-31" aria-hidden="true" tabindex="-1"></a>    <span class="cf">elif</span> _r.augmentation <span class="kw">in</span> _LEFT:</span>
+<span id="cb21-32"><a href="#cb21-32" aria-hidden="true" tabindex="-1"></a>        _off, _ha, _va <span class="op">=</span> (<span class="op">-</span><span class="dv">7</span>, <span class="dv">0</span>), <span class="st">"right"</span>, <span class="st">"center"</span></span>
+<span id="cb21-33"><a href="#cb21-33" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb21-34"><a href="#cb21-34" aria-hidden="true" tabindex="-1"></a>        _off, _ha, _va <span class="op">=</span> (<span class="dv">7</span>, <span class="dv">0</span>), <span class="st">"left"</span>, <span class="st">"center"</span></span>
+<span id="cb21-35"><a href="#cb21-35" aria-hidden="true" tabindex="-1"></a>    _ax.annotate(_NAME.get(_r.augmentation, _r.augmentation),</span>
+<span id="cb21-36"><a href="#cb21-36" aria-hidden="true" tabindex="-1"></a>                 (_r[<span class="st">"displacement"</span>], _r[<span class="st">"label preserved"</span>]),</span>
+<span id="cb21-37"><a href="#cb21-37" aria-hidden="true" tabindex="-1"></a>                 xytext<span class="op">=</span>_off, textcoords<span class="op">=</span><span class="st">"offset points"</span>, fontsize<span class="op">=</span><span class="fl">6.5</span>, ha<span class="op">=</span>_ha, va<span class="op">=</span>_va)</span>
+<span id="cb21-38"><a href="#cb21-38" aria-hidden="true" tabindex="-1"></a><span class="co"># Room for the labels themselves: the leftmost point sits at displacement 0 with a</span></span>
+<span id="cb21-39"><a href="#cb21-39" aria-hidden="true" tabindex="-1"></a><span class="co"># left-hand label, and the rightmost carries a right-hand one.</span></span>
+<span id="cb21-40"><a href="#cb21-40" aria-hidden="true" tabindex="-1"></a>_lo, _hi <span class="op">=</span> _D[<span class="st">"displacement"</span>].<span class="bu">min</span>(), _D[<span class="st">"displacement"</span>].<span class="bu">max</span>()</span>
+<span id="cb21-41"><a href="#cb21-41" aria-hidden="true" tabindex="-1"></a>_ax.set_xlim(_lo <span class="op">-</span> <span class="fl">0.22</span> <span class="op">*</span> (_hi <span class="op">-</span> _lo), _hi <span class="op">+</span> <span class="fl">0.26</span> <span class="op">*</span> (_hi <span class="op">-</span> _lo))</span>
+<span id="cb21-42"><a href="#cb21-42" aria-hidden="true" tabindex="-1"></a>_ax.set_xlabel(<span class="st">"Feature displacement"</span>)</span>
+<span id="cb21-43"><a href="#cb21-43" aria-hidden="true" tabindex="-1"></a>_ax.set_ylabel(<span class="st">"Label preservation"</span>)</span>
+<span id="cb21-44"><a href="#cb21-44" aria-hidden="true" tabindex="-1"></a>_ax.scatter([], [], color<span class="op">=</span><span class="st">"#55A868"</span>, label<span class="op">=</span><span class="st">"Kept"</span>)</span>
+<span id="cb21-45"><a href="#cb21-45" aria-hidden="true" tabindex="-1"></a>_ax.scatter([], [], color<span class="op">=</span><span class="st">"#C44E52"</span>, marker<span class="op">=</span><span class="st">"X"</span>, label<span class="op">=</span><span class="st">"Excluded"</span>)</span>
+<span id="cb21-46"><a href="#cb21-46" aria-hidden="true" tabindex="-1"></a><span class="co"># Above the axes, because inside them the two legend markers read as two more data points.</span></span>
+<span id="cb21-47"><a href="#cb21-47" aria-hidden="true" tabindex="-1"></a>_ax.legend(fontsize<span class="op">=</span><span class="fl">7.5</span>, frameon<span class="op">=</span><span class="va">False</span>, ncol<span class="op">=</span><span class="dv">2</span>, loc<span class="op">=</span><span class="st">"lower center"</span>,</span>
+<span id="cb21-48"><a href="#cb21-48" aria-hidden="true" tabindex="-1"></a>           bbox_to_anchor<span class="op">=</span>(<span class="fl">0.5</span>, <span class="fl">1.0</span>), borderaxespad<span class="op">=</span><span class="fl">0.0</span>)</span>
+<span id="cb21-49"><a href="#cb21-49" aria-hidden="true" tabindex="-1"></a>_ax.grid(alpha<span class="op">=</span><span class="fl">0.25</span>)<span class="op">;</span> _ax.spines[[<span class="st">"top"</span>, <span class="st">"right"</span>]].set_visible(<span class="va">False</span>)</span>
+<span id="cb21-50"><a href="#cb21-50" aria-hidden="true" tabindex="-1"></a>_fig.savefig(THESIS <span class="op">/</span> <span class="st">"augmentation_displacement.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb21-51"><a href="#cb21-51" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="geometric_augmentation_files/figure-html/cell-13-output-1.png" width="602" height="446" class="figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>
