@@ -1,0 +1,79 @@
+# Pinned conda/mamba environment for every analysis under analyses/.
+#
+# One environment for all of them. Before this file there were three: the model
+# code ran against the top-level environment.yml, eleven analyses rendered under
+# `agroinfiltration_scoring`, two under a TensorFlow-free `autocdascorer-analyses`,
+# and two under base `python3`. The two analysis environments held different
+# versions of SHAP and NumPy, so a figure's provenance depended on which kernel its
+# .qmd happened to name. This replaces all of them.
+#
+# Create it, then register it as the Jupyter kernel every .qmd points at
+# (jupyter: autocdascorer-analyses):
+#
+#   mamba env create -f analyses/environment.yml
+#   mamba run -n autocdascorer-analyses python -m ipykernel install --user \
+#       --name autocdascorer-analyses --display-name "Python (autocdascorer-analyses)"
+#
+# Then, for example:
+#   quarto render analyses/05_geometric_augmentation/geometric_augmentation.qmd
+#
+# TensorFlow version, and why it is not the training version
+# ----------------------------------------------------------
+# The models were trained on the HPC inside containers/TensorFlowGPU_2_21_0.def,
+# against TensorFlow 2.21.0. This environment pins 2.16.2, which is not a choice:
+# Google's last macOS x86-64 wheel is 2.16.2, and conda-forge does not build a
+# modern TensorFlow for osx-64 either. 2.16.2 is the ceiling this machine can
+# reach.
+#
+# The gap does not affect any reported number, and that is measured rather than
+# assumed. Reloading CNN 3606 here reproduces its recorded test accuracy of
+# 0.6168831 exactly, and analyses/04 section 1.3 makes the same check on the best
+# ViT, agreeing with its recorded accuracy to 8.5e-09. Saved Keras models are
+# forward-compatible across this range because nothing in either architecture uses
+# an op whose kernel changed.
+#
+# TensorFlow is installed by pip rather than conda-forge for the same reason:
+# conda-forge's newest osx-64 TensorFlow build is far older than 2.16.
+#
+# numpy is held below 2 because TensorFlow 2.16.2 was built against the 1.x ABI.
+#
+# Versions below are the resolved set, captured 14/09/2026. Re-pin by running
+#   mamba env export -n autocdascorer-analyses --no-builds
+# after any deliberate upgrade.
+
+name: autocdascorer-analyses
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12.14
+
+  # Scientific stack
+  - numpy=1.26.4
+  - pandas=3.0.5
+  - scipy=1.17.1
+  - scikit-learn=1.9.1
+  - matplotlib=3.11.1
+
+  # Image handling. base_dataset reads crops with cv2, and analyses/14 uses PIL.
+  - opencv=5.0.0
+  - pillow=12.3.0
+
+  # Attribution. Pulls numba and llvmlite; installing them from conda-forge avoids
+  # the from-source llvmlite build that breaks a pip-only stack.
+  - shap=0.48.0
+  - numba=0.67.0
+  - llvmlite=0.49.0
+
+  - pytest=9.1.1
+
+  # Jupyter execution stack Quarto's jupyter engine needs to run the .qmd chunks.
+  # ipykernel alone is not enough; quarto's jupyter.py imports yaml and nbformat.
+  - ipykernel=7.3.0
+  - jupyter_client
+  - nbclient=0.11.0
+  - nbformat=5.11.1
+  - pyyaml=6.0.3
+
+  - pip
+  - pip:
+      - tensorflow==2.16.2

@@ -1,0 +1,539 @@
+---
+title: "Why classifiers trained on cGAN crops score 97% on generated images and 60% on real ones"
+format:
+  html:
+    code-fold: true
+    toc: true
+jupyter: autocdascorer-analyses
+---
+
+Date: 10/09/2026
+
+## GOHREP
+
+**Goal:**
+
+Explain a specific past result. Classifiers trained on cGAN-generated CDA crops reached
+about **97% on generated images but only ~60% on real ones**
+(`from_HPC/models_new/0004_CGAN_CNN/002_Model_B` reached `avg_vaf` 0.9986 on GAN images;
+`0008_Transformers_GAN` reached 0.9821 CV against 0.5462 real test accuracy). Three
+explanations are possible and they demand different fixes, so this analysis separates
+them before the new 512-config cGAN run is judged.
+
+**Hypotheses:**
+
+1. **Mode collapse / narrowness.** The generator produces a narrow range within each
+   class, so generated classes are trivially separable while real ones overlap. This is
+   the intuitive explanation and the one worth testing first.
+2. **Memorisation.** The generator reproduces training crops, so a classifier is
+   effectively trained on a subset of real data and the 97% is meaningless. The Frechet
+   distance is *actively blind* to this -- measured below, a perfectly memorising
+   generator scores better on it than two halves of the real data do.
+3. **A class-conditional shortcut.** The generator marks each class with some consistent
+   artefact -- a colour cast, a texture -- that a fresh classifier learns immediately but
+   which does not exist in real crops. A conditional GAN is free to do this because its
+   discriminator only asks whether an image looks real *for its label*, not whether the
+   label is encoded the way it is in real data.
+
+**Rationale:**
+
+Hypotheses 1 and 3 are distinguished by *where* the class information lives. Under
+narrowness, generated classes separate well in the same terms real images do. Under a
+shortcut, they separate only in terms that a model trained on generated data invents for
+itself. A **linear probe** is the instrument for that distinction: logistic regression on
+a fixed feature space cannot invent new features, only reweight the ones it is given, so
+it answers "is the class already legible in *this* representation?" rather than "can some
+model find it somewhere".
+
+Two probes give a 2x2 that pins the answer down: fit on real and test on generated, and
+fit on generated and test on real. The 97%/60% experiment was the second of these with a
+CNN free to invent features; doing it with a linear model on fixed features says whether
+the information was in the shared representation all along.
+
+**Experimental plan:**
+
+1. Diversity: within-class spread of generated crops against real ones, per class.
+2. Memorisation: nearest-real-neighbour distance for each generated crop.
+3. Linear probes both ways, on the CNN feature space.
+4. Locate the classes in feature space: are generated centroids where the real ones are?
+5. Repeat 1, 3 and 4 in a second, **unfitted** feature space and name the features the
+   generator gets wrong.
+
+**Two feature spaces, because one of them has an obvious objection.** Sections 2-5 work in
+the last pooling layer of the top medoid CNN, which is the same space `src/cgan.py` uses
+for the Frechet distance, so those numbers are directly comparable to the training metric.
+But that CNN was trained on real crops, so generated images are judged through a lens
+fitted to their competitor and some of the difference could be the lens.
+
+Section 6 therefore repeats the measurements in the twelve hand-crafted **Chapter 2**
+features -- Otsu lesion segmentation plus means, spreads and pixel counts over the
+resulting regions. Nothing in them is fitted to either set. They are also *interpretable*,
+which the CNN space is not: each has a known meaning and a known direction, so a
+generated-vs-real disagreement can be named rather than merely measured. The port is
+checked against Chapter 2's own published AUCs before anything is read off it.
+
+---
+
+## 1. Setup
+
+```{python}
+# 1.1
+import sys
+import warnings
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import cv2
+from scipy.stats import spearmanr
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import cross_val_score, StratifiedKFold
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import make_pipeline
+
+warnings.filterwarnings("ignore")
+repo_root = next(p for p in Path.cwd().parents if (p / ".git").exists())
+HERE = repo_root / "analyses" / "07_gan_diversity"
+sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(repo_root / "src"))
+import base_dataset  # noqa: E402
+
+DATASET = repo_root / "data/datasets/medoid_64/medoid_64.npy"
+# The exact generated crops that features.npz was built from, synced down from
+# ~/data/GAN_images_2 on the HPC so section 6 measures the SAME images.
+GAN_SAMPLE = HERE / "gan_sample"
+plt.rcParams.update({"figure.dpi": 120, "font.size": 9})
+
+z = np.load(HERE / "features.npz", allow_pickle=True)
+Fr, yr = z["real"], z["real_y"]
+Fg, yg = z["gen"], z["gen_y"]
+gen_names = z["gen_names"]
+print(f"feature space: medoid CNN {z['model']}, layer '{z['layer']}'")
+print(f"generated from: {z['gan_dir']}")
+print(f"real {Fr.shape}  generated {Fg.shape}")
+print(f"per class -- real {np.bincount(yr).tolist()}, generated {np.bincount(yg).tolist()}")
+assert (np.bincount(yr) == np.bincount(yg)).all(), \
+    "per-class counts differ; spread would not be comparable"
+```
+
+---
+
+## 2. Diversity: are generated crops narrower than real ones?
+
+Within-class spread is the mean pairwise Euclidean distance between crops of the same
+score. Between-class distance is the mean distance between class centroids. Their ratio
+is how separable the classes are: high means tight, well-separated clusters.
+
+Both sets have the same number of crops per class, so no part of this is a sample-size
+artefact.
+
+```{python}
+# 2.1
+def spread(F, y):
+    within = []
+    for c in range(7):
+        A = F[y == c]
+        d = np.linalg.norm(A[:, None] - A[None], axis=-1)
+        within.append(d[np.triu_indices(len(A), 1)].mean())
+    cents = np.stack([F[y == c].mean(0) for c in range(7)])
+    bc = np.linalg.norm(cents[:, None] - cents[None], axis=-1)
+    return np.array(within), bc[np.triu_indices(7, 1)].mean(), cents
+
+
+wr, br, cr = spread(Fr, yr)
+wg, bg, cg = spread(Fg, yg)
+
+tab = pd.DataFrame({
+    "real": [wr.mean(), br, br / wr.mean()],
+    "generated": [wg.mean(), bg, bg / wg.mean()],
+}, index=["within-class spread", "between-class distance", "separability ratio"]).round(3)
+print(tab.to_string())
+print(f"\ndiversity ratio (generated / real within-class spread): {wg.mean()/wr.mean():.3f}")
+
+per = pd.DataFrame({"score": range(7), "real": wr, "generated": wg,
+                    "ratio": wg / wr}).round(3)
+print("\n" + per.to_string(index=False))
+```
+
+```{python}
+# 2.2
+fig, axes = plt.subplots(1, 2, figsize=(11, 3.6))
+x = np.arange(7)
+axes[0].bar(x - 0.2, wr, 0.4, label="real", color="#4C72B0")
+axes[0].bar(x + 0.2, wg, 0.4, label="generated", color="#DD8452")
+axes[0].set_xlabel("severity score")
+axes[0].set_ylabel("within-class spread")
+axes[0].set_title("Generated crops are MORE spread out, at every score", fontsize=10)
+axes[0].legend(fontsize=8)
+
+axes[1].bar([0, 1], [br / wr.mean(), bg / wg.mean()], 0.5,
+            color=["#4C72B0", "#DD8452"])
+axes[1].axhline(1.0, color="grey", ls="--", lw=1)
+axes[1].set_xticks([0, 1])
+axes[1].set_xticklabels(["real", "generated"])
+axes[1].set_ylabel("between / within")
+axes[1].set_title("Separability: generated classes overlap MORE", fontsize=10)
+for ax in axes:
+    ax.grid(alpha=0.25, axis="y")
+fig.tight_layout()
+plt.show()
+```
+
+---
+
+## 3. Memorisation
+
+For each generated crop, the distance to its nearest **real** crop of the same class,
+benchmarked against how far real crops sit from each other. A memorising generator would
+show generated-to-real distances at or below the real-to-real baseline.
+
+```{python}
+# 3.1
+rows = []
+for c in range(7):
+    A, B = Fg[yg == c], Fr[yr == c]
+    d = np.linalg.norm(A[:, None] - B[None], axis=-1)
+    dr = np.linalg.norm(B[:, None] - B[None], axis=-1)
+    np.fill_diagonal(dr, np.inf)
+    dg = np.linalg.norm(A[:, None] - A[None], axis=-1)
+    np.fill_diagonal(dg, np.inf)
+    rows.append({"score": c, "gen->real": d.min(1).mean(),
+                 "real->real": dr.min(1).mean(), "gen->gen": dg.min(1).mean()})
+nn = pd.DataFrame(rows)
+nn["ratio"] = nn["gen->real"] / nn["real->real"]
+print(nn.round(3).to_string(index=False))
+print(f"\nmean generated-to-real / real-to-real: "
+      f"{nn['gen->real'].mean() / nn['real->real'].mean():.2f}")
+```
+
+---
+
+## 4. The linear probes
+
+A linear probe is logistic regression fitted on a **fixed** feature space. It cannot
+invent features, only reweight the ones it is handed, so its accuracy measures whether
+the class is already legible in that representation.
+
+Four numbers, all with the same model class and the same features:
+
+| fitted on | tested on | what it tells you |
+|---|---|---|
+| real | real (5-fold CV) | how legible severity is for real crops |
+| real | generated | do generated crops obey the real class structure |
+| generated | generated (5-fold CV) | how legible severity is for generated crops |
+| generated | real | does anything learned from generated crops transfer |
+
+Features are standardised inside the pipeline so the fit is not dominated by whichever
+activations happen to have the largest scale.
+
+```{python}
+# 4.1
+def probe():
+    # No multi_class= argument: it was removed in recent scikit-learn, and multinomial
+    # is the default for multiclass problems there anyway.
+    return make_pipeline(StandardScaler(), LogisticRegression(max_iter=2000))
+
+
+cv = StratifiedKFold(5, shuffle=True, random_state=42)
+rr = cross_val_score(probe(), Fr, yr, cv=cv).mean()
+gg = cross_val_score(probe(), Fg, yg, cv=cv).mean()
+rg = probe().fit(Fr, yr).score(Fg, yg)
+gr = probe().fit(Fg, yg).score(Fr, yr)
+
+res = pd.DataFrame([
+    {"fitted on": "real", "tested on": "real (CV)", "accuracy": rr},
+    {"fitted on": "real", "tested on": "generated", "accuracy": rg},
+    {"fitted on": "generated", "tested on": "generated (CV)", "accuracy": gg},
+    {"fitted on": "generated", "tested on": "real", "accuracy": gr},
+]).round(4)
+print(res.to_string(index=False))
+print(f"\nchance = {1/7:.4f}")
+```
+
+```{python}
+# 4.2
+fig, ax = plt.subplots(figsize=(6.5, 3.6))
+labels = ["real\n-> real", "real\n-> generated", "generated\n-> generated",
+          "generated\n-> real"]
+vals = [rr, rg, gg, gr]
+cols = ["#4C72B0", "#4C72B0", "#DD8452", "#DD8452"]
+bars = ax.bar(range(4), vals, 0.6, color=cols)
+for b, v in zip(bars, vals):
+    ax.text(b.get_x() + b.get_width() / 2, v + 0.01, f"{v:.3f}", ha="center", fontsize=8)
+ax.axhline(1 / 7, color="firebrick", ls="--", lw=1, label="chance (1/7)")
+ax.set_xticks(range(4))
+ax.set_xticklabels(labels, fontsize=8)
+ax.set_ylabel("linear probe accuracy")
+ax.set_ylim(0, 1.05)
+ax.legend(fontsize=8)
+ax.set_title("Linear probes on the real-CNN feature space", fontsize=10)
+ax.grid(alpha=0.25, axis="y")
+fig.tight_layout()
+plt.show()
+```
+
+---
+
+## 5. Where do the generated classes sit?
+
+If the generator had learned the real severity scale, each generated class centroid would
+sit nearest its own real counterpart.
+
+```{python}
+# 5.1
+rows = []
+for c in range(7):
+    dists = [np.linalg.norm(cg[c] - cr[k]) for k in range(7)]
+    rows.append({"generated score": c, "distance to own real centroid": dists[c],
+                 "nearest real centroid": int(np.argmin(dists)),
+                 "distance to nearest": min(dists)})
+cent = pd.DataFrame(rows).round(3)
+print(cent.to_string(index=False))
+n_wrong = int((cent["generated score"] != cent["nearest real centroid"]).sum())
+print(f"\ngenerated classes whose nearest real centroid is a DIFFERENT score: {n_wrong} of 7")
+print(f"for scale, the mean real within-class spread is {wr.mean():.3f}")
+```
+
+---
+
+## 6. The same questions in a feature space fitted to nothing
+
+Everything above lives in the feature space of a CNN trained on real crops, so generated
+images are being judged through a lens fitted to their competitor. That is a real
+objection and it cannot be answered from inside that space.
+
+The Chapter 2 features answer it. They are twelve hand-crafted scalars -- Otsu
+segmentation of the lesion, then means, spreads and pixel counts over the resulting
+regions (`chapter2_features.py`, ported from
+`uv-agroinfiltration-dataset/analyses/10_segmentation_and_feature_extraction/`). Nothing
+in them is fitted to anything. Identical arithmetic is applied to both sets, so if the
+conclusions survive here, the lens was not driving them.
+
+### 6.1 Does the port work, and are the channels the right way round?
+
+Two things have to be checked before any comparison is worth reading. The port must
+reproduce Chapter 2's published numbers, and the channel order must be right -- these
+crops are BGR (`cv.imread`), where the R original was RGB, so a wrong `greenness` would
+silently invert the lesion.
+
+Chapter 2 reports two AUCs for separating score 0 from non-zero: **0.944** for greenness
+bimodality (`sep`) and **0.451**, no better than chance, for segmented lesion area
+(`frac_g_gt_r`). Both must come back.
+
+```{python}
+# 6.1
+import chapter2_features as c2
+
+CACHE = HERE / "c2_features.npz"
+if CACHE.exists():
+    z = np.load(CACHE)
+    Cr, Cg = z["real"], z["gen"]
+else:
+    ds = base_dataset.load_dataset(DATASET)
+    Xr_img = np.asarray(ds["train_images"], dtype="float32")
+    Xg_img = np.stack([cv2.imread(str(GAN_SAMPLE / str(c) / n)) / 256.0
+                       for c, n in zip(yg, gen_names)]).astype("float32")
+    Cr, Cg = c2.feature_table(Xr_img), c2.feature_table(Xg_img)
+    np.savez_compressed(CACHE, real=Cr, gen=Cg)
+
+C = pd.DataFrame(Cr, columns=c2.FEATURE_NAMES).assign(score=yr)
+
+
+def auc(f, pos):
+    r = pd.Series(f).rank().values
+    return (r[pos].sum() - pos.sum() * (pos.sum() + 1) / 2) / (pos.sum() * (~pos).sum())
+
+
+nz = yr > 0
+print(f"port check, score 0 vs non-0 AUC on the real crops:")
+print(f"  sep          {auc(C['sep'].values, nz):.3f}   (Chapter 2 reports 0.944)")
+print(f"  frac_g_gt_r  {auc(C['frac_g_gt_r'].values, nz):.3f}   (Chapter 2 reports 0.451)")
+
+print("\nchannel check, mean greenness inside the lesion by real score "
+      "(must rise -- the labels here are known correct):")
+print(C.groupby("score")["cda_green"].mean().round(3).to_string())
+```
+
+### 6.2 Diversity and separability, recomputed
+
+The features are on wildly different scales (`sep` is a ratio in [0, 1], `mean_green` runs
+to 255), so distances need standardising first. The scaler is fitted on the **real** crops
+only and then applied to both, which is the exact analogue of using a real-trained CNN's
+feature space -- the real data defines the units, and generated crops are measured in them.
+
+```{python}
+# 6.2
+sc = StandardScaler().fit(Cr)
+Zr, Zg = sc.transform(Cr), sc.transform(Cg)
+
+
+def spread_and_sep(Z, y):
+    cents = np.stack([Z[y == c].mean(0) for c in range(7)])
+    within = np.mean([np.linalg.norm(Z[y == c] - cents[c], axis=1).mean() for c in range(7)])
+    between = np.mean([np.linalg.norm(cents[a] - cents[b])
+                       for a in range(7) for b in range(a + 1, 7)])
+    return within, between, cents
+
+
+wr2, br2, cr2 = spread_and_sep(Zr, yr)
+wg2, bg2, cg2 = spread_and_sep(Zg, yg)
+
+print(pd.DataFrame({
+    "real": [wr2, br2, br2 / wr2],
+    "generated": [wg2, bg2, bg2 / wg2],
+}, index=["within-class spread", "between-class distance", "separability ratio"]).round(3)
+      .to_string())
+print(f"\ndiversity ratio (generated / real within-class spread): {wg2 / wr2:.3f}")
+print("(section 2 measured 1.842 in the CNN feature space)")
+```
+
+### 6.3 Which features does the generator get wrong?
+
+This is the part the CNN space cannot do. Every feature here has a known meaning and a
+known direction, so a disagreement can be named rather than just measured. For each
+feature: how strongly does it track severity in real crops, and does it still do so in
+generated ones?
+
+```{python}
+# 6.3
+rows = []
+for i, k in enumerate(c2.FEATURE_NAMES):
+    rr_ = spearmanr(Cr[:, i], yr).statistic
+    rg_ = spearmanr(Cg[:, i], yg).statistic
+    rows.append({"feature": k, "meaning": c2.FEATURE_DOC[k][0],
+                 "rho real": rr_, "rho generated": rg_, "change": rg_ - rr_})
+sp = pd.DataFrame(rows).sort_values("change")
+print(sp[["feature", "rho real", "rho generated", "change"]].round(3).to_string(index=False))
+
+flip = sp[(sp["rho real"].abs() > 0.3) & (np.sign(sp["rho generated"]) != np.sign(sp["rho real"]))]
+print(f"\nfeatures that carry real severity (|rho| > 0.3) but point the WRONG WAY "
+      f"in generated crops: {len(flip)}")
+if len(flip):
+    print(flip[["feature", "meaning"]].to_string(index=False))
+```
+
+```{python}
+# 6.3b
+fig, ax = plt.subplots(figsize=(7.2, 4.4))
+o = sp.sort_values("rho real")
+ypos = np.arange(len(o))
+ax.barh(ypos - 0.2, o["rho real"], 0.4, label="real", color="#4C72B0")
+ax.barh(ypos + 0.2, o["rho generated"], 0.4, label="generated", color="#DD8452")
+ax.set_yticks(ypos)
+ax.set_yticklabels(o["feature"], fontsize=8)
+ax.axvline(0, color="k", lw=0.8)
+ax.set_xlabel("Spearman correlation with severity score")
+ax.set_title("Do the interpretable features track severity in generated crops?", fontsize=10)
+ax.legend(fontsize=8)
+ax.grid(alpha=0.25, axis="x")
+fig.tight_layout()
+plt.show()
+```
+
+### 6.4 The probes, on twelve interpretable numbers
+
+```{python}
+# 6.4
+rr2 = cross_val_score(probe(), Cr, yr, cv=cv).mean()
+gg2 = cross_val_score(probe(), Cg, yg, cv=cv).mean()
+rg2 = probe().fit(Cr, yr).score(Cg, yg)
+gr2 = probe().fit(Cg, yg).score(Cr, yr)
+
+print(pd.DataFrame([
+    {"fitted on": "real", "tested on": "real (CV)", "CNN space": rr, "Chapter 2 space": rr2},
+    {"fitted on": "real", "tested on": "generated", "CNN space": rg, "Chapter 2 space": rg2},
+    {"fitted on": "generated", "tested on": "generated (CV)", "CNN space": gg, "Chapter 2 space": gg2},
+    {"fitted on": "generated", "tested on": "real", "CNN space": gr, "Chapter 2 space": gr2},
+]).round(4).to_string(index=False))
+print(f"\nchance = {1/7:.4f}")
+```
+
+---
+
+## 7. Interpretation and Discussion
+
+Two of the three hypotheses are dead, and the third is now supported by a much sharper
+piece of evidence than the one this analysis was designed around.
+
+**Hypothesis 1 (mode collapse) is wrong, in both feature spaces.** Generated crops are
+**1.84x more spread out** within a class than real ones in the CNN space and **1.42x** in
+the Chapter 2 space, at every score without exception (per-class ratios 2.40 at score 0
+down to 1.44 at score 6). Their classes are also *less* separable, not more: the
+between-over-within ratio is 0.70 against the real crops' 1.40 in the CNN space, and 0.86
+against 1.19 in the Chapter 2 space. Two spaces with nothing in common agree on the
+direction and roughly on the size. Mode collapse cannot be what produced 97%.
+
+**Hypothesis 2 (memorisation) is wrong too.** Each generated crop's nearest real crop of
+the same class sits at distance 8.42, against 4.49 for real-to-real nearest neighbours.
+Generated crops are nearly twice as far from real ones as real ones are from each other.
+This had to be checked separately because the Frechet distance cannot see it -- a
+perfectly memorising generator scores *better* on that metric than two halves of the real
+data do.
+
+**Hypothesis 3 (a class-conditional shortcut) is what survives, and section 6 is why.**
+The argument runs on one comparison:
+
+| | real -> real | generated -> generated |
+|---|---|---|
+| linear probe, CNN features | 0.639 | 0.763 |
+| linear probe, Chapter 2 features | 0.606 | 0.602 |
+| **CNN trained from scratch** | **0.646** | **0.9986** |
+
+For **real** crops all three rows agree at roughly 0.61-0.65. Twelve hand-crafted numbers,
+a linear read-out of a CNN's penultimate layer, and 8,640 CNNs searched over a grid all
+land in the same place, which says the severity signal in real crops is essentially fully
+exposed and there is no hidden extra to find.
+
+For **generated** crops the same three rows read 0.602, 0.763 and 0.9986. Roughly **40
+points of accuracy** are available to a classifier that can invent its own features and
+are absent from both fixed representations -- including one with no learned component
+anywhere in it. The Chapter 2 row is the strong version of the claim, because "the lens
+was fitted to real crops" is not available as an objection to Otsu thresholding and
+arithmetic means.
+
+That gap is the signature of a generator fingerprint. A conditional GAN's discriminator
+only asks whether an image looks real *for its label*, so any consistent per-class marker
+satisfies the objective. A fresh classifier finds it immediately. Neither real crops nor
+any severity-related measurement carries it.
+
+**The generator did learn real severity cues, which section 6.3 shows directly and is the
+genuinely encouraging result.** All twelve interpretable features still track severity in
+generated crops, and **not one of them flips sign**. The correlations weaken slightly and
+uniformly -- lesion greenness from rho 0.83 to 0.72, within-lesion brightness spread from
+0.79 to 0.63, greenness bimodality from 0.76 to 0.66 -- which is a generator that renders
+the right cues slightly less crisply, not one that replaced them. Consistent with that, a
+probe fitted on generated crops scores 0.575 on real ones against 0.639 for a probe fitted
+on real crops (0.506 against 0.606 in the Chapter 2 space): **85-90% of real-data
+legibility survives the transfer** (0.900 and 0.835 of the respective real-to-real figures).
+
+So the generated crops are not junk. They carry real severity information *and* a shortcut
+that dominates whenever a classifier is free to use it. That distinction is what makes
+augmentation worth trying: mixing real and generated crops gives the classifier a reason
+not to take the shortcut, which training on generated data alone never did.
+
+**One concrete defect: the severity scale is displaced at the top end.** Generated
+centroids for scores 0-3 and 6 sit nearest their own real counterparts, but **score 4's
+centroid is nearest real score 5, and score 5's is nearest real score 6**. The
+displacements (3.7 to 6.8) are comparable to the entire real within-class spread of 7.93.
+The generator systematically renders high-severity classes as more severe than the real
+scale does. If generated crops are used for augmentation, the top classes are the ones to
+watch.
+
+**What this means for the 512-config run.** None of the metrics currently recorded would
+detect any of this. The Frechet distance is blind to memorisation, says nothing about
+within-class structure, and cannot distinguish a generator that encodes severity the way
+real crops do from one that invents a marker -- so selecting on it selects for the wrong
+thing. The acceptance test for a useful generator is instead the transfer probe: **fit a
+logistic regression on generated crops, score it on real ones, and require it to approach
+the real-to-real figure (0.639 in CNN features, 0.606 in Chapter 2 features).** That is one
+cheap number per generator and it measures the thing that actually matters, which is
+whether the generated crops encode severity the way real crops do.
+
+**What is still open.** The shortcut has been shown to exist and to be invisible to both
+feature spaces, but it has not been *identified* -- nothing here says what the per-class
+marker physically is. The natural next step is adversarial: train a small classifier on
+generated crops, then attribute its predictions with the Grad-CAM and SHAP machinery
+already built in `analyses/12_cnn_attention_vs_lesion`. If the attribution lands away from
+the lesion, that localises the fingerprint and would make it fixable.
