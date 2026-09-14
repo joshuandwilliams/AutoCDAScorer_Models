@@ -41,3 +41,8 @@ analyses/package_export/thesis_plots/
 analyses/10_gan_diversity/gan_sample/
 analyses/10_gan_diversity/features.npz
 analyses/10_gan_diversity/c2_features.npz
+
+# Ordinal-forest fit cache: 95 MB, written by feature_classifiers.qmd only if
+# absent and regenerated on re-render. The small derived cache beside it
+# (ordinal_forest_outputs.rds) is what the document reads first, and is tracked.
+analyses/*/model_cache/ordinal_forests.rds

@@ -1,0 +1,845 @@
+---
+title: "Ensembling the CDA scorers"
+format:
+  html:
+    code-fold: true
+    toc: true
+jupyter: autocdascorer-analyses
+---
+
+Date: 13/09/2026
+
+## GOHREP
+
+**Goal:**
+
+Test whether combining several trained scorers beats using one. Seven ensembles are
+tried. Each starts from something observed about the models, not from the fact that
+ensembling is a standard thing to do.
+
+**Hypothesis:**
+
+Combining will not raise accuracy much. Every member is trained on the same 1,834 crops,
+and `analyses/10` §3 already found the top-100 CNNs give the same score as each other on
+77.9% of test crops. Averaging cannot fix a mistake the members share.
+
+One gain is expected, in §5. Cross-validated near-miss accuracy is 0.966-0.985 across the
+tied members of all three grids (recorded in each grid's `random_search_results.csv`), so
+nearly all the error left is off by one. A rule that can return the value *between* two
+neighbouring answers has something to work with that a vote does not.
+
+§6 and §7 are both fitted to the 455 ensemble crops, so both are expected to look good
+there and lose most of it on test.
+
+**Rationale:**
+
+The seven ideas, one section each. "Known" means established before this analysis and
+cited; "conjecture" means the section measures it before testing it.
+
+| § | Idea | Why try it | Basis |
+|:--|:--|:--|:--|
+| 2 | Vote over the 22 tied CNNs | At least one of 100 CNNs is right on 93% of test crops against 66% for the best one | Known (`analyses/10` §3.5) |
+| 3 | Mix model families | A CNN, a transformer and a 12-feature regression may fail on different crops | Conjecture, measured in §3.1 |
+| 4 | Mix training data, keep the architecture | The augmented CNNs were trained on a different set of crops | Known (`models/07` builds from `medoid_64_aug`) |
+| 5 | Average the score instead of voting on it | Scores are ordered, and near-miss is 0.966-0.985, so nearly every error is off by one | Known (grid `avg_val_nearmiss`) |
+| 6 | Pick members that disagree | Top-100 CNNs give the same score on 77.9% of crops, so members are near-duplicates | Known (`analyses/10` §3.5) |
+| 7 | Learn who to trust at each score | Families may be good at different scores | Conjecture, measured in §7.1 |
+| 8 | Decline the crops it is unsure about | Disagreement may mark the crops it gets wrong | Conjecture, measured in §8.1 |
+
+Every choice — members, rule, hyperparameters, committee size — is made on the `ensemble`
+split (455 crops, held out of all training). `test` (308 crops) is scored once at the end.
+Both are shown so the drop between them is visible.
+
+---
+
+## 1. Setup
+
+### 1.1 Packages
+
+```{python}
+# 1.1
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+plt.rcParams.update({"figure.dpi": 120})
+THESIS_PLOTS = Path("thesis_plots")
+THESIS_PLOTS.mkdir(exist_ok=True)
+
+# Diverging 0->6 severity palette, shared with the other analyses in this chapter.
+SEV = ["#2c7bb6", "#66c2a5", "#abdda4", "#ffcc66", "#fdae61", "#f46d43", "#d7191c"]
+FAM_COL = {"CNN": "#4C72B0", "ViT": "#DD8452", "CNN (geom. aug)": "#55A868",
+           "Ordinal regression": "#8172B3"}
+```
+
+### 1.2 Load cached predictions
+
+```{python}
+# 1.2
+# build_cache.py re-scored every saved model over BOTH held-out splits and stored the
+# softmax. The caches in analyses/10 and analyses/11 hold the test split only and store
+# the argmax, neither of which works here: selection happens on `ensemble`, and
+# probability-averaging rules need the full distribution.
+ROOT = Path.cwd().parents[1]
+Z = np.load("pred_cache/probs.npz", allow_pickle=True)
+ye, yt = Z["ye"].astype(int), Z["yt"].astype(int)
+files_e = [str(f).replace(".tif", "") for f in Z["files_e"]]
+files_t = [str(f).replace(".tif", "") for f in Z["files_t"]]
+print(f"ensemble split {len(ye)} crops | test split {len(yt)} crops")
+print("per-score counts  ensemble:", np.bincount(ye).tolist(), " test:", np.bincount(yt).tolist())
+for tag in ("cnn", "vit", "geo"):
+    print(f"  {tag}: {Z[tag + '_e'].shape[0]} saved models scored on both splits")
+```
+
+### 1.3 Check: do the cached predictions match what the grid searches recorded?
+
+```{python}
+# 1.3
+# Each grid recorded a test_acc per config when it trained it. If this matrix is built
+# right, the accuracy recomputed here must equal that number, model for model. Zero
+# difference is the pass.
+GRID = {
+    "cnn": ROOT / "models/03_Medoid_CNN_RandomSearch/01_Categorical_Loss",
+    "vit": ROOT / "models/04_Medoid_ViT_RandomSearch/01_Categorical_Loss",
+    "geo": ROOT / "models/07_Medoid_CNN_GeomAug/01_MatchLargestClass",
+}
+
+def grid_table(tag):
+    base = GRID[tag]
+    frames = [pd.read_csv(base / "random_search_results.csv")]
+    frames += [pd.read_csv(p) for p in (base / "parts").glob("*.csv")] if (base / "parts").exists() else []
+    return pd.concat(frames, ignore_index=True).drop_duplicates("model_id").set_index("model_id")
+
+RES = {tag: grid_table(tag) for tag in GRID}
+MISMATCH = {}
+for tag in GRID:
+    ids = Z[f"{tag}_ids"]
+    here = (Z[f"{tag}_t"].argmax(2) == yt[None, :]).mean(1)
+    rec = RES[tag].reindex(ids)["test_acc"].to_numpy(float)
+    ok = ~np.isnan(rec)
+    off = np.abs(here - rec) > 1e-6
+    MISMATCH[tag] = off
+    print(f"{tag}: matched {ok.sum()}/{len(ids)}  models differing {int(off.sum())}  "
+          f"max |here - recorded| = {np.abs(here[ok] - rec[ok]).max():.5f} "
+          f"= {np.abs(here[ok] - rec[ok]).max() * len(yt):.1f} crops of {len(yt)}")
+```
+
+```{python}
+# 1.3b
+# Six ViTs come out one crop of 308 different. Check whether they are the models whose
+# top two scores were closest together, which would make a single flip a rounding
+# difference rather than a wrong matrix.
+gap = lambda Q: np.diff(np.sort(Q, 2)[..., -2:], axis=2)[..., 0]   # top-1 minus top-2
+gv, off = gap(Z["vit_t"]), MISMATCH["vit"]
+print(f"smallest top-2 softmax margin, median over models")
+print(f"  the {int(off.sum())} ViTs that differ: {np.median(gv[off].min(1)):.2e}")
+print(f"  the {int((~off).sum())} that agree:    {np.median(gv[~off].min(1)):.2e}")
+```
+
+### 1.4 Check: is the ensemble split unseen by the augmented grid?
+
+```{python}
+# 1.4
+# models/03 and models/04 train on medoid_64 train+val, so `ensemble` is unseen by
+# construction. models/07 trains from a separately built augmented pool, so that one has
+# to be checked. The pool records the source crop of every copy, so this is a set
+# intersection.
+pool = np.load(ROOT / "data/datasets/medoid_64_aug/medoid_64_aug.npz", allow_pickle=True)
+src_names = {str(f).replace(".tif", "") for f in pool["source_names"]}
+split_csv = pd.read_csv(ROOT / "data/datasets/medoid_64/medoid_64.csv")
+split_csv["image_id"] = split_csv["filename"].str.replace(r"\.tif$", "", regex=True)
+by_split = split_csv.groupby("split")["image_id"].apply(set)
+
+print(f"augmented pool: {len(pool['images'])} crops from {len(src_names)} source crops "
+      f"({int((~pool['is_aug']).sum())} originals, {int(pool['is_aug'].sum())} augmented copies)")
+for sp in ("train", "val", "ensemble", "test"):
+    n = len(src_names & by_split[sp])
+    print(f"  sources drawn from medoid_64 {sp:9s}: {n:5d} of {len(by_split[sp])}")
+outside = len(src_names - set().union(*by_split))
+print(f"  sources not in medoid_64 at all: {outside} "
+      "(crops the medoid_64 class undersampling discarded, all from the train partition)")
+assert not (src_names & by_split["ensemble"]) and not (src_names & by_split["test"]), \
+    "LEAKAGE: an ensemble or test crop is a source in the augmented pool"
+print("OK: no ensemble or test crop, and no augmented copy of one, is in the pool.")
+```
+
+### 1.5 Who is in the pool
+
+```{python}
+# 1.5
+# A grid's single best config is not reproducibly the best: on 2,289 cross-validation
+# crops the standard error near 0.65 is about 1.0 pp, and each grid has many configs
+# inside that of its own winner. So each family contributes every config within one
+# standard error of its own best. That rule reads cross-validation only and never touches
+# `ensemble` or `test`.
+#
+# models/07 is ranked on avg_vaf_orig (accuracy on the ORIGINAL crops in the validation
+# fold). Its plain avg_vaf is measured over a fold containing augmented copies, which
+# makes it incomparable with the other grids.
+SE_CV = lambda p, n=2289: float(np.sqrt(p * (1 - p) / n))
+RANK_ON = {"cnn": "avg_vaf", "vit": "avg_vaf", "geo": "avg_vaf_orig"}
+NICE = {"cnn": "CNN", "vit": "ViT", "geo": "CNN (geom. aug)"}
+
+FAM = {}
+tie_report = []
+for tag in GRID:
+    col = RANK_ON[tag]
+    full = RES[tag][col].dropna()
+    cut = full.max() - SE_CV(full.max())
+    tied_ids = set(full[full >= cut].index)
+    have = Z[f"{tag}_ids"]
+    assert len(set(have.tolist())) == len(have), f"duplicate model_id in the {tag} cache"
+    keep = np.array([i for i, m in enumerate(have) if m in tied_ids])
+    FAM[NICE[tag]] = {"e": Z[f"{tag}_e"][keep], "t": Z[f"{tag}_t"][keep], "ids": have[keep]}
+    tie_report.append({"family": NICE[tag], "configs in grid": len(full),
+                       "best CV": round(float(full.max()), 4), "1 SE": round(SE_CV(full.max()), 4),
+                       "tied": len(tied_ids), "tied & saved": len(keep)})
+
+# The ordinal regression from analyses/03: one fit, so no tie set. Its class probabilities
+# were exported by that analysis on both splits from the same train+val fit.
+nd = pd.read_csv(ROOT / "analyses/03_feature_classifiers/model_cache/nondl_heldout_predictions.csv")
+PCOL = [f"p{k}" for k in range(7)]
+nde = nd[nd.split == "ensemble"].set_index("image_id").reindex(files_e)
+ndt = nd[nd.split == "test"].set_index("image_id").reindex(files_t)
+assert not nde[PCOL].isna().any().any() and not ndt[PCOL].isna().any().any()
+assert (nde["true"].to_numpy() == ye).all() and (ndt["true"].to_numpy() == yt).all()
+FAM["Ordinal regression"] = {"e": nde[PCOL].to_numpy(float)[None], "t": ndt[PCOL].to_numpy(float)[None],
+                             "ids": np.array([0])}
+tie_report.append({"family": "Ordinal regression", "configs in grid": 1, "best CV": np.nan,
+                   "1 SE": np.nan, "tied": 1, "tied & saved": 1})
+pd.DataFrame(tie_report)
+```
+
+```{python}
+# 1.5b
+for name, f in FAM.items():
+    ae = (f["e"].argmax(2) == ye[None, :]).mean(1)
+    at = (f["t"].argmax(2) == yt[None, :]).mean(1)
+    print(f"{name:20s} n={f['e'].shape[0]:3d}  ensemble {ae.mean():.4f} "
+          f"({ae.min():.4f}-{ae.max():.4f})   test {at.mean():.4f} ({at.min():.4f}-{at.max():.4f})")
+```
+
+### 1.6 Metrics
+
+```{python}
+# 1.6
+def exact(pred, y):
+    return float(np.mean(pred == y))
+
+def near(pred, y):
+    return float(np.mean(np.abs(pred - y) <= 1))
+
+def mae(pred, y):
+    """Mean absolute error in score units. The natural loss for an ordinal target: it
+    charges a 0-scored-as-6 seven times what it charges a 3-scored-as-4, which neither
+    exact nor near-miss accuracy does."""
+    return float(np.mean(np.abs(pred - y)))
+
+def plurality(P):
+    """P: (models, images) hard scores -> the modal score per image."""
+    return np.array([np.bincount(P[:, j], minlength=7).argmax() for j in range(P.shape[1])])
+
+def mean_prob(Q):
+    """Q: (models, images, 7) softmax -> argmax of the member-averaged distribution."""
+    return Q.mean(0).argmax(1)
+
+def expected_score(Q):
+    """Q -> the mean of the averaged distribution, rounded to the nearest score."""
+    return np.clip(np.rint((Q.mean(0) * np.arange(7)).sum(1)), 0, 6).astype(int)
+
+def family_mean(Qs):
+    """Average within each family first, then across families, so a 51-model family
+    does not outvote a 1-model family purely by count."""
+    return np.stack([q.mean(0) for q in Qs]).mean(0)[None]
+
+SE_E, SE_T = np.sqrt(0.65 * 0.35 / len(ye)), np.sqrt(0.65 * 0.35 / len(yt))
+print(f"1 SE on the ensemble split ({len(ye)} crops) = {100 * SE_E:.2f} pp")
+print(f"1 SE on the test split ({len(yt)} crops)     = {100 * SE_T:.2f} pp")
+```
+
+```{python}
+# 1.6b
+RNG = np.random.default_rng(0)
+BOOT = RNG.integers(0, len(yt), size=(10000, len(yt)))
+
+def paired_ci(a, b, y=None):
+    """95% CI and two-sided p for accuracy(a) - accuracy(b) over the same crops."""
+    y = yt if y is None else y
+    da, db = (a == y).astype(float), (b == y).astype(float)
+    d = da[BOOT].mean(1) - db[BOOT].mean(1)
+    p = min(1.0, 2 * min((d <= 0).mean(), (d >= 0).mean()))
+    return float(da.mean() - db.mean()), float(np.quantile(d, .025)), float(np.quantile(d, .975)), float(p)
+```
+
+---
+
+## 2. Vote over the 22 tied CNNs
+
+```{python}
+# 2.1
+# Take the CNNs cross-validation cannot separate. How often is at least one of them right
+# (the oracle), against how often the best one is?
+Ce, Ct = FAM["CNN"]["e"].argmax(2), FAM["CNN"]["t"].argmax(2)
+nC = Ce.shape[0]
+frac_e = (Ce == ye[None, :]).mean(0)          # fraction of the tied CNNs correct, per crop
+oracle_e = float((frac_e > 0).mean())
+best_e = float((Ce == ye[None, :]).mean(1).max())
+print(f"{nC} tied CNNs, ensemble split:")
+print(f"  at least one correct : {oracle_e:.4f}")
+print(f"  best single model    : {best_e:.4f}")
+print(f"  gap                  : {oracle_e - best_e:.4f}")
+```
+
+```{python}
+#| fig-cap: "How often the 22 tied CNNs get a crop right. Dark bars are crops the vote gets right. The vote can only win where the correct score is the most common one."
+# 2.2
+# Before building anything: split the crops by how many members get them right. A vote
+# returns the most common answer, so it can only win where the true score is that answer.
+# If the oracle's extra crops sit where 3 or 4 members of 22 are right, no vote reaches
+# them.
+mode_right_e = plurality(Ce) == ye
+bins = np.arange(0, nC + 2) - 0.5
+counts_all, _ = np.histogram(frac_e * nC, bins=bins)
+counts_win, _ = np.histogram(frac_e[mode_right_e] * nC, bins=bins)
+
+fig, ax = plt.subplots(figsize=(7.4, 3.6))
+x = np.arange(nC + 1)
+ax.bar(x, counts_all, color="#c9d6e8", label="Vote gets it wrong")
+ax.bar(x, counts_win, color="#4C72B0", label="Vote gets it right")
+ax.set_xlabel(f"Number of the {nC} tied CNNs that score the crop correctly")
+ax.set_ylabel("Crops")
+ax.legend(frameon=False, fontsize=9)
+ax.spines[["top", "right"]].set_visible(False)
+fig.tight_layout()
+fig.savefig(THESIS_PLOTS / "oracle_decomposition.png", dpi=300, bbox_inches="tight")
+plt.show()
+
+reach = frac_e[(frac_e > 0) & ~mode_right_e]
+print(f"crops the oracle reaches but the vote does not: {len(reach)}")
+print(f"  median fraction of members correct on them: {np.median(reach):.3f} "
+      f"({np.median(reach) * nC:.1f} of {nC})")
+print(f"  of those, the share with a minority (<50%) correct: {(reach < 0.5).mean():.3f}")
+```
+
+```{python}
+# 2.3
+R1 = {}
+R1["Plurality vote, tied CNNs"] = (plurality(Ce), plurality(Ct))
+R1["Mean softmax, tied CNNs"] = (mean_prob(FAM["CNN"]["e"]), mean_prob(FAM["CNN"]["t"]))
+for k, (pe, pt) in R1.items():
+    print(f"{k:28s} ensemble {exact(pe, ye):.4f}   test {exact(pt, yt):.4f}")
+print(f"{'best of the 22 (on ensemble)':28s} ensemble {best_e:.4f}   test "
+      f"{(Ct == yt[None, :]).mean(1)[np.argmax((Ce == ye[None, :]).mean(1))]:.4f}")
+```
+
+---
+
+## 3. Mix model families
+
+```{python}
+# 3.1
+# Two ways to measure whether models fail alike. Raw agreement is how often they give the
+# same score. The joint-error ratio is how often both are wrong on the same crop, divided
+# by how often they would be if their mistakes were unrelated. 1.0 means unrelated;
+# higher means shared blind spots.
+HARD_E = {k: v["e"].argmax(2) for k, v in FAM.items()}
+HARD_T = {k: v["t"].argmax(2) for k, v in FAM.items()}
+names = list(FAM)
+
+def pair_stats(A, B, y, same):
+    ag, ratio = [], []
+    for i in range(A.shape[0]):
+        for j in range(B.shape[0]):
+            if same and j <= i:
+                continue
+            ag.append(np.mean(A[i] == B[j]))
+            ea, eb = A[i] != y, B[j] != y
+            indep = ea.mean() * eb.mean()
+            ratio.append(np.mean(ea & eb) / indep if indep > 0 else np.nan)
+    return np.array(ag), np.array(ratio)
+
+rows = []
+for i, a in enumerate(names):
+    for b in names[i:]:
+        if a == b and HARD_E[a].shape[0] < 2:
+            continue
+        ag, rt = pair_stats(HARD_E[a], HARD_E[b], ye, same=(a == b))
+        rows.append({"pair": f"{a} vs {b}" if a != b else f"{a} (within)",
+                     "kind": "within" if a == b else "across",
+                     "n pairs": len(ag), "mean agreement": ag.mean(),
+                     "joint-error / independent": np.nanmean(rt)})
+corr = pd.DataFrame(rows).sort_values("joint-error / independent")
+corr.round(3)
+```
+
+```{python}
+#| fig-cap: "How often two models are wrong on the same crop, divided by how often they would be if their mistakes were unrelated. 1.0 (dashed) means unrelated."
+# 3.2
+fig, ax = plt.subplots(figsize=(7.4, 0.42 * len(corr) + 1.4))
+cols = ["#C44E52" if k == "within" else "#4C72B0" for k in corr["kind"]]
+ax.barh(range(len(corr)), corr["joint-error / independent"], color=cols)
+ax.axvline(1.0, ls="--", color="grey", lw=1.2)
+ax.set_yticks(range(len(corr)), corr["pair"], fontsize=8)
+ax.set_xlabel("Joint error rate ÷ rate expected if errors were independent")
+ax.set_xlim(0.95, corr["joint-error / independent"].max() * 1.06)
+handles = [plt.Rectangle((0, 0), 1, 1, color=c) for c in ("#C44E52", "#4C72B0")]
+ax.legend(handles, ["Within one family", "Across families"], frameon=False, fontsize=9, loc="lower right")
+ax.spines[["top", "right"]].set_visible(False)
+fig.tight_layout()
+fig.savefig(THESIS_PLOTS / "error_correlation.png", dpi=300, bbox_inches="tight")
+plt.show()
+```
+
+```{python}
+# 3.3
+# Averaging all 91 members directly lets the 51 ViTs win on numbers, which is an accident
+# of how many configs happened to tie. family_mean() averages inside each family first,
+# then across the four, so each family carries the same weight.
+R2 = {}
+Qs_e, Qs_t = [FAM[n]["e"] for n in names], [FAM[n]["t"] for n in names]
+R2["Family-balanced mean softmax (4 families)"] = (
+    mean_prob(family_mean(Qs_e)), mean_prob(family_mean(Qs_t)))
+allE, allT = np.concatenate(Qs_e), np.concatenate(Qs_t)
+R2["Flat mean softmax (all 91 members)"] = (mean_prob(allE), mean_prob(allT))
+R2["Plurality vote (all 91 members)"] = (plurality(allE.argmax(2)), plurality(allT.argmax(2)))
+for k, (pe, pt) in R2.items():
+    print(f"{k:44s} ensemble {exact(pe, ye):.4f}   test {exact(pt, yt):.4f}")
+```
+
+---
+
+## 4. Mix training data, same architecture
+
+```{python}
+# 4.1
+# Same-architecture-different-data (CNN + augmented CNN) against
+# different-architecture-same-data (CNN + ViT), and against a completely different kind
+# of model (CNN + ordinal regression). Two families each, so nothing else varies.
+R3 = {}
+pairs = {
+    "CNN + ViT": ["CNN", "ViT"],
+    "CNN + CNN (geom. aug)": ["CNN", "CNN (geom. aug)"],
+    "CNN + Ordinal regression": ["CNN", "Ordinal regression"],
+}
+for k, fams in pairs.items():
+    R3[k] = (mean_prob(family_mean([FAM[f]["e"] for f in fams])),
+             mean_prob(family_mean([FAM[f]["t"] for f in fams])))
+for k, (pe, pt) in R3.items():
+    print(f"{k:28s} ensemble {exact(pe, ye):.4f}   test {exact(pt, yt):.4f}")
+```
+
+---
+
+## 5. Average the score instead of voting on it
+
+```{python}
+# 5.1
+# Scores are ordered and errors are nearly all off by one. A vote over seven unordered
+# categories cannot use that: if members split between 3 and 5 it returns 3 or 5, never 4.
+# First check there is any spread for an ordinal rule to work on.
+Hb = allE.argmax(2)
+share = np.array([np.bincount(Hb[:, j], minlength=7).max() for j in range(len(ye))]) / Hb.shape[0]
+print(f"members backing the modal score, median {np.median(share):.3f}; "
+      f"crops with no outright majority: {(share < 0.5).sum()} of {len(ye)}")
+print(f"crops where the members span >= 2 scores: {np.mean([Hb[:, j].max() - Hb[:, j].min() >= 2 for j in range(len(ye))]):.3f}")
+```
+
+```{python}
+# 5.1b
+# Where the vote and the expected score differ, which is right more often?
+FBe0 = family_mean(Qs_e)[0]
+v_e, x_e = plurality(Hb), np.clip(np.rint((FBe0 * np.arange(7)).sum(1)), 0, 6).astype(int)
+dis = v_e != x_e
+print(f"the two rules disagree on {dis.sum()} of {len(ye)} ensemble crops ({dis.mean():.3f})")
+print(f"  on those crops   vote exact {exact(v_e[dis], ye[dis]):.4f}  MAE {mae(v_e[dis], ye[dis]):.3f}")
+print(f"                 expected exact {exact(x_e[dis], ye[dis]):.4f}  MAE {mae(x_e[dis], ye[dis]):.3f}")
+print(f"  whole split      vote exact {exact(v_e, ye):.4f}  MAE {mae(v_e, ye):.3f}")
+print(f"                 expected exact {exact(x_e, ye):.4f}  MAE {mae(x_e, ye):.3f}")
+```
+
+```{python}
+# 5.2
+# Three rules on identical members: the categorical vote, the argmax of the averaged
+# distribution, and the expected score sum(k * p_bar(k)) rounded, which is ordinal
+# throughout. np.rint rounds halves to even.
+R4 = {}
+FB_e, FB_t = family_mean(Qs_e), family_mean(Qs_t)
+R4["Plurality vote (all 91 members)"] = (plurality(allE.argmax(2)), plurality(allT.argmax(2)))
+R4["Family-balanced mean softmax (4 families)"] = (mean_prob(FB_e), mean_prob(FB_t))
+R4["Family-balanced mean softmax, expected score rounded"] = (expected_score(FB_e), expected_score(FB_t))
+for k, (pe, pt) in R4.items():
+    print(f"{k:38s} ensemble exact {exact(pe, ye):.4f} near {near(pe, ye):.4f}   "
+          f"test exact {exact(pt, yt):.4f} near {near(pt, yt):.4f}")
+```
+
+---
+
+## 6. Pick members that disagree
+
+```{python}
+#| fig-cap: "Accuracy against committee size. Members added greedily to maximise ensemble-split accuracy (blue), by ensemble-split rank (orange), or at random (grey, mean of 50). Solid = ensemble split, the one used to choose. Dashed = test."
+# 6.1
+# Add the member that most improves ENSEMBLE-SPLIT accuracy, one at a time. Test is never
+# consulted, so the procedure is legitimate, but it is fitted to 455 crops. The question
+# is how much of its gain survives. Two references: the same pool added by ensemble-split
+# rank, and in random order.
+POOL_E, POOL_T = allE, allT
+K_MAX = 25
+
+def acc_of(sel, Q, y):
+    return exact(mean_prob(Q[sel]), y)
+
+greedy, chosen = [], []
+remaining = list(range(POOL_E.shape[0]))
+for _ in range(K_MAX):
+    scores = [acc_of(chosen + [m], POOL_E, ye) for m in remaining]
+    best = remaining[int(np.argmax(scores))]
+    chosen.append(best); remaining.remove(best)
+    greedy.append((acc_of(chosen, POOL_E, ye), acc_of(chosen, POOL_T, yt)))
+greedy = np.array(greedy)
+
+rank_order = np.argsort(-(POOL_E.argmax(2) == ye[None, :]).mean(1))
+ranked = np.array([(acc_of(list(rank_order[:k]), POOL_E, ye), acc_of(list(rank_order[:k]), POOL_T, yt))
+                   for k in range(1, K_MAX + 1)])
+rng = np.random.default_rng(1)
+rand = np.stack([[acc_of(list(o[:k]), POOL_T, yt) for k in range(1, K_MAX + 1)]
+                 for o in (rng.permutation(POOL_E.shape[0])[:K_MAX] for _ in range(50))])
+
+ks = np.arange(1, K_MAX + 1)
+fig, ax = plt.subplots(figsize=(7.4, 4.2))
+ax.plot(ks, 100 * greedy[:, 0], color="#4C72B0", lw=1.8, label="Greedy on ensemble split")
+ax.plot(ks, 100 * greedy[:, 1], color="#4C72B0", lw=1.5, ls="--", label="Greedy, on test")
+ax.plot(ks, 100 * ranked[:, 0], color="#DD8452", lw=1.8, label="Ranked by ensemble accuracy")
+ax.plot(ks, 100 * ranked[:, 1], color="#DD8452", lw=1.5, ls="--", label="Ranked, on test")
+ax.plot(ks, 100 * rand.mean(0), color="grey", lw=1.3, ls="--", label="Random order, on test (mean of 50)")
+ax.set_xlabel("Members in the committee"); ax.set_ylabel("Exact accuracy (%)")
+ax.legend(frameon=False, fontsize=8, ncol=3, loc="upper center", bbox_to_anchor=(0.5, 1.16))
+ax.spines[["top", "right"]].set_visible(False); ax.grid(alpha=0.25)
+fig.tight_layout()
+fig.savefig(THESIS_PLOTS / "greedy_selection.png", dpi=300, bbox_inches="tight")
+plt.show()
+
+k_star = int(np.argmax(greedy[:, 0])) + 1
+print(f"size chosen on the ensemble split: k = {k_star}")
+print(f"  ensemble {greedy[k_star - 1, 0]:.4f}  ->  test {greedy[k_star - 1, 1]:.4f}  "
+      f"(drop {100 * (greedy[k_star - 1, 0] - greedy[k_star - 1, 1]):.2f} pp)")
+fam_of = np.concatenate([[n] * FAM[n]["e"].shape[0] for n in names])
+print("  families in the chosen committee:", pd.Series(fam_of[chosen[:k_star]]).value_counts().to_dict())
+print(f"  greedy at k=1 (i.e. the single best member) is already {greedy[0, 0]:.4f} on the "
+      f"ensemble split; the whole curve spans {greedy[:, 0].min():.4f}-{greedy[:, 0].max():.4f}, "
+      f"a range of {100 * (greedy[:, 0].max() - greedy[:, 0].min()):.2f} pp against a "
+      f"{100 * SE_E:.2f} pp standard error")
+print(f"  ranked order, starting from the same member: k=1 {ranked[0, 0]:.4f} -> "
+      f"k=5 {ranked[4, 0]:.4f} -> k=25 {ranked[-1, 0]:.4f} on the ensemble split")
+R5 = {f"Greedy selection (k={k_star}, chosen on ensemble)":
+      (mean_prob(POOL_E[chosen[:k_star]]), mean_prob(POOL_T[chosen[:k_star]]))}
+```
+
+---
+
+## 7. Learn who to trust at each score
+
+```{python}
+#| fig-cap: "Exact accuracy per severity score, by family, on the ensemble split."
+# 7.1
+ps = pd.DataFrame({n: [np.mean(HARD_E[n][:, ye == s] == s) for s in range(7)] for n in names},
+                  index=range(7))
+fig, ax = plt.subplots(figsize=(7.0, 3.6))
+w = 0.2
+for i, n in enumerate(names):
+    ax.bar(np.arange(7) + (i - 1.5) * w, ps[n], w, label=n, color=FAM_COL[n])
+ax.set_xticks(range(7)); ax.set_xlabel("True severity score"); ax.set_ylabel("Exact accuracy")
+ax.legend(frameon=False, fontsize=8, ncol=2)
+ax.spines[["top", "right"]].set_visible(False)
+fig.tight_layout(); plt.show()
+ps.round(3)
+```
+
+```{python}
+# 7.2
+# Inputs are the four family-mean probability vectors, 28 numbers per crop. Kept small on
+# purpose: the earlier version of this analysis stacked 100 one-hot model predictions,
+# 700 inputs on 455 rows, which cannot be fitted honestly. Regularisation is chosen by
+# 5-fold CV inside the ensemble split, and the ensemble figure reported is the
+# cross-validated one, not resubstitution.
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import StratifiedKFold, cross_val_predict
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+
+Xe_st = np.concatenate([FAM[n]["e"].mean(0) for n in names], axis=1)
+Xt_st = np.concatenate([FAM[n]["t"].mean(0) for n in names], axis=1)
+CV = StratifiedKFold(5, shuffle=True, random_state=42)
+
+sweep = []
+for C in [0.01, 0.1, 1.0, 10.0]:
+    mk = lambda: make_pipeline(StandardScaler(), LogisticRegression(C=C, max_iter=5000))
+    cvp = cross_val_predict(mk(), Xe_st, ye, cv=CV)
+    tr = mk().fit(Xe_st, ye).predict(Xe_st)
+    sweep.append({"C": C, "train (resub)": exact(tr, ye), "ensemble (5-fold CV)": exact(cvp, ye),
+                  "gap": exact(tr, ye) - exact(cvp, ye)})
+sw = pd.DataFrame(sweep)
+C_star = float(sw.loc[sw["ensemble (5-fold CV)"].idxmax(), "C"])
+print(f"chosen C = {C_star}")
+sw.round(3)
+```
+
+```{python}
+# 7.3  Leakage check: on permuted labels the combiner must collapse to chance (1/7).
+mk = lambda: make_pipeline(StandardScaler(), LogisticRegression(C=C_star, max_iter=5000))
+y_shuf = np.random.default_rng(7).permutation(ye)
+shuf = exact(cross_val_predict(mk(), Xe_st, y_shuf, cv=CV), y_shuf)
+print(f"shuffled-label CV accuracy {shuf:.3f} (chance {1 / 7:.3f}) -> "
+      f"{'no leakage' if shuf < 0.20 else 'WARNING'}")
+
+stack = mk().fit(Xe_st, ye)
+R6 = {f"Logistic stack on family means (C={C_star})":
+      (cross_val_predict(mk(), Xe_st, ye, cv=CV), stack.predict(Xt_st))}
+for k, (pe, pt) in R6.items():
+    print(f"{k:44s} ensemble {exact(pe, ye):.4f}   test {exact(pt, yt):.4f}")
+```
+
+---
+
+## 8. Decline the crops the committee is unsure about
+
+```{python}
+# 8.1
+# A committee has something no single model has: its own disagreement. If the crops the
+# members argue about are the crops it gets wrong, the scorer can decline those and hand
+# them to a human. First: does accuracy actually rise with agreement?
+FBt = family_mean(Qs_t)[0]
+conf_t = FBt.max(1)                                     # probability mass on the winning score
+pred_t = FBt.argmax(1)
+agree_t = np.array([np.mean(allT.argmax(2)[:, j] == pred_t[j]) for j in range(len(yt))])
+
+rows = []
+for lo, hi in [(0, .5), (.5, .7), (.7, .9), (.9, 1.01)]:
+    m = (agree_t >= lo) & (agree_t < hi)
+    if m.sum():
+        rows.append({"member agreement": f"{lo:.0%}-{hi:.0%}", "crops": int(m.sum()),
+                     "share": m.mean(), "exact": exact(pred_t[m], yt[m]),
+                     "near-miss": near(pred_t[m], yt[m])})
+pd.DataFrame(rows).round(3)
+```
+
+```{python}
+#| fig-cap: "Accuracy when the least-agreed crops are handed to a human instead of scored. Test split."
+# 8.2
+order = np.argsort(-agree_t)
+cov = np.arange(1, len(yt) + 1) / len(yt)
+acc_kept = np.cumsum(pred_t[order] == yt[order]) / np.arange(1, len(yt) + 1)
+near_kept = np.cumsum(np.abs(pred_t[order] - yt[order]) <= 1) / np.arange(1, len(yt) + 1)
+
+fig, ax = plt.subplots(figsize=(7.0, 4.0))
+ax.plot(100 * cov, 100 * acc_kept, color="#4C72B0", lw=1.8, label="Exact")
+ax.plot(100 * cov, 100 * near_kept, color="#55A868", lw=1.8, label="Near-miss (±1)")
+ax.axhline(68.92, color="#C44E52", ls="--", lw=1.3, label="Human raters, exact (68.92%)")
+ax.set_xlabel("Coverage: crops scored automatically (%)")
+ax.set_ylabel("Accuracy on the crops kept (%)")
+ax.set_xlim(10, 100); ax.legend(frameon=False, fontsize=9, loc="lower left")
+ax.spines[["top", "right"]].set_visible(False); ax.grid(alpha=0.25)
+fig.tight_layout()
+fig.savefig(THESIS_PLOTS / "selective_prediction.png", dpi=300, bbox_inches="tight")
+plt.show()
+
+# Many crops share an agreement value, so the order within a tie is arbitrary and the
+# curve is jagged at that scale. The threshold table below avoids this by cutting on the
+# agreement value itself rather than on a rank.
+for c in (0.5, 0.7, 0.9, 1.0):
+    k = int(round(c * len(yt))) - 1
+    print(f"  coverage {c:.0%}: exact {100 * acc_kept[k]:.2f}%  near-miss {100 * near_kept[k]:.2f}%")
+print(f"  coverage at which the committee matches the human raters' 68.92%: "
+      f"{100 * cov[np.max(np.where(acc_kept >= 0.6892))]:.0f}%"
+      if (acc_kept >= 0.6892).any() else "  never reaches the human rate")
+```
+
+```{python}
+# 8.3
+# The threshold has to be picked without looking at test. Choose the agreement cut that
+# hits a target accuracy on the ensemble split, apply it unchanged to test, and see
+# whether coverage and accuracy hold up.
+FBe = family_mean(Qs_e)[0]
+pred_e = FBe.argmax(1)
+agree_e = np.array([np.mean(allE.argmax(2)[:, j] == pred_e[j]) for j in range(len(ye))])
+out = []
+for target in (0.75, 0.80, 0.85):
+    cand = sorted(set(agree_e))
+    thr = next((t for t in cand if (agree_e >= t).sum() >= 20
+                and exact(pred_e[agree_e >= t], ye[agree_e >= t]) >= target), None)
+    if thr is None:
+        out.append({"target exact (ensemble)": target, "threshold": np.nan}); continue
+    me, mt = agree_e >= thr, agree_t >= thr
+    out.append({"target exact (ensemble)": target, "threshold": round(thr, 3),
+                "ens coverage": me.mean(), "ens exact": exact(pred_e[me], ye[me]),
+                "test coverage": mt.mean(), "test exact": exact(pred_t[mt], yt[mt]),
+                "test near-miss": near(pred_t[mt], yt[mt])})
+pd.DataFrame(out).round(3)
+```
+
+---
+
+## 9. All rules side by side
+
+```{python}
+# 9.1
+# Three single-model reference points, because "just use one model" is not one thing.
+pool_ids = np.concatenate([FAM[n]["ids"] for n in names])
+pool_acc_e = (POOL_E.argmax(2) == ye[None, :]).mean(1)
+
+# (a) the luckiest member on the selection split: what picking one model on held-out data gives.
+b_ens = int(np.argmax(pool_acc_e))
+# (b) the model this chapter selects, 6848 of models/07, ranked 1 of 8,640 on validation
+#     accuracy over ORIGINAL crops. That rule uses cross-validation only, so it is the
+#     single model a reader would actually be handed.
+b_chap = int(np.where((pool_ids == 6848) & (fam_of == "CNN (geom. aug)"))[0][0])
+BASE = (POOL_E.argmax(2)[b_chap], POOL_T.argmax(2)[b_chap])
+print(f"(a) best on the ensemble split: {fam_of[b_ens]} {pool_ids[b_ens]}, "
+      f"ensemble {pool_acc_e[b_ens]:.4f}, test {exact(POOL_T.argmax(2)[b_ens], yt):.4f}")
+print(f"(b) the chapter's selected model: {fam_of[b_chap]} {pool_ids[b_chap]}, "
+      f"ensemble {pool_acc_e[b_chap]:.4f}, test {exact(BASE[1], yt):.4f}   <- comparison baseline")
+print(f"(c) mean over all {len(pool_ids)} members: "
+      f"ensemble {pool_acc_e.mean():.4f}, test {(POOL_T.argmax(2) == yt[None, :]).mean(1).mean():.4f}")
+
+CAND = {"Single model: chapter's selection (6848)": BASE,
+        "Single model: best on ensemble split": (POOL_E.argmax(2)[b_ens], POOL_T.argmax(2)[b_ens])}
+CAND.update(R1); CAND.update(R2); CAND.update(R3); CAND.update(R4); CAND.update(R5); CAND.update(R6)
+
+tab = pd.DataFrame([
+    {"rule": k, "ensemble exact": exact(pe, ye), "test exact": exact(pt, yt),
+     "test near-miss": near(pt, yt), "test MAE": mae(pt, yt),
+     "ens - test": exact(pe, ye) - exact(pt, yt),
+     "vs baseline on test (pp)": 100 * (exact(pt, yt) - exact(BASE[1], yt))}
+    for k, (pe, pt) in CAND.items()
+]).drop_duplicates("rule").sort_values("test exact", ascending=False)
+tab.round(4)
+```
+
+```{python}
+#| fig-cap: "Every rule on both splits. Open circles are the ensemble split, used to choose. Filled circles are test, scored once. The grey band is one standard error around the chapter's single model."
+# 9.2
+o = tab.sort_values("test exact")
+y_ = np.arange(len(o))
+fig, ax = plt.subplots(figsize=(7.6, 0.42 * len(o) + 1.6))
+base_t = exact(BASE[1], yt)
+ax.axvspan(100 * (base_t - SE_T), 100 * (base_t + SE_T), color="grey", alpha=0.16, lw=0)
+ax.axvline(100 * base_t, color="grey", lw=1.2, ls="--")
+ax.hlines(y_, 100 * o["ensemble exact"], 100 * o["test exact"], color="#bbbbbb", lw=1.2)
+ax.scatter(100 * o["ensemble exact"], y_, facecolors="none", edgecolors="#4C72B0", s=42,
+           label="Ensemble split (selection)")
+ax.scatter(100 * o["test exact"], y_, color="#C44E52", s=42, label="Test split (reported once)")
+ax.set_yticks(y_, o["rule"], fontsize=8)
+ax.set_xlabel("Exact accuracy (%)")
+ax.text(100 * base_t, -1.15, " single model,\n chapter's selection", fontsize=7.5,
+        color="grey", va="top")
+ax.set_ylim(-1.9, len(o) - 0.3)
+ax.legend(frameon=False, fontsize=8, ncol=2, loc="upper center",
+          bbox_to_anchor=(0.5, 1.10))
+ax.spines[["top", "right"]].set_visible(False); ax.grid(axis="x", alpha=0.25)
+fig.tight_layout()
+fig.savefig(THESIS_PLOTS / "ensemble_candidates.png", dpi=300, bbox_inches="tight")
+plt.show()
+```
+
+### 9.3 Is any rule better than not ensembling?
+
+```{python}
+# 9.3
+cmp = []
+for k, (_, pt) in CAND.items():
+    d, lo, hi, p = paired_ci(pt, BASE[1])
+    cmp.append({"rule": k, "test diff (pp)": 100 * d, "95% CI lo": 100 * lo,
+                "95% CI hi": 100 * hi, "p": p})
+pd.DataFrame(cmp).drop_duplicates("rule").sort_values("test diff (pp)", ascending=False).round(3)
+```
+
+### 9.4 How much of the ensemble-split lead is just selection?
+
+```{python}
+# 9.4
+drops = tab["ens - test"]
+win = tab.iloc[0]
+print(f"mean ensemble->test drop across {len(tab)} candidates: {100 * drops.mean():+.2f} pp")
+print(f"drop for the rule that won on the ensemble split ('{tab.sort_values('ensemble exact').iloc[-1]['rule']}'): "
+      f"{100 * tab.sort_values('ensemble exact').iloc[-1]['ens - test']:+.2f} pp")
+print(f"rule with the best test accuracy: '{win['rule']}' at {win['test exact']:.4f}")
+```
+
+---
+
+## 10. Interpretation and Discussion
+
+- **The oracle gap is not spare accuracy (§2).** At least one of the 22 tied CNNs is right
+  on 89.67% of ensemble crops against a best single of 63.96%. Almost none of that is
+  reachable: on 97.5% of the crops where some member is right but the vote is not, the
+  correct score is a *minority* answer, a median of 4.5 members of 22. A vote returns the
+  most common answer, so those crops are out of reach. The vote lands at 64.94% on test
+  against 64.61% for the best of the 22.
+- **Different families do fail differently, and it is not worth much (§3).** The four
+  lowest joint-error ratios are all across families (CNN–ViT 1.754 lowest) and the two
+  highest are within one family (augmented CNN 2.176, CNN 1.933). Mixing all four gives
+  66.88% on test: 3.9 pp above the average single member, and level with the best one.
+- **Different training data decorrelates *less* than a different architecture (§4).** CNN
+  against augmented CNN is 1.909, CNN against ViT is 1.754. Same architecture on different
+  crops stays more alike than a different architecture on the same crops. The accuracies
+  follow: CNN + augmented CNN is the worst pair at 65.26%, below CNN + ViT at 67.86% and
+  CNN + ordinal regression at 68.18%.
+- **Averaging the score beats voting on it (§5).** The two rules differ on 52 of 455
+  ensemble crops. On those the average is right 55.77% of the time against the vote's
+  40.38%, mean error 0.442 against 0.635. It wins on the split used to choose (65.71%
+  against 65.49% for the argmax and 63.96% for the vote) and stays ahead on test: 68.51%
+  exact and mean error 0.328, both the best of any rule here. Its near-miss, 98.70%, is
+  *not* the best — the chapter's single model reaches 99.03%.
+- **Picking members for disagreement does not work (§6).** Greedy selection's first pick is
+  already the best single member at 70.33%, and over 25 steps the curve only moves between
+  69.23% and 70.77%, a 1.54 pp range against a 2.24 pp standard error, so choosing k is
+  choosing noise. Its k = 3 committee drops 5.83 pp on test where the average rule *gains*
+  0.34 pp. Adding to a lucky model on the split that made it look lucky does not help
+  either: the ranked curve starts at the same 70.33% and is down to 68.57% by five members.
+- **A learned combiner cannot use the per-score differences (§7).** They are real: on score
+  2 the ordinal regression reaches 0.569 against the CNNs' 0.462, on score 5, 0.662 against
+  0.515. But 455 rows force regularisation (C = 0.1; by C = 10 the train-to-CV gap is
+  8.8 pp), and it gains 0.33 pp on test, CI −3.25 to +3.90. Shuffled labels give 0.145
+  against a chance rate of 0.143, so the fit is real, just small.
+- **Declining uncertain crops is the one thing a committee can do that a single model
+  cannot (§8).** Accuracy rises from 50.0% on the 20 crops where under half the members
+  agree to 78.8% on the 132 where over 90% do. Thresholds set on the ensemble split
+  transfer: the cut giving 75.3% at 64.8% coverage there gives 73.5% at 66.2% on test.
+  Declining the least-agreed 10% lifts the committee from 66.88% to 68.95%, which is the
+  human raters' 68.92%; declining half gives 75.97%.
+- **No rule beats a good single model, but every rule beats a badly chosen one (§9).**
+  Every paired-bootstrap interval spans zero and the smallest p is 0.34. The one
+  significant comparison runs the other way: the model that looked best on the ensemble
+  split, at 70.33% there, falls to 62.34% on test — 4.55 pp below the chapter's selected
+  model, CI −8.77 to −0.33, p = 0.040. Single models from this pool span 56.82% to 67.53%
+  on test while every fixed rule lands between 64.61% and 68.51%. Combining removes the
+  risk of picking the wrong model; it does not raise the ceiling.
+
+### Recommendation
+
+Two things are worth taking into the chapter, for different reasons.
+
+1. **Family-balanced mean softmax, decided by expected score (§5).** Highest exact accuracy
+   and lowest mean error of anything tested, it also won on the split used to choose it,
+   and it is justified by the ordinal label rather than by its score. Report it as level
+   with the best single model, not above it.
+2. **The declining curve (§8).** The only result where a committee does something a single
+   model cannot.
+
+Everything else here is a negative result with a reason. One paragraph between them.
+
+### Caveats
+
+- Test is 308 crops, so one standard error is 2.72 pp. Rules within about 5 pp of each
+  other are not separable.
+- 13 rules were scored on 455 selection crops, so the best of them is optimistic by
+  construction. §9.4 measures that rather than assuming it away.
+- The augmented grid contributes 17 of its 18 tied configurations. Model 1440 ranks 9 of
+  8,640 on `avg_vaf_orig` but 161 on `avg_vaf`, and `TopNStore` (`src/results_store.py`)
+  keeps the top 100 by `avg_vaf`, so its weights were never written on the cluster or here.
+- The cGAN-augmented grid and the soft-label grid are absent: neither has a saved set of
+  tied models.
+- Labels are the recorded median human scores, which `analyses/10` §4 shows are wrong on a
+  handful of test crops.
