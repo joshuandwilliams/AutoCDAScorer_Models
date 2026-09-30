@@ -1,15 +1,17 @@
 """Build the chapter's model-summary figure (thesis #fig-model-summary).
 
-Every deep row is the configuration with the best cross-validated accuracy in its grid,
-with an error bar spanning the configurations tied within one standard error of it. The
-two ensemble rows come from analyses/14_ensembling: the within-family average over the 22
-tied CNNs, and the best cross-family pair. Both were selected on the 455-crop ensemble
-split and scored once on test.
+Every deep row is the setting with the best cross-validated accuracy in its grid, with an
+error bar spanning the settings tied within one standard error of it. Each grid is first
+collapsed to its distinct settings, since the CNN grids train reg=None once per
+reg_strength and a raw tie band would count one setting up to three times. The two ensemble
+ensemble row comes from analyses/14_ensembling: the best cross-family pair, selected on the
+455-crop ensemble split and scored once on test.
 
     conda run -n autocdascorer-analyses python build_model_summary.py
 """
 
 import glob
+import sys
 from pathlib import Path
 
 import matplotlib
@@ -23,6 +25,9 @@ from matplotlib.patches import Patch
 from matplotlib.transforms import offset_copy
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.append(str(ROOT / "src"))
+from grid_results import deduplicate  # noqa: E402
+
 OUT = Path(__file__).resolve().parent / "thesis_plots"
 OUT.mkdir(parents=True, exist_ok=True)
 
@@ -33,19 +38,21 @@ HUM_LW = 1.4  # width of the human reference line, in points
 def grid(rel, rank="avg_vaf"):
     """Best configuration by `rank`, with the spread over the configurations tied with it.
 
-    models/07 and models/08 are ranked on avg_vaf_orig, accuracy over the ORIGINAL crops in
-    the validation fold. Their plain avg_vaf is measured over a fold containing augmented
-    copies, so it is not comparable with the unaugmented grids or with itself across
-    augmentation strengths.
+    models/07 is ranked on avg_vaf like every unaugmented grid: its pool is topped up to
+    1,627 crops per class, so avg_vaf carries the same class balance as the 308-crop test
+    split, while avg_vaf_orig is measured on the originals alone and those are 42.6% score
+    0. models/08 keeps avg_vaf_orig, because only 10.9% of the cGAN pool is real and its
+    avg_vaf is therefore largely accuracy on generated crops.
     """
     base = ROOT / rel
     files = [base / "random_search_results.csv"] + [
         Path(f) for f in glob.glob(str(base / "parts/*.csv"))
     ]
-    d = (
+    d = deduplicate(
         pd.concat([pd.read_csv(f) for f in files if f.exists()], ignore_index=True)
         .drop_duplicates("model_id")
-        .dropna(subset=[rank])
+        .dropna(subset=[rank]),
+        rank,
     )
     best = d.loc[d[rank].idxmax()]
     se = float(np.sqrt(best[rank] * (1 - best[rank]) / 2289))
@@ -63,20 +70,23 @@ def grid(rel, rank="avg_vaf"):
 
 ROWS = [
     ("Human raters", dict(exact=HUMAN_EXACT, near=HUMAN_NEAR)),
-    ("Majority class", dict(exact=0.1429, near=0.2857)),
     ("Ordinal regression", dict(exact=0.6331, near=0.9643)),
     ("CNN", grid("models/03_Medoid_CNN_RandomSearch/01_Categorical_Loss")),
     ("CNN, soft labels", grid("models/05_Medoid_CNN_SoftLabels/01_Categorical_Loss")),
     ("ViT", grid("models/04_Medoid_ViT_RandomSearch/01_Categorical_Loss")),
     (
         "CNN, geometric aug",
-        grid("models/07_Medoid_CNN_GeomAug/01_MatchLargestClass", "avg_vaf_orig"),
+        grid("models/07_Medoid_CNN_GeomAug/01_MatchLargestClass"),
     ),
-    ("CNN, cGAN aug*", grid("models/08_Medoid_CNN_CGANAug/01_MatchLargestClass", "avg_vaf_orig")),
+    ("CNN, cGAN aug", grid("models/08_Medoid_CNN_CGANAug/01_MatchLargestClass", "avg_vaf_orig")),
+    # The chapter's selected best single model. The geometric-aug row above is that grid's
+    # top configuration on avg_vaf (7927); the chapter breaks that tie on the held-out
+    # ensemble split and selects 6848 instead, so it needs its own row. No error bar: it is
+    # one fixed model rather than a configuration drawn from a grid.
+    ("Best single model:\nCNN, geometric aug", dict(exact=0.6688, near=0.9903)),
     # analyses/14_ensembling, sections 3 and 4. No error bar: each is one fixed rule over a
     # fixed member set, not a configuration drawn from a grid.
-    ("Ensemble: 22 tied CNNs", dict(exact=0.6461, near=0.9903)),
-    ("Ensemble: geometric aug\n+ ordinal regression", dict(exact=0.6916, near=0.9838)),
+    ("Ensemble: geometric aug\n+ ordinal regression", dict(exact=0.6883, near=0.9838)),
 ]
 
 # Sorted by exact accuracy, with the human reference forced to the top row so it reads as
@@ -87,14 +97,11 @@ names = [k for k, _ in order]
 
 FAMILY = {
     "Human raters": "human",
-    "Majority class": "baseline",
     "Ordinal regression": "feature",
-    "Ensemble: 22 tied CNNs": "ensemble",
     "Ensemble: geometric aug\n+ ordinal regression": "ensemble",
 }
 COL = {
     "human": "#F3B5B7",
-    "baseline": "#D9D9D9",
     "feature": "#F6CBA6",
     "deep": "#AFC8E6",
     "ensemble": "#B9DEB4",
@@ -155,7 +162,6 @@ handles = [
     Patch(color=COL["deep"], label="Deep learning"),
     Patch(color=COL["ensemble"], label="Ensemble"),
     Patch(color=COL["feature"], label="Chapter 2 features"),
-    Patch(color=COL["baseline"], label="Baseline"),
     Patch(color=COL["human"], label="Human raters"),
     Line2D([], [], color="#1A1A1A", lw=1.6, label="Range over configurations tied within 1 SE"),
 ]
@@ -168,17 +174,16 @@ fig.legend(
     bbox_to_anchor=(0.5, -0.005),
 )
 fig.tight_layout(rect=(0, 0.07, 1, 1))
-fig.savefig(OUT / "model_summary.png", dpi=300, bbox_inches="tight")
 
-# Panels written separately so the thesis assembler can letter them A and B.
+# Each axis is written on its own so the thesis assembler can letter them A and B.
 fig.canvas.draw()
 r = fig.canvas.get_renderer()
 for nm, a in zip("ab", axes, strict=True):
     bb = a.get_tightbbox(r).transformed(fig.dpi_scale_trans.inverted())
-    fig.savefig(OUT / f"model_summary_{nm}.png", dpi=300, bbox_inches=bb)
+    fig.savefig(OUT / f"model_summary_{nm}.png", dpi=450, bbox_inches=bb)
 lf = plt.figure(figsize=(7.2, 0.5))
 lf.legend(handles=handles, loc="center", ncol=3, frameon=False, fontsize=8.5)
-lf.savefig(OUT / "model_summary_legend.png", dpi=300, bbox_inches="tight")
+lf.savefig(OUT / "model_summary_legend.png", dpi=450, bbox_inches="tight")
 
 for n, d in order:
     print(

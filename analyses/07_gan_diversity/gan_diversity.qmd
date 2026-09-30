@@ -482,7 +482,7 @@ The argument runs on one comparison:
 | **CNN trained from scratch** | **0.646** | **0.9986** |
 
 For **real** crops all three rows agree at roughly 0.61-0.65. Twelve hand-crafted numbers,
-a linear read-out of a CNN's penultimate layer, and 8,640 CNNs searched over a grid all
+a linear read-out of a CNN's penultimate layer, and a grid of 6,720 CNN settings all
 land in the same place, which says the severity signal in real crops is essentially fully
 exposed and there is no hidden extra to find.
 

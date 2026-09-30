@@ -203,6 +203,27 @@ print(f"  Exact:     {test_exact * 100:.2f}%  (bootstrap 95% CI {test_exact_ci[0
 print(f"  Near-Miss: {test_near * 100:.2f}%  (bootstrap 95% CI {test_near_ci[0] * 100:.2f}-{test_near_ci[1] * 100:.2f}%)")
 ```
 
+### 3.1 The same metric on the train+validation crops
+
+`analyses/04`'s grid-distribution figure plots cross-validation accuracy, measured over
+the 2,289 pooled train and validation crops. A human reference line drawn on that axis has
+to be the rate on those same crops, not the test-set rate, so it is computed here with the
+identical Metric 3 code.
+
+```{python}
+# 3.1
+tv_split = split_manifest[split_manifest["split"].isin(["train", "val"])].copy()
+tv_split["key"] = tv_split["filename"].map(parse_filename)
+rater_tv = rater_data[rater_data["key"].isin(set(tv_split["key"]))].copy()
+assert len(rater_tv) == len(tv_split), (
+    f"Mapped {len(rater_tv)} rater records but train+val has {len(tv_split)} CDAs."
+)
+tv_exact, tv_near = metric3_values(rater_tv)
+print(f"Metric 3 over the {len(rater_tv)} train+validation CDAs:")
+print(f"  Exact:     {tv_exact * 100:.2f}%   (test-set value {test_exact * 100:.2f}%)")
+print(f"  Near-Miss: {tv_near * 100:.2f}%   (test-set value {test_near * 100:.2f}%)")
+```
+
 ## 4. Generate the test-sized distribution (44 CDAs/class)
 
 The same stratified-undersampling procedure as the cached distribution, but
@@ -335,21 +356,22 @@ against this single value, measured on the identical, class-balanced test CDAs.
 
 ## 8. Confusion matrix
 
-Drawn with `_plot_confusion_matrix` from `src/cnn_base.py`, so it matches every model
-confusion matrix in this project: counts rather than proportions, the Greens colour map, a
-"Frequency" colour bar and a black border on the diagonal.
+Styled to match every model confusion matrix in this project: counts rather than
+proportions, the Greens colour map, a "Frequency" colour bar and a black border on the
+diagonal.
 
 Rows are a CDA's median score, columns are what an individual rater gave it, one entry per
 rater judgement. The tautological matches Metric 3 removes -- the rater whose own score is
-the median when all three disagree -- are excluded, so the diagonal counts genuine
-agreement only.
+the median when all three disagree -- sit in a separate strip to the right, since they are
+not a rater score. Keeping them visible makes the figure total all 917 judgements, so its
+diagonal gives the reported 68.92% rather than the 72.23% the seven-column form implies.
 
 ```{python}
 #| fig-cap: "Human rater agreement with the median on the 308 medoid_64 test CDAs, Metric 3 (corrected)."
 # 8
 import sys as _sys
 _sys.path.append(str(repo_root / "src"))
-from cnn_base import _plot_confusion_matrix  # noqa: E402
+from matplotlib.patches import Rectangle  # noqa: E402
 
 # Same wide-to-long reshape metric3_values uses, so the matrix counts exactly the rater
 # judgements Metric 3 scores.
@@ -365,22 +387,52 @@ cm = (pd.crosstab(corrected.loc[keep, "Median_Score"].astype(int),
                   corrected.loc[keep, "Score"].astype(int))
       .reindex(index=range(7), columns=range(7), fill_value=0).to_numpy())
 
-# The eighth column is plotted, not just exported. Without it the figure sums to 875
-# judgements with 632 on the diagonal, so a reader adding it up gets 72.23% while the
-# text beside it reports the Metric 3 rate of 68.92%, which divides the same 632 by all
-# 917. The 42 tautological judgements cannot go in any other cell -- each has
-# Score == Median_Score exactly, so its only home is the diagonal, which is the cell the
-# correction forbids -- so they get their own column and the figure reconciles with the
-# text. It also matches the eight-column form analyses/10 and analyses/14 difference
-# against.
+# The tautological judgements are plotted, not just exported. Without them the figure sums
+# to 875 with 632 on the diagonal, so a reader adding it up gets 72.23% while the text
+# beside it reports the Metric 3 rate of 68.92%, which divides the same 632 by all 917.
+#
+# They are drawn as a SEPARATE strip rather than an eighth column, matching
+# analyses/14_ensembling. A tautological judgement is not a rater score, it is a judgement
+# the correction removed, so putting it flush against score 6 on the same axis would read
+# as an eighth severity score. The strip is its own axes with a gap, sharing the y axis so
+# imshow's equal aspect makes its cell exactly the size of a matrix cell.
 taut_col = (corrected.loc[
     (corrected.Agreement_Pattern == "All different") & corrected.Raw_Exact_Match,
     "Median_Score"].astype(int).value_counts().reindex(range(7), fill_value=0).to_numpy())
-cm_plot = np.hstack([cm, taut_col[:, None]])
-_plot_confusion_matrix(cm_plot, np.arange(7),
-                       ("Median severity score", "Individual rater score"),
-                       str(thesis_plots_dir / "human_confusion_matrix.png"),
-                       col_labels=[*range(7), "Tautological"])
+
+# Style copied from _plot_confusion_matrix in src/cnn_base.py so this matches every other
+# confusion matrix in the project: counts, Greens, a "Frequency" bar, black diagonal.
+_f, (_a, _s) = plt.subplots(1, 2, figsize=(8, 6),
+                            gridspec_kw=dict(width_ratios=[7, 1], wspace=0.06))
+_vmax = max(cm.max(), taut_col.max())
+_im = _a.imshow(cm, interpolation="nearest", cmap=plt.cm.Greens, vmin=0, vmax=_vmax)
+for i in range(7):
+    for j in range(7):
+        _a.text(j, i, str(cm[i, j]), ha="center", va="center",
+                color="white" if cm[i, j] > _vmax / 2 else "black")
+        if i == j:
+            _a.add_patch(Rectangle((j - 0.5, i - 0.5), 1, 1, fill=False, edgecolor="black",
+                                   linewidth=plt.rcParams["axes.linewidth"]))
+_a.set_xticks(range(7))
+_a.set_yticks(range(7))
+_a.set_ylabel("Median severity score")
+_a.set_xlabel("Individual rater score")
+
+_s.imshow(taut_col[:, None], interpolation="nearest", cmap=plt.cm.Greens, vmin=0, vmax=_vmax)
+_s.sharey(_a)
+for i in range(7):
+    _s.text(0, i, str(taut_col[i]), ha="center", va="center",
+            color="white" if taut_col[i] > _vmax / 2 else "black")
+_s.set_xticks([0], ["Tautological"], rotation=90)
+# _s shares y with _a, so set_yticks([]) here would clear the locator on BOTH and
+# strip the score labels off the matrix. Hide _s's labels only.
+_s.tick_params(labelleft=False)
+
+_cbar = _f.colorbar(_im, ax=[_a, _s], fraction=0.046, pad=0.04)
+_cbar.set_label("Frequency")
+_f.savefig(thesis_plots_dir / "human_confusion_matrix.png", bbox_inches="tight")
+plt.show()
+plt.close()
 # Exported so other analyses can difference their own matrices against this baseline.
 # Counts are not comparable across analyses (917 rater judgements here against 308 model
 # predictions), so consumers must row-normalise both before subtracting.
