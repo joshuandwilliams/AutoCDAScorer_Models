@@ -124,7 +124,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="what-this-is-for" class="level2">
 <h2 class="anchored" data-anchor-id="what-this-is-for">What this is for</h2>
 <p><code>models/06_Medoid_CGAN</code> trained 64 conditional GANs and recorded one number each, the best Fréchet CDA distance. That number on its own cannot say whether a generator is good, because there is nothing to compare it against and because it is a <strong>minimum over 100 noisy evaluations</strong> rather than a typical value. This document supplies the missing pieces: the training curves the run did not plot, a real-data reference for the distance, and the generated crops side by side with real ones.</p>
-<div id="a4635edf" class="cell" data-execution_count="1">
+<div id="db04179e" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1</span></span>
@@ -151,7 +151,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"(one every 50 epochs)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stderr">
-<pre><code>2026-09-11 22:46:15.078617: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+<pre><code>2026-09-30 11:46:49.966733: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
 To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.</code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
@@ -167,7 +167,7 @@ its history: 5000 epochs, 100 Frechet evaluations (one every 50 epochs)</code></
 <li><strong>Real held-out sample.</strong> 448 real training crops scored against the 455 validation crops. This is the floor a perfect generator would reach: two disjoint samples of genuine leaves, differing only by sampling noise.</li>
 <li><strong>Perfect memorisation.</strong> 448 crops drawn <em>from</em> the validation set itself. A generator that had memorised its training data and reproduced it exactly would score near this.</li>
 </ul>
-<div id="b23e61cf" class="cell" data-execution_count="2">
+<div id="344bf589" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2</span></span>
@@ -216,7 +216,7 @@ recorded best_fcd for config 48: 3.659</code></pre>
 </section>
 <section id="the-training-curves" class="level2">
 <h2 class="anchored" data-anchor-id="the-training-curves">2. The training curves</h2>
-<div id="8b03f08f" class="cell" data-execution_count="3">
+<div id="ba208a85" class="cell" data-execution_count="3">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3</span></span>
@@ -248,7 +248,7 @@ recorded best_fcd for config 48: 3.659</code></pre>
 <span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>fig.tight_layout()</span>
 <span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path <span class="im">as</span> _P</span>
 <span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a>_tp <span class="op">=</span> _P(<span class="st">"thesis_plots"</span>)<span class="op">;</span> _tp.mkdir(exist_ok<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a>fig.savefig(_tp <span class="op">/</span> <span class="st">"cgan_training_curve.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a>fig.savefig(_tp <span class="op">/</span> <span class="st">"cgan_training_curve.png"</span>, dpi<span class="op">=</span><span class="dv">450</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
 <span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
 <span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a>sl <span class="op">=</span> np.polyfit(fcd_pts[fcd_pts.epoch <span class="op">&gt;</span> <span class="dv">3000</span>].epoch, plateau, <span class="dv">1</span>)[<span class="dv">0</span>] <span class="op">*</span> <span class="dv">1000</span></span>
@@ -272,7 +272,7 @@ saved checkpoint value 3.659 is 1.06 sd below that mean</code></pre>
 </section>
 <section id="were-the-other-top-configs-still-improving" class="level2">
 <h2 class="anchored" data-anchor-id="were-the-other-top-configs-still-improving">3. Were the other top configs still improving?</h2>
-<div id="a97b2dfe" class="cell" data-execution_count="4">
+<div id="41035b7c" class="cell" data-execution_count="4">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4</span></span>
@@ -306,7 +306,7 @@ real-data reference: 3.065 (2.705-3.597)</code></pre>
 </section>
 <section id="the-crops-themselves" class="level2">
 <h2 class="anchored" data-anchor-id="the-crops-themselves">4. The crops themselves</h2>
-<div id="e01ddf25" class="cell" data-execution_count="5">
+<div id="73a2b61a" class="cell" data-execution_count="5">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 5</span></span>
@@ -368,7 +368,7 @@ real-data reference: 3.065 (2.705-3.597)</code></pre>
 <section id="is-it-copying-its-training-data" class="level2">
 <h2 class="anchored" data-anchor-id="is-it-copying-its-training-data">5. Is it copying its training data?</h2>
 <p>For each generated crop, the closest real training crop in the CNN feature space, against how close real crops are to <em>each other</em>. A generator reproducing its training set would sit at or below the real-to-real distance.</p>
-<div id="b705766d" class="cell" data-execution_count="6">
+<div id="692a9d3c" class="cell" data-execution_count="6">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6</span></span>
@@ -416,7 +416,7 @@ ratio 1.08x</code></pre>
 <section id="testing-four-specific-complaints-about-the-samples" class="level2">
 <h2 class="anchored" data-anchor-id="testing-four-specific-complaints-about-the-samples">6. Testing four specific complaints about the samples</h2>
 <p>Looking at the grid above, four things stand out as wrong. Each is measurable, and two of them turn out not to be what is actually happening.</p>
-<div id="290ed5d4" class="cell" data-execution_count="7">
+<div id="98c54963" class="cell" data-execution_count="7">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 7</span></span>
@@ -526,7 +526,7 @@ number of separate ridge components     121.0000   144.0000</code></pre>
 <section id="is-the-range-of-appearances-narrower-than-the-real-data" class="level3">
 <h3 class="anchored" data-anchor-id="is-the-range-of-appearances-narrower-than-the-real-data">6.1 Is the range of appearances narrower than the real data?</h3>
 <p>The complaint is not that any one generated crop is wrong but that they all look alike. That is a statement about variance, not about medians, so it needs measuring that way: match the class counts exactly, then compare how much the two sets spread out.</p>
-<div id="7f99b1dd" class="cell" data-execution_count="8">
+<div id="676c9672" class="cell" data-execution_count="8">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 8</span></span>
@@ -607,7 +607,7 @@ Chapter 2 feature space (fixed arithmetic, nothing fitted to either set):
 <h2 class="anchored" data-anchor-id="frechet-calibration-against-the-ordinal-scale">7. Frechet calibration against the ordinal scale</h2>
 <p>A Frechet distance has no units, so the generator’s 3.66 can only be read against distances measured the same way on real data. The calibration is the distance between REAL score classes: if two real classes one step apart sit at distance d, a generator whose crops sit at distance d from real crops of their own class is, in these terms, one score step wrong.</p>
 <p>Every comparison uses 131 crops per side. The Frechet distance is strongly biased by sample size – the 64-crop version of the section 1 reference gave the opposite answer to the 448-crop one – so holding n fixed across every pair is what makes the ladder readable.</p>
-<div id="46e853bd" class="cell" data-execution_count="9">
+<div id="63254b10" class="cell" data-execution_count="9">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 7.1</span></span>
@@ -645,7 +645,7 @@ Chapter 2 feature space (fixed arithmetic, nothing fitted to either set):
 <span id="cb17-33"><a href="#cb17-33" aria-hidden="true" tabindex="-1"></a>ax.set_xticks(<span class="bu">range</span>(<span class="dv">7</span>))</span>
 <span id="cb17-34"><a href="#cb17-34" aria-hidden="true" tabindex="-1"></a>ax.legend(fontsize<span class="op">=</span><span class="dv">8</span>, frameon<span class="op">=</span><span class="va">False</span>, loc<span class="op">=</span><span class="st">"upper left"</span>)</span>
 <span id="cb17-35"><a href="#cb17-35" aria-hidden="true" tabindex="-1"></a>ax.spines[[<span class="st">"top"</span>, <span class="st">"right"</span>]].set_visible(<span class="va">False</span>)</span>
-<span id="cb17-36"><a href="#cb17-36" aria-hidden="true" tabindex="-1"></a>fig.savefig(_P2(<span class="st">"thesis_plots"</span>) <span class="op">/</span> <span class="st">"frechet_calibration.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb17-36"><a href="#cb17-36" aria-hidden="true" tabindex="-1"></a>fig.savefig(_P2(<span class="st">"thesis_plots"</span>) <span class="op">/</span> <span class="st">"frechet_calibration.png"</span>, dpi<span class="op">=</span><span class="dv">450</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
 <span id="cb17-37"><a href="#cb17-37" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
 <span id="cb17-38"><a href="#cb17-38" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb17-39"><a href="#cb17-39" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> g <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, <span class="dv">7</span>):</span>

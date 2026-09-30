@@ -91,7 +91,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#setup" id="toc-setup" class="nav-link" data-scroll-target="#setup">1. Setup</a>
   <ul class="collapse">
   <li><a href="#packages" id="toc-packages" class="nav-link" data-scroll-target="#packages">1.1 Packages</a></li>
-  <li><a href="#load-the-full-8640-model-results-table" id="toc-load-the-full-8640-model-results-table" class="nav-link" data-scroll-target="#load-the-full-8640-model-results-table">1.2 Load the full 8,640-model results table</a></li>
+  <li><a href="#load-the-grid-and-collapse-it-to-its-distinct-settings" id="toc-load-the-grid-and-collapse-it-to-its-distinct-settings" class="nav-link" data-scroll-target="#load-the-grid-and-collapse-it-to-its-distinct-settings">1.2 Load the grid and collapse it to its distinct settings</a></li>
   <li><a href="#the-dataset-sets-the-noise-floor" id="toc-the-dataset-sets-the-noise-floor" class="nav-link" data-scroll-target="#the-dataset-sets-the-noise-floor">1.3 The dataset sets the noise floor</a></li>
   </ul></li>
   <li><a href="#the-accuracy-distribution-is-a-flat-plateau-at-the-top" id="toc-the-accuracy-distribution-is-a-flat-plateau-at-the-top" class="nav-link" data-scroll-target="#the-accuracy-distribution-is-a-flat-plateau-at-the-top">2. The accuracy distribution is a flat plateau at the top</a></li>
@@ -128,7 +128,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="gohrep" class="level2">
 <h2 class="anchored" data-anchor-id="gohrep">GOHREP</h2>
 <p><strong>Goal:</strong></p>
-<p>The Medoid-CNN grid search trained 8,640 CNNs on the medoid_64 dataset and ranked them by mean cross-validation accuracy (<code>avg_vaf</code>). The top 100 all land in a narrow band (~61–63%). This asks whether the single “best” model is <em>reproducibly</em> the best, or whether picking the rank-1 config is essentially selecting on measurement noise.</p>
+<p>The Medoid-CNN grid search trained 8,640 CNNs covering 6,720 distinct settings on the medoid_64 dataset and ranked them by mean cross-validation accuracy (<code>avg_vaf</code>). The top 100 all land in a narrow band (~61–63%). This asks whether the single “best” model is <em>reproducibly</em> the best, or whether picking the rank-1 config is essentially selecting on measurement noise.</p>
 <p><strong>Hypothesis:</strong></p>
 <p>The differences <em>within</em> the top cluster are smaller than the statistical uncertainty of measuring accuracy on a dataset this size, so (a) a large number of configs are statistically tied for first, and (b) the CV ranking within the cluster does not carry over to an independent held-out test set — the classic <em>winner’s curse</em> of taking the maximum over many noisy estimates.</p>
 <p><strong>Rationale:</strong></p>
@@ -139,28 +139,30 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="setup">1. Setup</h2>
 <section id="packages" class="level3">
 <h3 class="anchored" data-anchor-id="packages">1.1 Packages</h3>
-<div id="bce182e6" class="cell" data-execution_count="1">
+<div id="f3666a44" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.1</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> glob</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy <span class="im">import</span> stats</span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>plt.rcParams.update({<span class="st">"figure.dpi"</span>: <span class="dv">120</span>, <span class="st">"axes.grid"</span>: <span class="va">True</span>,</span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>                     <span class="st">"grid.alpha"</span>: <span class="fl">0.25</span>, <span class="st">"axes.axisbelow"</span>: <span class="va">True</span>})</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> sys</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy <span class="im">import</span> stats</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>plt.rcParams.update({<span class="st">"figure.dpi"</span>: <span class="dv">120</span>, <span class="st">"axes.grid"</span>: <span class="va">True</span>,</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>                     <span class="st">"grid.alpha"</span>: <span class="fl">0.25</span>, <span class="st">"axes.axisbelow"</span>: <span class="va">True</span>})</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 </div>
 </section>
-<section id="load-the-full-8640-model-results-table" class="level3">
-<h3 class="anchored" data-anchor-id="load-the-full-8640-model-results-table">1.2 Load the full 8,640-model results table</h3>
+<section id="load-the-grid-and-collapse-it-to-its-distinct-settings" class="level3">
+<h3 class="anchored" data-anchor-id="load-the-grid-and-collapse-it-to-its-distinct-settings">1.2 Load the grid and collapse it to its distinct settings</h3>
 <p>The shared <code>random_search_results.csv</code> holds one row per trained config; a few tasks’ rows may still sit in <code>parts/</code> un-merged, so both are concatenated and de-duplicated on <code>model_id</code> to recover the complete grid.</p>
-<div id="2b1422a6" class="cell" data-execution_count="2">
+<p>The grid crosses <code>reg = None</code> with all three <code>reg_strength</code> values, and <code>reg_strength</code> has no effect without a regulariser, so 1,920 of the 8,640 runs repeat a setting the grid already contains. <code>grid_results.deduplicate</code> keeps each setting’s best-scoring run, leaving 6,720 distinct settings. Everything below is measured on those. Without this a tied set counts one setting up to three times, and any mean over it is weighted towards whichever settings happened to be trained three times.</p>
+<div id="f7a6435c" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.2</span></span>
@@ -171,23 +173,29 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">FileNotFoundError</span>(<span class="st">"repo root not found"</span>)</span>
 <span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>ROOT <span class="op">=</span> find_repo_root(Path.cwd())</span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>CNN_DIR <span class="op">=</span> ROOT <span class="op">/</span> <span class="st">"models"</span> <span class="op">/</span> <span class="st">"03_Medoid_CNN_RandomSearch"</span> <span class="op">/</span> <span class="st">"01_Categorical_Loss"</span></span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>frames <span class="op">=</span> [pd.read_csv(CNN_DIR <span class="op">/</span> <span class="st">"random_search_results.csv"</span>)]</span>
-<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>frames <span class="op">+=</span> [pd.read_csv(p) <span class="cf">for</span> p <span class="kw">in</span> glob.glob(<span class="bu">str</span>(CNN_DIR <span class="op">/</span> <span class="st">"parts"</span> <span class="op">/</span> <span class="st">"*.csv"</span>))]</span>
-<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> pd.concat(frames, ignore_index<span class="op">=</span><span class="va">True</span>).drop_duplicates(<span class="st">"model_id"</span>).reset_index(drop<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Loaded </span><span class="sc">{</span><span class="bu">len</span>(df)<span class="sc">}</span><span class="ss"> unique models "</span></span>
-<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"(</span><span class="sc">{</span><span class="bu">len</span>(frames) <span class="op">-</span> <span class="dv">1</span><span class="sc">}</span><span class="ss"> un-merged part file(s) folded in)."</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>sys.path.append(<span class="bu">str</span>(ROOT <span class="op">/</span> <span class="st">"src"</span>))</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> grid_results <span class="im">import</span> deduplicate  <span class="co"># noqa: E402</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>CNN_DIR <span class="op">=</span> ROOT <span class="op">/</span> <span class="st">"models"</span> <span class="op">/</span> <span class="st">"03_Medoid_CNN_RandomSearch"</span> <span class="op">/</span> <span class="st">"01_Categorical_Loss"</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>frames <span class="op">=</span> [pd.read_csv(CNN_DIR <span class="op">/</span> <span class="st">"random_search_results.csv"</span>)]</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>frames <span class="op">+=</span> [pd.read_csv(p) <span class="cf">for</span> p <span class="kw">in</span> glob.glob(<span class="bu">str</span>(CNN_DIR <span class="op">/</span> <span class="st">"parts"</span> <span class="op">/</span> <span class="st">"*.csv"</span>))]</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>runs <span class="op">=</span> pd.concat(frames, ignore_index<span class="op">=</span><span class="va">True</span>).drop_duplicates(<span class="st">"model_id"</span>).reset_index(drop<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> deduplicate(runs).reset_index(drop<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Loaded </span><span class="sc">{</span><span class="bu">len</span>(runs)<span class="sc">}</span><span class="ss"> trained runs "</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"(</span><span class="sc">{</span><span class="bu">len</span>(frames) <span class="op">-</span> <span class="dv">1</span><span class="sc">}</span><span class="ss"> un-merged part file(s) folded in)."</span>)</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Collapsed to </span><span class="sc">{</span><span class="bu">len</span>(df)<span class="sc">}</span><span class="ss"> distinct settings (</span><span class="sc">{</span><span class="bu">len</span>(runs) <span class="op">-</span> <span class="bu">len</span>(df)<span class="sc">}</span><span class="ss"> repeats dropped)."</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>Loaded 8640 unique models (0 un-merged part file(s) folded in).</code></pre>
+<pre><code>Loaded 8640 trained runs (0 un-merged part file(s) folded in).
+Collapsed to 6720 distinct settings (1920 repeats dropped).</code></pre>
 </div>
 </div>
 </section>
 <section id="the-dataset-sets-the-noise-floor" class="level3">
 <h3 class="anchored" data-anchor-id="the-dataset-sets-the-noise-floor">1.3 The dataset sets the noise floor</h3>
 <p><code>avg_vaf</code> is the mean of the 5 fold validation accuracies. Across the 5 folds each pooled train+val image is in the validation split exactly once, so the estimate is effectively an accuracy over the whole pooled set. Its size is read straight from the dataset metadata.</p>
-<div id="4ee56b6b" class="cell" data-execution_count="3">
+<div id="75e141fd" class="cell" data-execution_count="3">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.3</span></span>
@@ -209,7 +217,7 @@ Chance accuracy (balanced 7 classes) = 0.143</code></pre>
 </section>
 <section id="the-accuracy-distribution-is-a-flat-plateau-at-the-top" class="level2">
 <h2 class="anchored" data-anchor-id="the-accuracy-distribution-is-a-flat-plateau-at-the-top">2. The accuracy distribution is a flat plateau at the top</h2>
-<div id="058d5d93" class="cell" data-execution_count="4">
+<div id="9cec4dbf" class="cell" data-execution_count="4">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2.1</span></span>
@@ -220,11 +228,11 @@ Chance accuracy (balanced 7 classes) = 0.143</code></pre>
 <span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"(spread </span><span class="sc">{</span><span class="dv">100</span><span class="op">*</span>(p_max<span class="op">-</span>top100_min)<span class="sc">:.2f}</span><span class="ss"> percentage points)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>avg_vaf: min 0.1341 | median 0.5238 | max 0.6457
-top-100 band: 0.6243 .. 0.6457  (spread 2.14 percentage points)</code></pre>
+<pre><code>avg_vaf: min 0.1341 | median 0.5216 | max 0.6457
+top-100 band: 0.6208 .. 0.6457  (spread 2.49 percentage points)</code></pre>
 </div>
 </div>
-<div id="87c04438" class="cell" data-execution_count="5">
+<div id="affb90d9" class="cell" data-execution_count="5">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2.2</span></span>
@@ -240,7 +248,7 @@ top-100 band: 0.6243 .. 0.6457  (spread 2.14 percentage points)</code></pre>
 <span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>           label<span class="op">=</span><span class="ss">f"±1 SE noise (</span><span class="sc">{</span><span class="dv">100</span><span class="op">*</span>se_cv<span class="sc">:.2f}</span><span class="ss"> pp)"</span>)</span>
 <span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"Mean CV accuracy (avg_vaf)"</span>)</span>
 <span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"Number of models"</span>)</span>
-<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">"8,640 CNNs: performance saturates into a narrow top plateau"</span>)</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">"6,720 CNN settings: performance saturates into a narrow top plateau"</span>)</span>
 <span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>ax.legend(fontsize<span class="op">=</span><span class="dv">9</span>)</span>
 <span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -249,7 +257,7 @@ top-100 band: 0.6243 .. 0.6457  (spread 2.14 percentage points)</code></pre>
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
 <p><img src="cnn_accuracy_noise_floor_files/figure-html/cell-6-output-1.png" width="1066" height="527" class="figure-img"></p>
-<figcaption>Distribution of mean CV accuracy across all 8,640 CNNs. The top-100 band is a thin sliver at the right edge; the shaded strip is ±1 standard error of a single accuracy measurement (§3).</figcaption>
+<figcaption>Distribution of mean CV accuracy across all 6,720 CNN settings. The top-100 band is a thin sliver at the right edge; the shaded strip is ±1 standard error of a single accuracy measurement (§3).</figcaption>
 </figure>
 </div>
 </div>
@@ -260,7 +268,7 @@ top-100 band: 0.6243 .. 0.6457  (spread 2.14 percentage points)</code></pre>
 <section id="the-noise-floor-and-how-many-models-are-tied-for-first" class="level2">
 <h2 class="anchored" data-anchor-id="the-noise-floor-and-how-many-models-are-tied-for-first">3. The noise floor, and how many models are tied for first</h2>
 <p>A single accuracy over <code>N_CV</code> samples has standard error <code>√(p(1−p)/N_CV)</code>. The difference between two models’ accuracies has SE <code>√2</code> larger.</p>
-<div id="1c688327" class="cell" data-execution_count="6">
+<div id="42468dbf" class="cell" data-execution_count="6">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3.1</span></span>
@@ -277,12 +285,12 @@ top-100 band: 0.6243 .. 0.6457  (spread 2.14 percentage points)</code></pre>
 <div class="cell-output cell-output-stdout">
 <pre><code>CV accuracy SE (n=2289)           = 1.00 pp
 SE of a difference of two models     = 1.41 pp
-top-100 spread                       = 2.14 pp = 2.14 SE
+top-100 spread                       = 2.49 pp = 2.49 SE
 Held-out TEST accuracy SE (n=308)  = 2.73 pp (95% CI ±5.3 pp)</code></pre>
 </div>
 </div>
 <p>So one standard error is ~1 pp, and the entire top-100 spans only ~1.6 SE. To count how many configs are <strong>statistically indistinguishable from the best</strong>, each model is compared to the rank-1 model with a one-sided two-proportion test: a model is “tied for first” if it is <em>not</em> significantly worse at the 5% level.</p>
-<div id="d9de90aa" class="cell" data-execution_count="7">
+<div id="bfd83fd5" class="cell" data-execution_count="7">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3.2</span></span>
@@ -298,12 +306,12 @@ Held-out TEST accuracy SE (n=308)  = 2.73 pp (95% CI ±5.3 pp)</code></pre>
 <span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"i.e. ~</span><span class="sc">{</span>n_tied_05<span class="sc">}</span><span class="ss"> configs are a statistical tie for first place."</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>Models NOT significantly worse than the best (one-sided 5%): 120
-                                     (one-sided 1%): 255
-i.e. ~120 configs are a statistical tie for first place.</code></pre>
+<pre><code>Models NOT significantly worse than the best (one-sided 5%): 88
+                                     (one-sided 1%): 184
+i.e. ~88 configs are a statistical tie for first place.</code></pre>
 </div>
 </div>
-<div id="7efe7528" class="cell" data-execution_count="8">
+<div id="e455f907" class="cell" data-execution_count="8">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3.3</span></span>
@@ -335,7 +343,7 @@ i.e. ~120 configs are a statistical tie for first place.</code></pre>
 <section id="the-winners-curse-measured-on-held-out-data" class="level2">
 <h2 class="anchored" data-anchor-id="the-winners-curse-measured-on-held-out-data">4. The winner’s curse, measured on held-out data</h2>
 <p>The argument above rests on a noise model. The <strong>held-out test split settles it empirically</strong>: it never enters model selection, so if CV rank were real signal it would predict test accuracy. The rank-1-by-CV model is followed onto the test set.</p>
-<div id="ef5e0184" class="cell" data-execution_count="9">
+<div id="22f073d9" class="cell" data-execution_count="9">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.1</span></span>
@@ -349,14 +357,14 @@ i.e. ~120 configs are a statistical tie for first place.</code></pre>
 </details>
 <div class="cell-output cell-output-stdout">
 <pre><code>Best-by-CV model (id 3606):
-   CV accuracy   = 0.6457  (rank 1 of 8640)
-   TEST accuracy = 0.6169  (rank 314 of 8640)
+   CV accuracy   = 0.6457  (rank 1 of 6720)
+   TEST accuracy = 0.6169  (rank 219 of 6720)
    Best TEST accuracy achieved by ANY model = 0.6818
    -&gt; the CV winner is nowhere near the top on independent data.</code></pre>
 </div>
 </div>
 <p>If CV rank were meaningful <em>within the plateau</em>, <code>avg_vaf</code> and <code>test_acc</code> would correlate among the top models. They do not: the correlation is strong across the full range (where real differences exist) but collapses to ~0 once restricted to the top cluster.</p>
-<div id="9615d213" class="cell" data-execution_count="10">
+<div id="8bae8d67" class="cell" data-execution_count="10">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.2</span></span>
@@ -389,50 +397,50 @@ i.e. ~120 configs are a statistical tie for first place.</code></pre>
 <th data-quarto-table-cell-role="th">0</th>
 <td>top-50</td>
 <td>50</td>
-<td>-0.100</td>
-<td>0.6227</td>
+<td>-0.159</td>
+<td>0.6247</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
 <td>top-100</td>
 <td>100</td>
-<td>0.022</td>
-<td>0.6223</td>
+<td>0.108</td>
+<td>0.6212</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">2</th>
 <td>top-250</td>
 <td>250</td>
-<td>0.199</td>
-<td>0.6184</td>
+<td>0.356</td>
+<td>0.6137</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
 <td>top-500</td>
 <td>500</td>
-<td>0.355</td>
-<td>0.6116</td>
+<td>0.385</td>
+<td>0.6073</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
 <td>top-1000</td>
 <td>1000</td>
-<td>0.442</td>
-<td>0.6032</td>
+<td>0.519</td>
+<td>0.5968</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">5</th>
 <td>top-2000</td>
 <td>2000</td>
-<td>0.576</td>
-<td>0.5902</td>
+<td>0.653</td>
+<td>0.5816</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">6</th>
 <td>all</td>
-<td>8640</td>
-<td>0.891</td>
-<td>0.4955</td>
+<td>6720</td>
+<td>0.895</td>
+<td>0.4912</td>
 </tr>
 </tbody>
 </table>
@@ -440,7 +448,7 @@ i.e. ~120 configs are a statistical tie for first place.</code></pre>
 </div>
 </div>
 </div>
-<div id="803468fc" class="cell" data-execution_count="11">
+<div id="ff234a41" class="cell" data-execution_count="11">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.3</span></span>
@@ -476,7 +484,7 @@ i.e. ~120 configs are a statistical tie for first place.</code></pre>
 </div>
 </div>
 </div>
-<div id="6fc51a57" class="cell" data-execution_count="12">
+<div id="b23d091c" class="cell" data-execution_count="12">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.4</span></span>
@@ -507,7 +515,7 @@ i.e. ~120 configs are a statistical tie for first place.</code></pre>
 <section id="how-much-of-the-winners-edge-is-expected-from-noise-alone" class="level2">
 <h2 class="anchored" data-anchor-id="how-much-of-the-winners-edge-is-expected-from-noise-alone">5. How much of the winner’s edge is expected from noise alone?</h2>
 <p>If the top few hundred configs shared one true accuracy and differed only by sampling noise, the maximum of that many draws would still sit well above their common mean purely by chance — the expected optimism of a maximum.</p>
-<div id="ea9d8218" class="cell" data-execution_count="13">
+<div id="36b2ff31" class="cell" data-execution_count="13">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 5.1</span></span>
@@ -520,8 +528,8 @@ i.e. ~120 configs are a statistical tie for first place.</code></pre>
 <span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"The observed winner's margin is well within what noise alone produces."</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>Best model sits 3.06 pp above the top-500 mean.
-Expected max-above-mean from pure noise over 8640 models ≈ σ·√(2 ln N) = 4.26 pp.
+<pre><code>Best model sits 3.49 pp above the top-500 mean.
+Expected max-above-mean from pure noise over 6720 models ≈ σ·√(2 ln N) = 4.20 pp.
 The observed winner's margin is well within what noise alone produces.</code></pre>
 </div>
 </div>
@@ -530,7 +538,7 @@ The observed winner's margin is well within what noise alone produces.</code></p
 <section id="near-miss-1-tells-the-same-story" class="level2">
 <h2 class="anchored" data-anchor-id="near-miss-1-tells-the-same-story">6. Near-miss (±1) tells the same story</h2>
 <p>Configs are ranked on exact accuracy, but each is also scored on <strong>near-miss</strong> — the prediction landing within ±1 of the true score. Near-miss sits near the ceiling for the top cluster, so its noise floor is even smaller and its plateau even flatter.</p>
-<div id="0aa667aa" class="cell" data-execution_count="14">
+<div id="c69b6ace" class="cell" data-execution_count="14">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6.1</span></span>
@@ -543,14 +551,14 @@ The observed winner's margin is well within what noise alone produces.</code></p
 <span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"(vs </span><span class="sc">{</span><span class="dv">100</span><span class="op">*</span>se_cv<span class="sc">:.2f}</span><span class="ss"> pp for exact accuracy)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>CV near-miss: median 0.920 | max 0.978
-top-100 (by avg_vaf) CV near-miss: 0.963 .. 0.978
+<pre><code>CV near-miss: median 0.918 | max 0.978
+top-100 (by avg_vaf) CV near-miss: 0.961 .. 0.978
 near-miss noise SE at the ceiling = 0.31 pp (vs 1.00 pp for exact accuracy)</code></pre>
 </div>
 </div>
 <p>The top models place the score within ±1 about <strong>96–98%</strong> of the time: almost every error is to an <em>adjacent</em> score, so what the exact-accuracy plateau is really failing to do is separate neighbouring severities — not tell a healthy leaf from a dead one.</p>
 <p>The two metrics are strongly related, but the relationship is <strong>concave and saturating</strong>: near-miss climbs fast as exact accuracy rises from chance, then flattens against its ceiling, so across the top exact-accuracy cluster the near-miss is almost constant — which is exactly why it cannot rank the plateau any better than exact accuracy can.</p>
-<div id="e65ed2b3" class="cell" data-execution_count="15">
+<div id="3f747020" class="cell" data-execution_count="15">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6.2</span></span>
@@ -571,12 +579,12 @@ near-miss noise SE at the ceiling = 0.31 pp (vs 1.00 pp for exact accuracy)</cod
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
 <p><img src="cnn_accuracy_noise_floor_files/figure-html/cell-16-output-1.png" width="946" height="587" class="figure-img"></p>
-<figcaption>Exact vs near-miss accuracy across all 8,640 models. Near-miss rises steeply with exact accuracy but saturates near 1.0, so the top exact-accuracy cluster (orange) is compressed into a nearly flat near-miss band — the two metrics co-rank models only where accuracy is low.</figcaption>
+<figcaption>Exact vs near-miss accuracy across all 6,720 CNN settings. Near-miss rises steeply with exact accuracy but saturates near 1.0, so the top exact-accuracy cluster (orange) is compressed into a nearly flat near-miss band — the two metrics co-rank models only where accuracy is low.</figcaption>
 </figure>
 </div>
 </div>
 </div>
-<div id="682c1f41" class="cell" data-execution_count="16">
+<div id="78e87197" class="cell" data-execution_count="16">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6.3</span></span>
@@ -602,7 +610,7 @@ near-miss noise SE at the ceiling = 0.31 pp (vs 1.00 pp for exact accuracy)</cod
 </div>
 </div>
 <p>The winner’s curse holds just as it did for exact accuracy: ranking by CV does not pick the best test near-miss.</p>
-<div id="9a1680be" class="cell" data-execution_count="17">
+<div id="e0c4391a" class="cell" data-execution_count="17">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6.4</span></span>
@@ -616,9 +624,9 @@ near-miss noise SE at the ceiling = 0.31 pp (vs 1.00 pp for exact accuracy)</cod
 <span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"corr(CV near-miss, test near-miss) within top-</span><span class="sc">{</span>k<span class="sc">}</span><span class="ss"> by avg_vaf: </span><span class="sc">{</span>r<span class="sc">:+.2f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>Best-by-CV-near-miss model: CV 0.978, TEST 0.977, test near-miss rank 81/8640
-corr(CV near-miss, test near-miss) within top-100 by avg_vaf: +0.21
-corr(CV near-miss, test near-miss) within top-500 by avg_vaf: +0.33</code></pre>
+<pre><code>Best-by-CV-near-miss model: CV 0.978, TEST 0.977, test near-miss rank 56/6720
+corr(CV near-miss, test near-miss) within top-100 by avg_vaf: +0.32
+corr(CV near-miss, test near-miss) within top-500 by avg_vaf: +0.32</code></pre>
 </div>
 </div>
 <hr>
@@ -627,8 +635,8 @@ corr(CV near-miss, test near-miss) within top-500 by avg_vaf: +0.33</code></pre>
 <h2 class="anchored" data-anchor-id="interpretation-and-discussion">7. Interpretation and Discussion</h2>
 <ul>
 <li><p><strong>Within the top cluster, the ranking is noise.</strong> One accuracy measurement on this dataset carries ~1 pp of standard error, and the entire top-100 spans only ~1.6 SE. By a straight two-proportion test <strong>~200 configs are statistically tied for first</strong>, and that is a conservative count (shared CV folds make the real ties more numerous). Picking the single rank-1 config is selecting on noise.</p></li>
-<li><p><strong>The held-out test set proves it.</strong> The CV-best model does <em>not</em> transfer: it ranks in the low hundreds on the independent test split, not first, and among the top ~100–250 configs CV accuracy and test accuracy are essentially <strong>uncorrelated (r ≈ 0)</strong>. The strong overall correlation (r ≈ 0.9 across all 8,640) confirms the method is sound — hyperparameters genuinely move accuracy across the full range — but that signal is exhausted before the plateau. So the answer to the title is <strong>yes: at the top, the “best model” is basically luck.</strong></p></li>
-<li><p><strong>This is the winner’s curse.</strong> The maximum over 8,640 noisy scores is optimistic by construction; the observed winning margin over the plateau mean is no larger than <code>σ·√(2 ln N)</code>, the gap expected from noise alone.</p></li>
+<li><p><strong>The held-out test set proves it.</strong> The CV-best model does <em>not</em> transfer: it ranks in the low hundreds on the independent test split, not first, and among the top ~100–250 configs CV accuracy and test accuracy are essentially <strong>uncorrelated (r ≈ 0)</strong>. The strong overall correlation (r ≈ 0.9 across all 6,720) confirms the method is sound — hyperparameters genuinely move accuracy across the full range — but that signal is exhausted before the plateau. So the answer to the title is <strong>yes: at the top, the “best model” is basically luck.</strong></p></li>
+<li><p><strong>This is the winner’s curse.</strong> The maximum over 6,720 noisy scores is optimistic by construction; the observed winning margin over the plateau mean is no larger than <code>σ·√(2 ln N)</code>, the gap expected from noise alone.</p></li>
 <li><p><strong>Near-miss confirms it, and locates the real difficulty (§6).</strong> On the ±1 metric the top models score ~96–98%, so the noise floor shrinks to ~0.3 pp and the plateau is even less rankable; the winner’s curse persists (the CV-best-near-miss model is ~200th on test near-miss). Because almost every error is to an <em>adjacent</em> score, the ceiling the CNNs hit is specifically about separating <strong>neighbouring</strong> severities — the coarse task (present vs absent) is essentially solved.</p></li>
 <li><p><strong>What to do instead.</strong></p>
 <ol type="1">
@@ -637,14 +645,14 @@ corr(CV near-miss, test near-miss) within top-500 by avg_vaf: +0.33</code></pre>
 <li><em>Prefer more stable selection signals</em> — e.g.&nbsp;quadratic-weighted kappa / near-miss, or repeated CV with different seeds to expose rank instability.</li>
 <li><em>Do not over-invest in the exact winning hyperparameters;</em> which hyperparameter <em>regions</em> populate the plateau is the reproducible question — pursued in <code>analyses/09_hyperparameter_importance</code>.</li>
 </ol></li>
-<li><p><strong>The plateau itself is the real headline.</strong> 8,640 CNNs saturating at ~62–63% means CNN hyperparameter tuning has <strong>hit a ceiling set by the data and task, not the configuration.</strong> Further gains must come from elsewhere — a different model class (the Vision Transformer sweep), augmentation, or ensembling — not from more CNN grid search. (Consistent with the ViTs so far landing at the same values.)</p></li>
+<li><p><strong>The plateau itself is the real headline.</strong> 6,720 CNN settings saturating at ~62–63% means CNN hyperparameter tuning has <strong>hit a ceiling set by the data and task, not the configuration.</strong> Further gains must come from elsewhere — a different model class (the Vision Transformer sweep), augmentation, or ensembling — not from more CNN grid search. (Consistent with the ViTs so far landing at the same values.)</p></li>
 <li><p><strong>Caveat.</strong> <code>avg_vaf</code> is treated as a single pooled accuracy over <code>N_CV</code>; the true variance also includes training stochasticity (init, SGD, early stopping), which only <em>widens</em> the noise floor. The conclusion is therefore conservative.</p></li>
 </ul>
 <pre><code>
 
 ## Thesis figures
 
-::: {#be5e7b05 .cell execution_count=18}
+::: {#9d508d99 .cell execution_count=18}
 ``` {.python .cell-code}
 # T1  Test against validation accuracy, zoomed to where the decision is made.
 from pathlib import Path as _P
@@ -653,11 +661,12 @@ _tp = _P("thesis_plots"); _tp.mkdir(exist_ok=True)
 _se = np.sqrt(0.65 * 0.35 / 2289)
 _d = df.dropna(subset=["avg_vaf", "test_acc"])
 _tied = _d[_d.avg_vaf &gt;= _d.avg_vaf.max() - _se]
-# 0.58 on both axes keeps 1,017 of 8,640 configs and every one of the tied set, whose test
-# accuracies run 0.594-0.666. A 0.60 cut would clip tied configs, which are the point of the
-# figure; plotting all 8,640 buries them in the low-accuracy mass.
+# 0.58 on both axes keeps a minority of the 6,720 settings and every one of the tied set,
+# whose test accuracies run 0.594-0.666. A 0.60 cut would clip tied settings, which are the
+# point of the figure; plotting all 6,720 buries them in the low-accuracy mass.
 _LO = 0.58
 _v = _d[(_d.avg_vaf &gt;= _LO) &amp; (_d.test_acc &gt;= _LO)]
+print(f"{len(_v)} of {len(_d)} settings in view, {len(_tied)} of them tied")
 
 fig, _ax = plt.subplots(figsize=(6.0, 4.2))
 # The grey cloud is unlabelled: it is every other configuration in view, which the caption
@@ -675,42 +684,45 @@ fig.savefig(_tp / "tied_models_test_vs_val.png", dpi=300, bbox_inches="tight")
 plt.show()
 print(f"tied within 1 SE: {len(_tied)}; their test mean {_tied.test_acc.mean():.4f} "
       f"sd {_tied.test_acc.std():.4f}")</code></pre>
+<div class="cell-output cell-output-stdout">
+<pre><code>758 of 6720 settings in view, 17 of them tied</code></pre>
+</div>
 <div class="cell-output cell-output-display">
 <div>
 <figure class="figure">
-<p><img src="cnn_accuracy_noise_floor_files/figure-html/cell-19-output-1.png" width="653" height="463" class="figure-img"></p>
+<p><img src="cnn_accuracy_noise_floor_files/figure-html/cell-19-output-2.png" width="653" height="463" class="figure-img"></p>
 </figure>
 </div>
 </div>
 <div class="cell-output cell-output-stdout">
-<pre><code>tied within 1 SE: 22; their test mean 0.6231 sd 0.0197</code></pre>
+<pre><code>tied within 1 SE: 17; their test mean 0.6241 sd 0.0215</code></pre>
 </div>
 <p>:::</p>
-<div id="4f8c5b21" class="cell" data-execution_count="19">
+<div id="0405fd11" class="cell" data-execution_count="19">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="co"># T2  The current best model's own saved diagnostics, copied rather than regenerated so</span></span>
-<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="co"># they are byte-identical to what the search wrote.</span></span>
-<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>_best <span class="op">=</span> <span class="bu">int</span>(_d.sort_values(<span class="st">"avg_vaf"</span>, ascending<span class="op">=</span><span class="va">False</span>).iloc[<span class="dv">0</span>].model_id)</span>
-<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>_src <span class="op">=</span> _P(_glob.glob(<span class="ss">f"../../models/03_Medoid_CNN_RandomSearch/*/results/*_</span><span class="sc">{</span>_best<span class="sc">}</span><span class="ss">"</span>)[<span class="dv">0</span>])</span>
-<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _f, _out <span class="kw">in</span> [(<span class="st">"accuracies.png"</span>, <span class="st">"best_model_accuracies.png"</span>),</span>
-<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a>                 (<span class="st">"confusion_matrix.png"</span>, <span class="st">"best_model_confusion_matrix.png"</span>),</span>
-<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a>                 (<span class="st">"scatter_plot.png"</span>, <span class="st">"best_model_per_fold.png"</span>)]:</span>
-<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a>    _shutil.copy(_src <span class="op">/</span> _f, _tp <span class="op">/</span> _out)</span>
-<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a><span class="co"># The saved per-fold scatter is drawn on a wide canvas with a lot of empty margin, which</span></span>
-<span id="cb29-11"><a href="#cb29-11" aria-hidden="true" tabindex="-1"></a><span class="co"># wastes most of a thesis panel. Trim the uniform white border without touching the axes.</span></span>
-<span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> PIL <span class="im">import</span> Image <span class="im">as</span> _Image, ImageChops <span class="im">as</span> _ImageChops</span>
-<span id="cb29-13"><a href="#cb29-13" aria-hidden="true" tabindex="-1"></a>_pf <span class="op">=</span> _tp <span class="op">/</span> <span class="st">"best_model_per_fold.png"</span></span>
-<span id="cb29-14"><a href="#cb29-14" aria-hidden="true" tabindex="-1"></a>_im <span class="op">=</span> _Image.<span class="bu">open</span>(_pf).convert(<span class="st">"RGB"</span>)</span>
-<span id="cb29-15"><a href="#cb29-15" aria-hidden="true" tabindex="-1"></a>_bg <span class="op">=</span> _Image.new(<span class="st">"RGB"</span>, _im.size, (<span class="dv">255</span>, <span class="dv">255</span>, <span class="dv">255</span>))</span>
-<span id="cb29-16"><a href="#cb29-16" aria-hidden="true" tabindex="-1"></a>_bbox <span class="op">=</span> _ImageChops.difference(_im, _bg).getbbox()</span>
-<span id="cb29-17"><a href="#cb29-17" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> _bbox:</span>
-<span id="cb29-18"><a href="#cb29-18" aria-hidden="true" tabindex="-1"></a>    _pad <span class="op">=</span> <span class="dv">8</span></span>
-<span id="cb29-19"><a href="#cb29-19" aria-hidden="true" tabindex="-1"></a>    _im.crop((<span class="bu">max</span>(_bbox[<span class="dv">0</span>] <span class="op">-</span> _pad, <span class="dv">0</span>), <span class="bu">max</span>(_bbox[<span class="dv">1</span>] <span class="op">-</span> _pad, <span class="dv">0</span>),</span>
-<span id="cb29-20"><a href="#cb29-20" aria-hidden="true" tabindex="-1"></a>              <span class="bu">min</span>(_bbox[<span class="dv">2</span>] <span class="op">+</span> _pad, _im.width), <span class="bu">min</span>(_bbox[<span class="dv">3</span>] <span class="op">+</span> _pad, _im.height))).save(_pf)</span>
-<span id="cb29-21"><a href="#cb29-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"copied the saved artefacts for model </span><span class="sc">{</span>_best<span class="sc">}</span><span class="ss"> from </span><span class="sc">{</span>_src<span class="sc">.</span>name<span class="sc">}</span><span class="ss">; "</span></span>
-<span id="cb29-22"><a href="#cb29-22" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"per-fold scatter trimmed </span><span class="sc">{</span>_im<span class="sc">.</span>size<span class="sc">}</span><span class="ss"> -&gt; </span><span class="sc">{</span>_Image<span class="sc">.</span><span class="bu">open</span>(_pf)<span class="sc">.</span>size<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="co"># T2  The current best model's own saved diagnostics, copied rather than regenerated so</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="co"># they are byte-identical to what the search wrote.</span></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>_best <span class="op">=</span> <span class="bu">int</span>(_d.sort_values(<span class="st">"avg_vaf"</span>, ascending<span class="op">=</span><span class="va">False</span>).iloc[<span class="dv">0</span>].model_id)</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>_src <span class="op">=</span> _P(_glob.glob(<span class="ss">f"../../models/03_Medoid_CNN_RandomSearch/*/results/*_</span><span class="sc">{</span>_best<span class="sc">}</span><span class="ss">"</span>)[<span class="dv">0</span>])</span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _f, _out <span class="kw">in</span> [(<span class="st">"accuracies.png"</span>, <span class="st">"best_model_accuracies.png"</span>),</span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>                 (<span class="st">"confusion_matrix.png"</span>, <span class="st">"best_model_confusion_matrix.png"</span>),</span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>                 (<span class="st">"scatter_plot.png"</span>, <span class="st">"best_model_per_fold.png"</span>)]:</span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>    _shutil.copy(_src <span class="op">/</span> _f, _tp <span class="op">/</span> _out)</span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a><span class="co"># The saved per-fold scatter is drawn on a wide canvas with a lot of empty margin, which</span></span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a><span class="co"># wastes most of a thesis panel. Trim the uniform white border without touching the axes.</span></span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> PIL <span class="im">import</span> Image <span class="im">as</span> _Image, ImageChops <span class="im">as</span> _ImageChops</span>
+<span id="cb30-13"><a href="#cb30-13" aria-hidden="true" tabindex="-1"></a>_pf <span class="op">=</span> _tp <span class="op">/</span> <span class="st">"best_model_per_fold.png"</span></span>
+<span id="cb30-14"><a href="#cb30-14" aria-hidden="true" tabindex="-1"></a>_im <span class="op">=</span> _Image.<span class="bu">open</span>(_pf).convert(<span class="st">"RGB"</span>)</span>
+<span id="cb30-15"><a href="#cb30-15" aria-hidden="true" tabindex="-1"></a>_bg <span class="op">=</span> _Image.new(<span class="st">"RGB"</span>, _im.size, (<span class="dv">255</span>, <span class="dv">255</span>, <span class="dv">255</span>))</span>
+<span id="cb30-16"><a href="#cb30-16" aria-hidden="true" tabindex="-1"></a>_bbox <span class="op">=</span> _ImageChops.difference(_im, _bg).getbbox()</span>
+<span id="cb30-17"><a href="#cb30-17" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> _bbox:</span>
+<span id="cb30-18"><a href="#cb30-18" aria-hidden="true" tabindex="-1"></a>    _pad <span class="op">=</span> <span class="dv">8</span></span>
+<span id="cb30-19"><a href="#cb30-19" aria-hidden="true" tabindex="-1"></a>    _im.crop((<span class="bu">max</span>(_bbox[<span class="dv">0</span>] <span class="op">-</span> _pad, <span class="dv">0</span>), <span class="bu">max</span>(_bbox[<span class="dv">1</span>] <span class="op">-</span> _pad, <span class="dv">0</span>),</span>
+<span id="cb30-20"><a href="#cb30-20" aria-hidden="true" tabindex="-1"></a>              <span class="bu">min</span>(_bbox[<span class="dv">2</span>] <span class="op">+</span> _pad, _im.width), <span class="bu">min</span>(_bbox[<span class="dv">3</span>] <span class="op">+</span> _pad, _im.height))).save(_pf)</span>
+<span id="cb30-21"><a href="#cb30-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"copied the saved artefacts for model </span><span class="sc">{</span>_best<span class="sc">}</span><span class="ss"> from </span><span class="sc">{</span>_src<span class="sc">.</span>name<span class="sc">}</span><span class="ss">; "</span></span>
+<span id="cb30-22"><a href="#cb30-22" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"per-fold scatter trimmed </span><span class="sc">{</span>_im<span class="sc">.</span>size<span class="sc">}</span><span class="ss"> -&gt; </span><span class="sc">{</span>_Image<span class="sc">.</span><span class="bu">open</span>(_pf)<span class="sc">.</span>size<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
 <pre><code>copied the saved artefacts for model 3606 from 0.645702_3606; per-fold scatter trimmed (1000, 600) -&gt; (845, 524)</code></pre>

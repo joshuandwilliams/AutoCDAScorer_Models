@@ -150,7 +150,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">1. Setup</h2>
-<div id="b9d7b3e6" class="cell" data-execution_count="1">
+<div id="7578b839" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.1</span></span>
@@ -171,7 +171,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>warnings.filterwarnings(<span class="st">"ignore"</span>)</span>
 <span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>repo_root <span class="op">=</span> <span class="bu">next</span>(p <span class="cf">for</span> p <span class="kw">in</span> Path.cwd().parents <span class="cf">if</span> (p <span class="op">/</span> <span class="st">".git"</span>).exists())</span>
-<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>HERE <span class="op">=</span> repo_root <span class="op">/</span> <span class="st">"analyses"</span> <span class="op">/</span> <span class="st">"10_gan_diversity"</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>HERE <span class="op">=</span> repo_root <span class="op">/</span> <span class="st">"analyses"</span> <span class="op">/</span> <span class="st">"07_gan_diversity"</span></span>
 <span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>sys.path.insert(<span class="dv">0</span>, <span class="bu">str</span>(HERE))</span>
 <span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>sys.path.insert(<span class="dv">0</span>, <span class="bu">str</span>(repo_root <span class="op">/</span> <span class="st">"src"</span>))</span>
 <span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> base_dataset  <span class="co"># noqa: E402</span></span>
@@ -194,7 +194,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-39"><a href="#cb1-39" aria-hidden="true" tabindex="-1"></a>    <span class="st">"per-class counts differ; spread would not be comparable"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stderr">
-<pre><code>2026-09-10 13:06:28.103653: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+<pre><code>2026-09-14 16:47:58.133177: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
 To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.</code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
@@ -210,7 +210,7 @@ per class -- real [262, 262, 262, 262, 262, 262, 262], generated [262, 262, 262,
 <h2 class="anchored" data-anchor-id="diversity-are-generated-crops-narrower-than-real-ones">2. Diversity: are generated crops narrower than real ones?</h2>
 <p>Within-class spread is the mean pairwise Euclidean distance between crops of the same score. Between-class distance is the mean distance between class centroids. Their ratio is how separable the classes are: high means tight, well-separated clusters.</p>
 <p>Both sets have the same number of crops per class, so no part of this is a sample-size artefact.</p>
-<div id="8c46e58d" class="cell" data-execution_count="2">
+<div id="9831d6ee" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2.1</span></span>
@@ -257,7 +257,7 @@ diversity ratio (generated / real within-class spread): 1.842
      6 10.183  14.701000  1.444</code></pre>
 </div>
 </div>
-<div id="03e5364d" class="cell" data-execution_count="3">
+<div id="b0e18f8b" class="cell" data-execution_count="3">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2.2</span></span>
@@ -295,7 +295,7 @@ diversity ratio (generated / real within-class spread): 1.842
 <section id="memorisation" class="level2">
 <h2 class="anchored" data-anchor-id="memorisation">3. Memorisation</h2>
 <p>For each generated crop, the distance to its nearest <strong>real</strong> crop of the same class, benchmarked against how far real crops sit from each other. A memorising generator would show generated-to-real distances at or below the real-to-real baseline.</p>
-<div id="0a17858a" class="cell" data-execution_count="4">
+<div id="4047546c" class="cell" data-execution_count="4">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3.1</span></span>
@@ -371,7 +371,7 @@ mean generated-to-real / real-to-real: 1.88</code></pre>
 </tbody>
 </table>
 <p>Features are standardised inside the pipeline so the fit is not dominated by whichever activations happen to have the largest scale.</p>
-<div id="71c1aef2" class="cell" data-execution_count="5">
+<div id="d990a9ab" class="cell" data-execution_count="5">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.1</span></span>
@@ -398,15 +398,15 @@ mean generated-to-real / real-to-real: 1.88</code></pre>
 </details>
 <div class="cell-output cell-output-stdout">
 <pre><code>fitted on      tested on  accuracy
-     real      real (CV)    0.6385
+     real      real (CV)    0.6379
      real      generated    0.5185
-generated generated (CV)    0.7628
+generated generated (CV)    0.7622
 generated           real    0.5747
 
 chance = 0.1429</code></pre>
 </div>
 </div>
-<div id="84efad83" class="cell" data-execution_count="6">
+<div id="fef7478c" class="cell" data-execution_count="6">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.2</span></span>
@@ -442,7 +442,7 @@ chance = 0.1429</code></pre>
 <section id="where-do-the-generated-classes-sit" class="level2">
 <h2 class="anchored" data-anchor-id="where-do-the-generated-classes-sit">5. Where do the generated classes sit?</h2>
 <p>If the generator had learned the real severity scale, each generated class centroid would sit nearest its own real counterpart.</p>
-<div id="f12f5a63" class="cell" data-execution_count="7">
+<div id="5e33ae83" class="cell" data-execution_count="7">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 5.1</span></span>
@@ -482,7 +482,7 @@ for scale, the mean real within-class spread is 7.925</code></pre>
 <h3 class="anchored" data-anchor-id="does-the-port-work-and-are-the-channels-the-right-way-round">6.1 Does the port work, and are the channels the right way round?</h3>
 <p>Two things have to be checked before any comparison is worth reading. The port must reproduce Chapter 2’s published numbers, and the channel order must be right – these crops are BGR (<code>cv.imread</code>), where the R original was RGB, so a wrong <code>greenness</code> would silently invert the lesion.</p>
 <p>Chapter 2 reports two AUCs for separating score 0 from non-zero: <strong>0.944</strong> for greenness bimodality (<code>sep</code>) and <strong>0.451</strong>, no better than chance, for segmented lesion area (<code>frac_g_gt_r</code>). Both must come back.</p>
-<div id="57fa32ac" class="cell" data-execution_count="8">
+<div id="9335c46a" class="cell" data-execution_count="8">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6.1</span></span>
@@ -537,7 +537,7 @@ score
 <section id="diversity-and-separability-recomputed" class="level3">
 <h3 class="anchored" data-anchor-id="diversity-and-separability-recomputed">6.2 Diversity and separability, recomputed</h3>
 <p>The features are on wildly different scales (<code>sep</code> is a ratio in [0, 1], <code>mean_green</code> runs to 255), so distances need standardising first. The scaler is fitted on the <strong>real</strong> crops only and then applied to both, which is the exact analogue of using a real-trained CNN’s feature space – the real data defines the units, and generated crops are measured in them.</p>
-<div id="7ec78526" class="cell" data-execution_count="9">
+<div id="d2b25fd1" class="cell" data-execution_count="9">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6.2</span></span>
@@ -578,7 +578,7 @@ diversity ratio (generated / real within-class spread): 1.416
 <section id="which-features-does-the-generator-get-wrong" class="level3">
 <h3 class="anchored" data-anchor-id="which-features-does-the-generator-get-wrong">6.3 Which features does the generator get wrong?</h3>
 <p>This is the part the CNN space cannot do. Every feature here has a known meaning and a known direction, so a disagreement can be named rather than just measured. For each feature: how strongly does it track severity in real crops, and does it still do so in generated ones?</p>
-<div id="d74d5dd9" class="cell" data-execution_count="10">
+<div id="c5bb68b0" class="cell" data-execution_count="10">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6.3</span></span>
@@ -615,7 +615,7 @@ leaf_green_sd     0.589          0.479  -0.111
 features that carry real severity (|rho| &gt; 0.3) but point the WRONG WAY in generated crops: 0</code></pre>
 </div>
 </div>
-<div id="08f84855" class="cell" data-execution_count="11">
+<div id="16521067" class="cell" data-execution_count="11">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6.3b</span></span>
@@ -645,7 +645,7 @@ features that carry real severity (|rho| &gt; 0.3) but point the WRONG WAY in ge
 </section>
 <section id="the-probes-on-twelve-interpretable-numbers" class="level3">
 <h3 class="anchored" data-anchor-id="the-probes-on-twelve-interpretable-numbers">6.4 The probes, on twelve interpretable numbers</h3>
-<div id="3287bc5e" class="cell" data-execution_count="12">
+<div id="8098305a" class="cell" data-execution_count="12">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6.4</span></span>
@@ -664,9 +664,9 @@ features that carry real severity (|rho| &gt; 0.3) but point the WRONG WAY in ge
 </details>
 <div class="cell-output cell-output-stdout">
 <pre><code>fitted on      tested on  CNN space  Chapter 2 space
-     real      real (CV)     0.6385           0.6063
+     real      real (CV)     0.6379           0.6063
      real      generated     0.5185           0.4858
-generated generated (CV)     0.7628           0.6020
+generated generated (CV)     0.7622           0.6020
 generated           real     0.5747           0.5055
 
 chance = 0.1429</code></pre>
@@ -707,14 +707,14 @@ chance = 0.1429</code></pre>
 </tr>
 </tbody>
 </table>
-<p>For <strong>real</strong> crops all three rows agree at roughly 0.61-0.65. Twelve hand-crafted numbers, a linear read-out of a CNN’s penultimate layer, and 8,640 CNNs searched over a grid all land in the same place, which says the severity signal in real crops is essentially fully exposed and there is no hidden extra to find.</p>
+<p>For <strong>real</strong> crops all three rows agree at roughly 0.61-0.65. Twelve hand-crafted numbers, a linear read-out of a CNN’s penultimate layer, and a grid of 6,720 CNN settings all land in the same place, which says the severity signal in real crops is essentially fully exposed and there is no hidden extra to find.</p>
 <p>For <strong>generated</strong> crops the same three rows read 0.602, 0.763 and 0.9986. Roughly <strong>40 points of accuracy</strong> are available to a classifier that can invent its own features and are absent from both fixed representations – including one with no learned component anywhere in it. The Chapter 2 row is the strong version of the claim, because “the lens was fitted to real crops” is not available as an objection to Otsu thresholding and arithmetic means.</p>
 <p>That gap is the signature of a generator fingerprint. A conditional GAN’s discriminator only asks whether an image looks real <em>for its label</em>, so any consistent per-class marker satisfies the objective. A fresh classifier finds it immediately. Neither real crops nor any severity-related measurement carries it.</p>
 <p><strong>The generator did learn real severity cues, which section 6.3 shows directly and is the genuinely encouraging result.</strong> All twelve interpretable features still track severity in generated crops, and <strong>not one of them flips sign</strong>. The correlations weaken slightly and uniformly – lesion greenness from rho 0.83 to 0.72, within-lesion brightness spread from 0.79 to 0.63, greenness bimodality from 0.76 to 0.66 – which is a generator that renders the right cues slightly less crisply, not one that replaced them. Consistent with that, a probe fitted on generated crops scores 0.575 on real ones against 0.639 for a probe fitted on real crops (0.506 against 0.606 in the Chapter 2 space): <strong>85-90% of real-data legibility survives the transfer</strong> (0.900 and 0.835 of the respective real-to-real figures).</p>
 <p>So the generated crops are not junk. They carry real severity information <em>and</em> a shortcut that dominates whenever a classifier is free to use it. That distinction is what makes augmentation worth trying: mixing real and generated crops gives the classifier a reason not to take the shortcut, which training on generated data alone never did.</p>
 <p><strong>One concrete defect: the severity scale is displaced at the top end.</strong> Generated centroids for scores 0-3 and 6 sit nearest their own real counterparts, but <strong>score 4’s centroid is nearest real score 5, and score 5’s is nearest real score 6</strong>. The displacements (3.7 to 6.8) are comparable to the entire real within-class spread of 7.93. The generator systematically renders high-severity classes as more severe than the real scale does. If generated crops are used for augmentation, the top classes are the ones to watch.</p>
 <p><strong>What this means for the 512-config run.</strong> None of the metrics currently recorded would detect any of this. The Frechet distance is blind to memorisation, says nothing about within-class structure, and cannot distinguish a generator that encodes severity the way real crops do from one that invents a marker – so selecting on it selects for the wrong thing. The acceptance test for a useful generator is instead the transfer probe: <strong>fit a logistic regression on generated crops, score it on real ones, and require it to approach the real-to-real figure (0.639 in CNN features, 0.606 in Chapter 2 features).</strong> That is one cheap number per generator and it measures the thing that actually matters, which is whether the generated crops encode severity the way real crops do.</p>
-<p><strong>What is still open.</strong> The shortcut has been shown to exist and to be invisible to both feature spaces, but it has not been <em>identified</em> – nothing here says what the per-class marker physically is. The natural next step is adversarial: train a small classifier on generated crops, then attribute its predictions with the Grad-CAM and SHAP machinery already built in <code>analyses/06_cnn_attention_vs_lesion</code>. If the attribution lands away from the lesion, that localises the fingerprint and would make it fixable.</p>
+<p><strong>What is still open.</strong> The shortcut has been shown to exist and to be invisible to both feature spaces, but it has not been <em>identified</em> – nothing here says what the per-class marker physically is. The natural next step is adversarial: train a small classifier on generated crops, then attribute its predictions with the Grad-CAM and SHAP machinery already built in <code>analyses/12_cnn_attention_vs_lesion</code>. If the attribution lands away from the lesion, that localises the fingerprint and would make it fixable.</p>
 </section>
 
 </main>

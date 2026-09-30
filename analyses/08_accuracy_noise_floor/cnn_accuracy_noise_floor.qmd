@@ -13,7 +13,8 @@ Date: 18/07/2026
 
 **Goal:**
 
-The Medoid-CNN grid search trained 8,640 CNNs on the medoid_64 dataset and ranked them
+The Medoid-CNN grid search trained 8,640 CNNs covering 6,720 distinct settings on the
+medoid_64 dataset and ranked them
 by mean cross-validation accuracy (`avg_vaf`). The top 100 all land in a narrow
 band (~61–63%). This asks whether the single "best" model is *reproducibly* the
 best, or whether picking the rank-1 config is essentially selecting on measurement
@@ -46,6 +47,7 @@ it is noise, it will not.
 # 1.1
 import glob
 import math
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -57,11 +59,18 @@ plt.rcParams.update({"figure.dpi": 120, "axes.grid": True,
                      "grid.alpha": 0.25, "axes.axisbelow": True})
 ```
 
-### 1.2 Load the full 8,640-model results table
+### 1.2 Load the grid and collapse it to its distinct settings
 
 The shared `random_search_results.csv` holds one row per trained config; a few
 tasks' rows may still sit in `parts/` un-merged, so both are concatenated and
 de-duplicated on `model_id` to recover the complete grid.
+
+The grid crosses `reg = None` with all three `reg_strength` values, and `reg_strength`
+has no effect without a regulariser, so 1,920 of the 8,640 runs repeat a setting the
+grid already contains. `grid_results.deduplicate` keeps each setting's best-scoring run,
+leaving 6,720 distinct settings. Everything below is measured on those. Without this a
+tied set counts one setting up to three times, and any mean over it is weighted towards
+whichever settings happened to be trained three times.
 
 ```{python}
 # 1.2
@@ -72,13 +81,18 @@ def find_repo_root(start: Path) -> Path:
     raise FileNotFoundError("repo root not found")
 
 ROOT = find_repo_root(Path.cwd())
+sys.path.append(str(ROOT / "src"))
+from grid_results import deduplicate  # noqa: E402
+
 CNN_DIR = ROOT / "models" / "03_Medoid_CNN_RandomSearch" / "01_Categorical_Loss"
 
 frames = [pd.read_csv(CNN_DIR / "random_search_results.csv")]
 frames += [pd.read_csv(p) for p in glob.glob(str(CNN_DIR / "parts" / "*.csv"))]
-df = pd.concat(frames, ignore_index=True).drop_duplicates("model_id").reset_index(drop=True)
-print(f"Loaded {len(df)} unique models "
+runs = pd.concat(frames, ignore_index=True).drop_duplicates("model_id").reset_index(drop=True)
+df = deduplicate(runs).reset_index(drop=True)
+print(f"Loaded {len(runs)} trained runs "
       f"({len(frames) - 1} un-merged part file(s) folded in).")
+print(f"Collapsed to {len(df)} distinct settings ({len(runs) - len(df)} repeats dropped).")
 ```
 
 ### 1.3 The dataset sets the noise floor
@@ -113,7 +127,7 @@ print(f"top-100 band: {top100_min:.4f} .. {p_max:.4f}  "
 ```
 
 ```{python}
-#| fig-cap: "Distribution of mean CV accuracy across all 8,640 CNNs. The top-100 band is a thin sliver at the right edge; the shaded strip is ±1 standard error of a single accuracy measurement (§3)."
+#| fig-cap: "Distribution of mean CV accuracy across all 6,720 CNN settings. The top-100 band is a thin sliver at the right edge; the shaded strip is ±1 standard error of a single accuracy measurement (§3)."
 # 2.2
 se_cv = math.sqrt(p_max * (1 - p_max) / N_CV)
 
@@ -127,7 +141,7 @@ ax.axvspan(p_max - se_cv, p_max + se_cv, color="red", alpha=0.25,
            label=f"±1 SE noise ({100*se_cv:.2f} pp)")
 ax.set_xlabel("Mean CV accuracy (avg_vaf)")
 ax.set_ylabel("Number of models")
-ax.set_title("8,640 CNNs: performance saturates into a narrow top plateau")
+ax.set_title("6,720 CNN settings: performance saturates into a narrow top plateau")
 ax.legend(fontsize=9)
 plt.tight_layout()
 plt.show()
@@ -328,7 +342,7 @@ constant — which is exactly why it cannot rank the plateau any better than exa
 accuracy can.
 
 ```{python}
-#| fig-cap: "Exact vs near-miss accuracy across all 8,640 models. Near-miss rises steeply with exact accuracy but saturates near 1.0, so the top exact-accuracy cluster (orange) is compressed into a nearly flat near-miss band — the two metrics co-rank models only where accuracy is low."
+#| fig-cap: "Exact vs near-miss accuracy across all 6,720 CNN settings. Near-miss rises steeply with exact accuracy but saturates near 1.0, so the top exact-accuracy cluster (orange) is compressed into a nearly flat near-miss band — the two metrics co-rank models only where accuracy is low."
 # 6.2
 r_en = np.corrcoef(df["avg_vaf"], df["avg_val_nearmiss"])[0, 1]
 top100 = df.nlargest(100, "avg_vaf")
@@ -388,12 +402,12 @@ for k in (100, 500):
 - **The held-out test set proves it.** The CV-best model does *not* transfer: it
   ranks in the low hundreds on the independent test split, not first, and among the
   top ~100–250 configs CV accuracy and test accuracy are essentially **uncorrelated
-  (r ≈ 0)**. The strong overall correlation (r ≈ 0.9 across all 8,640) confirms the
+  (r ≈ 0)**. The strong overall correlation (r ≈ 0.9 across all 6,720) confirms the
   method is sound — hyperparameters genuinely move accuracy across the full range —
   but that signal is exhausted before the plateau. So the answer to the title is
   **yes: at the top, the "best model" is basically luck.**
 
-- **This is the winner's curse.** The maximum over 8,640 noisy scores is optimistic
+- **This is the winner's curse.** The maximum over 6,720 noisy scores is optimistic
   by construction; the observed winning margin over the plateau mean is no larger
   than `σ·√(2 ln N)`, the gap expected from noise alone.
 
@@ -415,7 +429,7 @@ for k in (100, 500):
      *regions* populate the plateau is the reproducible question — pursued in
      `analyses/09_hyperparameter_importance`.
 
-- **The plateau itself is the real headline.** 8,640 CNNs saturating at ~62–63%
+- **The plateau itself is the real headline.** 6,720 CNN settings saturating at ~62–63%
   means CNN hyperparameter tuning has **hit a ceiling set by the data and task, not
   the configuration.** Further gains must come from elsewhere — a different model
   class (the Vision Transformer sweep), augmentation, or ensembling — not from more
@@ -437,11 +451,12 @@ _tp = _P("thesis_plots"); _tp.mkdir(exist_ok=True)
 _se = np.sqrt(0.65 * 0.35 / 2289)
 _d = df.dropna(subset=["avg_vaf", "test_acc"])
 _tied = _d[_d.avg_vaf >= _d.avg_vaf.max() - _se]
-# 0.58 on both axes keeps 1,017 of 8,640 configs and every one of the tied set, whose test
-# accuracies run 0.594-0.666. A 0.60 cut would clip tied configs, which are the point of the
-# figure; plotting all 8,640 buries them in the low-accuracy mass.
+# 0.58 on both axes keeps a minority of the 6,720 settings and every one of the tied set,
+# whose test accuracies run 0.594-0.666. A 0.60 cut would clip tied settings, which are the
+# point of the figure; plotting all 6,720 buries them in the low-accuracy mass.
 _LO = 0.58
 _v = _d[(_d.avg_vaf >= _LO) & (_d.test_acc >= _LO)]
+print(f"{len(_v)} of {len(_d)} settings in view, {len(_tied)} of them tied")
 
 fig, _ax = plt.subplots(figsize=(6.0, 4.2))
 # The grey cloud is unlabelled: it is every other configuration in view, which the caption

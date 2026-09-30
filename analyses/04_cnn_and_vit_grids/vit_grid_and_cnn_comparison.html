@@ -140,22 +140,22 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="gohrep" class="level2">
 <h2 class="anchored" data-anchor-id="gohrep">GOHREP</h2>
 <p><strong>Goal:</strong></p>
-<p>Analyse the completed Medoid-ViT grid search (2,592 configs, 5-fold CV) on the same footing as <code>analyses/03</code> and <code>analyses/04</code> did for the CNN grid, and then compare the two model classes. Four questions: (1) did the search actually complete and are the numbers trustworthy; (2) is the top of the ViT grid a rankable ordering or a noise plateau, as it was for the CNNs; (3) which hyperparameters move accuracy, and in particular <strong>did the axes added to this grid earn their cost</strong>; (4) how does the best ViT compare with the best CNN, and what can and cannot be concluded from that comparison.</p>
+<p>Analyse the completed Medoid-ViT grid search (2,592 configs, 5-fold CV) on the same footing as <code>analyses/08</code> and <code>analyses/09</code> did for the CNN grid, and then compare the two model classes. Four questions: (1) did the search actually complete and are the numbers trustworthy; (2) is the top of the ViT grid a rankable ordering or a noise plateau, as it was for the CNNs; (3) which hyperparameters move accuracy, and in particular <strong>did the axes added to this grid earn their cost</strong>; (4) how does the best ViT compare with the best CNN, and what can and cannot be concluded from that comparison.</p>
 <p><strong>Hypotheses:</strong></p>
 <ol type="1">
-<li>The ViT grid will show the same noise plateau as the CNN grid. <code>analyses/03</code> found ~210 CNN configs statistically tied at the top and CV-to-test correlation collapsing from 0.89 to 0.04 within the top 100. Nothing about swapping the architecture should change the measurement noise, which is set by the size of the evaluation set.</li>
-<li>Learning rate will dominate, as it did for the CNNs (<code>analyses/04</code>: mean |SHAP| for learning rate was ~29x that of dropout).</li>
+<li>The ViT grid will show the same noise plateau as the CNN grid. The CNN grid has 88 of its 6,720 settings not significantly worse than the best at 5%, and CV-to-test correlation collapsing from 0.89 to 0.04 within the top 100. Nothing about swapping the architecture should change the measurement noise, which is set by the size of the evaluation set.</li>
+<li>Learning rate will dominate, as it did for the CNNs (<code>analyses/09</code>: mean |SHAP| for learning rate was ~33x that of dropout).</li>
 <li>The two capacity axes this grid added — <code>projection_dim</code> 256 and <code>mlp_ratio</code> 4 — will not pay for themselves. They were added because a single pilot config with <code>projection_dim</code> 128 scored best, which is a sample of one.</li>
-<li>The best ViT and the best CNN will land within noise of each other, consistent with <code>analyses/03</code>’s conclusion that ~62-65% is a ceiling set by label noise rather than by architecture.</li>
+<li>The best ViT and the best CNN will land within noise of each other, consistent with <code>analyses/08</code>’s conclusion that ~62-65% is a ceiling set by label noise rather than by architecture.</li>
 </ol>
 <p><strong>Rationale:</strong></p>
-<p>A grid search produces two things: a best model, and a dataset of 2,592 (hyperparameters → accuracy) observations. <code>analyses/03</code> showed the first is largely noise, which makes the second the more valuable output. Treating the grid as data is also the only way to answer whether the grid was <em>well designed</em> — a question that matters here because this grid’s shape was chosen partly on the basis of one pilot run, and that reasoning deserves auditing against 2,592 results.</p>
+<p>A grid search produces two things: a best model, and a dataset of 2,592 (hyperparameters → accuracy) observations. <code>analyses/08</code> showed the first is largely noise, which makes the second the more valuable output. Treating the grid as data is also the only way to answer whether the grid was <em>well designed</em> — a question that matters here because this grid’s shape was chosen partly on the basis of one pilot run, and that reasoning deserves auditing against 2,592 results.</p>
 <p>The CNN/ViT comparison is <strong>matched</strong>: <code>models/03_Medoid_CNN_RandomSearch</code> and <code>models/04_Medoid_ViT_RandomSearch</code> both ran the same 5-fold CV harness, with the same <code>cv_seed</code>, on the same <code>medoid_64</code> dataset. Nothing differs but the architecture and its hyperparameter grid, so a difference here is attributable to the model class rather than to the crop.</p>
 <p><strong>Experimental plan:</strong></p>
 <ol type="1">
 <li>Validate: every grid index present exactly once, and a saved model reproducing its recorded test accuracy.</li>
-<li>Distributions, then the noise-floor treatment of <code>analyses/03</code> applied to the ViT grid.</li>
-<li>A random-forest surrogate over the hyperparameters, as in <code>analyses/04</code>, plus explicit per-axis marginals with confidence intervals.</li>
+<li>Distributions, then the noise-floor treatment of <code>analyses/08</code> applied to the ViT grid.</li>
+<li>A random-forest surrogate over the hyperparameters, as in <code>analyses/09</code>, plus explicit per-axis marginals with confidence intervals.</li>
 <li>A direct audit of the three grid-design decisions, and a costing of what a corrected grid would have been.</li>
 <li>CNN versus ViT, matched on the same dataset, splits and CV seed.</li>
 </ol>
@@ -165,7 +165,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="setup-and-validation">1. Setup and validation</h2>
 <section id="packages" class="level3">
 <h3 class="anchored" data-anchor-id="packages">1.1 Packages</h3>
-<div id="bb3673ae" class="cell" data-execution_count="1">
+<div id="255c227b" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.1</span></span>
@@ -177,23 +177,26 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.patches <span class="im">as</span> mpatches</span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.stats <span class="im">import</span> norm <span class="im">as</span> normal_dist</span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>warnings.filterwarnings(<span class="st">"ignore"</span>)</span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>repo_root <span class="op">=</span> <span class="bu">next</span>(p <span class="cf">for</span> p <span class="kw">in</span> Path.cwd().parents <span class="cf">if</span> (p <span class="op">/</span> <span class="st">".git"</span>).exists())</span>
-<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>sys.path.append(<span class="bu">str</span>(repo_root <span class="op">/</span> <span class="st">"src"</span>))</span>
-<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>plt.rcParams.update({<span class="st">"figure.dpi"</span>: <span class="dv">120</span>, <span class="st">"font.size"</span>: <span class="dv">9</span>})</span>
-<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>VIT <span class="op">=</span> repo_root <span class="op">/</span> <span class="st">"models/04_Medoid_ViT_RandomSearch/01_Categorical_Loss"</span></span>
-<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>CNN <span class="op">=</span> repo_root <span class="op">/</span> <span class="st">"models/03_Medoid_CNN_RandomSearch/01_Categorical_Loss"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.ticker <span class="im">as</span> mticker</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.stats <span class="im">import</span> norm <span class="im">as</span> normal_dist</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>warnings.filterwarnings(<span class="st">"ignore"</span>)</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>repo_root <span class="op">=</span> <span class="bu">next</span>(p <span class="cf">for</span> p <span class="kw">in</span> Path.cwd().parents <span class="cf">if</span> (p <span class="op">/</span> <span class="st">".git"</span>).exists())</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>sys.path.append(<span class="bu">str</span>(repo_root <span class="op">/</span> <span class="st">"src"</span>))</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> grid_results <span class="im">import</span> deduplicate  <span class="co"># noqa: E402</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>plt.rcParams.update({<span class="st">"figure.dpi"</span>: <span class="dv">120</span>, <span class="st">"font.size"</span>: <span class="dv">9</span>})</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>VIT <span class="op">=</span> repo_root <span class="op">/</span> <span class="st">"models/04_Medoid_ViT_RandomSearch/01_Categorical_Loss"</span></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>CNN <span class="op">=</span> repo_root <span class="op">/</span> <span class="st">"models/03_Medoid_CNN_RandomSearch/01_Categorical_Loss"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 </div>
 </section>
 <section id="load-both-grids-and-check-the-vit-grid-is-complete" class="level3">
 <h3 class="anchored" data-anchor-id="load-both-grids-and-check-the-vit-grid-is-complete">1.2 Load both grids, and check the ViT grid is complete</h3>
 <p>A self-scheduling grid can silently lose a config: <code>JobCounter.claim()</code> advances the shared counter <em>before</em> training, so a task killed mid-config leaves that index claimed and never trained, absent from the results with no error raised anywhere. That is exactly what the <code>--max_configs</code> clean-exit budget was added to prevent, so the first thing to check is whether it worked.</p>
-<div id="4326a5e8" class="cell" data-execution_count="2">
+<div id="336c2c4e" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.2</span></span>
@@ -225,9 +228,23 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> dupes <span class="op">==</span> <span class="dv">0</span>, <span class="st">"a config was trained more than once"</span></span>
 <span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Both grids complete; every config trained exactly once."</span>)</span>
 <span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>total_gpu_h <span class="op">=</span> vit.train_seconds.<span class="bu">sum</span>() <span class="op">/</span> <span class="dv">3600</span></span>
-<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">ViT search cost: </span><span class="sc">{</span>total_gpu_h<span class="sc">:.1f}</span><span class="ss"> GPU-hours "</span></span>
-<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"(</span><span class="sc">{</span>vit<span class="sc">.</span>train_seconds<span class="sc">.</span>mean()<span class="sc">:.0f}</span><span class="ss"> s per config, 5-fold CV)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a><span class="co"># The CNN grid crosses reg=None with all three reg_strength values, and reg_strength does</span></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a><span class="co"># nothing without a regulariser, so 1,920 of its 8,640 rows repeat a setting already in</span></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a><span class="co"># the grid. Everything below treats the grid as its 6,720 distinct settings, keeping each</span></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a><span class="co"># setting's best-scoring run. The ViT grid is built as two sub-grids and needs no such</span></span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a><span class="co"># collapse, which the assert records.</span></span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>cnn_runs <span class="op">=</span> <span class="bu">len</span>(cnn)</span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a>cnn <span class="op">=</span> deduplicate(cnn)</span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a>vit_rows <span class="op">=</span> <span class="bu">len</span>(vit)</span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a>vit <span class="op">=</span> deduplicate(vit)</span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">len</span>(vit) <span class="op">==</span> vit_rows, <span class="st">"the ViT grid should contain no repeated settings"</span></span>
+<span id="cb2-40"><a href="#cb2-40" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"CNN grid : </span><span class="sc">{</span>cnn_runs<span class="sc">}</span><span class="ss"> runs -&gt; </span><span class="sc">{</span><span class="bu">len</span>(cnn)<span class="sc">}</span><span class="ss"> distinct settings "</span></span>
+<span id="cb2-41"><a href="#cb2-41" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"(</span><span class="sc">{</span>cnn_runs <span class="op">-</span> <span class="bu">len</span>(cnn)<span class="sc">}</span><span class="ss"> repeats dropped)"</span>)</span>
+<span id="cb2-42"><a href="#cb2-42" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"ViT grid : </span><span class="sc">{</span>vit_rows<span class="sc">}</span><span class="ss"> runs, all distinct settings"</span>)</span>
+<span id="cb2-43"><a href="#cb2-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-44"><a href="#cb2-44" aria-hidden="true" tabindex="-1"></a>total_gpu_h <span class="op">=</span> vit.train_seconds.<span class="bu">sum</span>() <span class="op">/</span> <span class="dv">3600</span></span>
+<span id="cb2-45"><a href="#cb2-45" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">ViT search cost: </span><span class="sc">{</span>total_gpu_h<span class="sc">:.1f}</span><span class="ss"> GPU-hours "</span></span>
+<span id="cb2-46"><a href="#cb2-46" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"(</span><span class="sc">{</span>vit<span class="sc">.</span>train_seconds<span class="sc">.</span>mean()<span class="sc">:.0f}</span><span class="ss"> s per config, 5-fold CV)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
 <pre><code>ViT grid : 2592 rows, 2592 unique ids, 0 un-merged part files
@@ -237,6 +254,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 CNN grid : 8640 rows, 8640 unique ids, 0 un-merged part files
 
 Both grids complete; every config trained exactly once.
+CNN grid : 8640 runs -&gt; 6720 distinct settings (1920 repeats dropped)
+ViT grid : 2592 runs, all distinct settings
 
 ViT search cost: 273.5 GPU-hours (380 s per config, 5-fold CV)</code></pre>
 </div>
@@ -245,7 +264,7 @@ ViT search cost: 273.5 GPU-hours (380 s per config, 5-fold CV)</code></pre>
 <section id="does-a-saved-model-reproduce-its-recorded-number" class="level3">
 <h3 class="anchored" data-anchor-id="does-a-saved-model-reproduce-its-recorded-number">1.3 Does a saved model reproduce its recorded number?</h3>
 <p>The CSV is written by the search harness. Re-scoring a saved model against the held-out test split independently checks that the recorded numbers describe the models that were actually saved.</p>
-<div id="a4bd6e12" class="cell" data-execution_count="3">
+<div id="84116811" class="cell" data-execution_count="3">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.3</span></span>
@@ -281,15 +300,15 @@ ViT search cost: 273.5 GPU-hours (380 s per config, 5-fold CV)</code></pre>
 <span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">saved models in results/: </span><span class="sc">{</span>kept<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stderr">
-<pre><code>2026-09-12 13:54:30.980808: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+<pre><code>2026-09-14 20:40:11.921362: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
 To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
 WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
-I0000 00:00:1789217679.793624 13238117 service.cc:145] XLA service 0x600003aa3200 initialized for platform Host (this does not guarantee that XLA will be used). Devices:
-I0000 00:00:1789217679.794779 13238117 service.cc:153]   StreamExecutor device (0): Host, Default Version
-2026-09-12 13:54:39.796429: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+I0000 00:00:1789414826.654518 16731729 service.cc:145] XLA service 0x6000013b7600 initialized for platform Host (this does not guarantee that XLA will be used). Devices:
+I0000 00:00:1789414826.655777 16731729 service.cc:153]   StreamExecutor device (0): Host, Default Version
+2026-09-14 20:40:26.657966: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
 To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
-2026-09-12 13:54:39.919656: I tensorflow/compiler/mlir/tensorflow/utils/dump_mlir_util.cc:268] disabling MLIR crash reproducer, set env var `MLIR_CRASH_REPRODUCER_DIRECTORY` to enable.
-I0000 00:00:1789217681.899936 13238117 device_compiler.h:188] Compiled cluster using XLA!  This line is logged at most once for the lifetime of the process.</code></pre>
+2026-09-14 20:40:26.777650: I tensorflow/compiler/mlir/tensorflow/utils/dump_mlir_util.cc:268] disabling MLIR crash reproducer, set env var `MLIR_CRASH_REPRODUCER_DIRECTORY` to enable.
+I0000 00:00:1789414829.016489 16731729 device_compiler.h:188] Compiled cluster using XLA!  This line is logged at most once for the lifetime of the process.</code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
 <pre><code>best ViT (model_id 1426, 0.646573_1426)
@@ -305,7 +324,7 @@ saved models in results/: 100</code></pre>
 </section>
 <section id="what-the-grid-produced" class="level2">
 <h2 class="anchored" data-anchor-id="what-the-grid-produced">2. What the grid produced</h2>
-<div id="d28f1d97" class="cell" data-execution_count="4">
+<div id="5492691f" class="cell" data-execution_count="4">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2.1</span></span>
@@ -366,8 +385,8 @@ learning_rate
 </section>
 <section id="is-the-top-of-the-vit-grid-rankable-or-a-noise-plateau" class="level2">
 <h2 class="anchored" data-anchor-id="is-the-top-of-the-vit-grid-rankable-or-a-noise-plateau">3. Is the top of the ViT grid rankable, or a noise plateau?</h2>
-<p><code>analyses/03</code> established the method for the CNN grid. <code>avg_vaf</code> is the mean accuracy over 5 folds, and because each pooled image appears in validation exactly once, it is effectively one accuracy measured over all <strong>N = 2,289</strong> train+val images. The standard error of such a proportion is <code>sqrt(p(1-p)/N)</code>, and the standard error of the <em>difference</em> between two configs is <code>sqrt(2)</code> times that.</p>
-<div id="3f381471" class="cell" data-execution_count="5">
+<p><code>analyses/08</code> established the method for the CNN grid. <code>avg_vaf</code> is the mean accuracy over 5 folds, and because each pooled image appears in validation exactly once, it is effectively one accuracy measured over all <strong>N = 2,289</strong> train+val images. The standard error of such a proportion is <code>sqrt(p(1-p)/N)</code>, and the standard error of the <em>difference</em> between two configs is <code>sqrt(2)</code> times that.</p>
+<div id="9aa44069" class="cell" data-execution_count="5">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3.1</span></span>
@@ -405,11 +424,11 @@ configs NOT significantly worse than the best at 5%: 351
 configs NOT significantly worse than the best at 1%: 658</code></pre>
 </div>
 </div>
-<p>This count is <strong>conservative</strong>: all configs share the same CV folds (<code>cv_seed</code> is fixed at 42 across every task), so their errors are positively correlated and the true difference-SE is smaller than the independent-proportions value used here. It also ignores training stochasticity. <code>analyses/04</code> measured that separately on the CNN grid, where 960 triples of functionally identical configs gave a median within-triple SD of 1.00 pp — the same magnitude as the sampling SE above.</p>
+<p>This count is <strong>conservative</strong>: all configs share the same CV folds (<code>cv_seed</code> is fixed at 42 across every task), so their errors are positively correlated and the true difference-SE is smaller than the independent-proportions value used here. It also ignores training stochasticity. The CNN grid measures that directly: its 960 triples of functionally identical configs, dropped in section 1.2, give a median within-triple SD of 1.10 pp on CV and 1.97 pp on test, the same magnitude as the sampling SE above.</p>
 <section id="the-winners-curse-measured" class="level3">
 <h3 class="anchored" data-anchor-id="the-winners-curse-measured">3.2 The winner’s curse, measured</h3>
 <p>If the CV ranking carried real information at the top, the CV winner should also do well on the held-out test set, which took no part in selection.</p>
-<div id="1427b5b9" class="cell" data-execution_count="6">
+<div id="02ee5e5e" class="cell" data-execution_count="6">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3.2</span></span>
@@ -448,7 +467,7 @@ top-1000 1000                   0.2467         0.6151
 <section id="extreme-value-check" class="level3">
 <h3 class="anchored" data-anchor-id="extreme-value-check">3.3 Extreme-value check</h3>
 <p>Over <code>M</code> noisy configs the largest observed value exceeds the true mean by roughly <code>sigma * sqrt(2 ln M)</code> through selection alone. If the winner’s margin is smaller than that, it is within what noise produces without any config being genuinely better.</p>
-<div id="0e3af6d8" class="cell" data-execution_count="7">
+<div id="d881f62a" class="cell" data-execution_count="7">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3.3</span></span>
@@ -478,8 +497,8 @@ expected max-above-mean from noise over 2592 configs: 2.47 pp
 <h2 class="anchored" data-anchor-id="which-hyperparameters-matter">4. Which hyperparameters matter</h2>
 <section id="a-surrogate-model-over-the-grid" class="level3">
 <h3 class="anchored" data-anchor-id="a-surrogate-model-over-the-grid">4.1 A surrogate model over the grid</h3>
-<p>Same method as <code>analyses/04</code>: fit a random forest mapping hyperparameters to <code>avg_vaf</code> and report honest out-of-bag R². Constant columns carry no information and are dropped.</p>
-<div id="c4c11bab" class="cell" data-execution_count="8">
+<p>Same method as <code>analyses/09</code>: fit a random forest mapping hyperparameters to <code>avg_vaf</code> and report honest out-of-bag R². Constant columns carry no information and are dropped.</p>
+<div id="87f2d45f" class="cell" data-execution_count="8">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.1</span></span>
@@ -542,7 +561,7 @@ reg_None                  0.0012</code></pre>
 </section>
 <section id="does-the-signal-survive-inside-the-plateau" class="level3">
 <h3 class="anchored" data-anchor-id="does-the-signal-survive-inside-the-plateau">4.2 Does the signal survive inside the plateau?</h3>
-<div id="155447a7" class="cell" data-execution_count="9">
+<div id="470efa47" class="cell" data-execution_count="9">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.2</span></span>
@@ -573,7 +592,7 @@ top-1000 1000    0.463
 <section id="per-axis-marginals-with-uncertainty" class="level3">
 <h3 class="anchored" data-anchor-id="per-axis-marginals-with-uncertainty">4.3 Per-axis marginals, with uncertainty</h3>
 <p>Gini importance says an axis matters but not which value to choose. The marginal mean of <code>avg_vaf</code> at each level, with a 95% CI on the mean, says that directly. The CI is what separates a real level difference from grid noise.</p>
-<div id="5be9cbd5" class="cell" data-execution_count="10">
+<div id="cbc3d5a3" class="cell" data-execution_count="10">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.3</span></span>
@@ -608,9 +627,9 @@ top-1000 1000    0.463
 </section>
 <section id="auditing-the-grid-design" class="level2">
 <h2 class="anchored" data-anchor-id="auditing-the-grid-design">5. Auditing the grid design</h2>
-<p>This grid was not the obvious one. Three decisions were made before it ran, and 2,592 results are now available to judge them. Two of the three were made on the evidence of a <strong>single pilot config</strong>, which <code>analyses/03</code> is precisely the argument against.</p>
+<p>This grid was not the obvious one. Three decisions were made before it ran, and 2,592 results are now available to judge them. Two of the three were made on the evidence of a <strong>single pilot config</strong>, which <code>analyses/08</code> is precisely the argument against.</p>
 <p>Marginal means alone would be misleading here, because the levels are not balanced across the other axes in a way that guarantees comparability. Two views are reported: the marginal mean, and the share of the global top-100, which asks whether a level ever produces a competitive model.</p>
-<div id="ab3250c5" class="cell" data-execution_count="11">
+<div id="b436a8c1" class="cell" data-execution_count="11">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 5.1</span></span>
@@ -668,7 +687,7 @@ reg_strength
 </div>
 <section id="what-would-a-corrected-grid-have-cost" class="level3">
 <h3 class="anchored" data-anchor-id="what-would-a-corrected-grid-have-cost">5.2 What would a corrected grid have cost?</h3>
-<div id="b7812cf3" class="cell" data-execution_count="12">
+<div id="c5fa2b31" class="cell" data-execution_count="12">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 5.2</span></span>
@@ -720,7 +739,7 @@ difference                       : 0.0035 (0.25 difference-SE)</code></pre>
 <section id="vit-versus-cnn" class="level2">
 <h2 class="anchored" data-anchor-id="vit-versus-cnn">6. ViT versus CNN</h2>
 <p>Both grids ran the same harness, same <code>cv_seed</code>, same 5 folds, on the same <code>medoid_64</code> dataset. The comparison is therefore matched and any difference is attributable to the architecture and its grid, not to the data.</p>
-<div id="b6db0d51" class="cell" data-execution_count="13">
+<div id="47af838b" class="cell" data-execution_count="13">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6.1</span></span>
@@ -752,24 +771,24 @@ difference                       : 0.0035 (0.25 difference-SE)</code></pre>
 </details>
 <div class="cell-output cell-output-stdout">
 <pre><code>                                Medoid CNN (medoid_64)  Medoid ViT (medoid_64)
-configs trained                              8640.0000               2592.0000
+configs trained                              6720.0000               2592.0000
 best avg_vaf                                    0.6457                  0.6466
 best test_acc (any config)                      0.6818                  0.6818
 test_acc of the CV-best config                  0.6169                  0.6429
 best CV near-miss                               0.9782                  0.9847
 best test near-miss                             0.9903                  0.9903
-compute (core- or GPU-hours)                 1193.7541                273.4845
+compute (core- or GPU-hours)                  934.1805                273.4845
 
 best-avg_vaf gap (ViT - CNN) = +0.09 pp, against a difference-SE of 1.41 pp =&gt; 0.06 SE</code></pre>
 </div>
 </div>
-<div id="9c4d7d3b" class="cell" data-execution_count="14">
+<div id="6c610a2c" class="cell" data-execution_count="14">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6.2</span></span>
 <span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">11</span>, <span class="fl">3.8</span>))</span>
 <span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Proportion of each grid's own configurations per bin, not density and not counts: the</span></span>
-<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a><span class="co"># CNN grid has 8,640 configs against the ViT's 2,592, so counts are not comparable, and</span></span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a><span class="co"># CNN grid has 6,720 settings against the ViT's 2,592, so counts are not comparable, and</span></span>
 <span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a><span class="co"># density integrates to 1 over the x-axis rather than summing to 1 over the bars.</span></span>
 <span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>_cnn_v, _vit_v <span class="op">=</span> cnn.avg_vaf.dropna(), vit.avg_vaf.dropna()</span>
 <span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>_bins <span class="op">=</span> np.histogram_bin_edges(np.concatenate([_cnn_v, _vit_v]), bins<span class="op">=</span><span class="dv">60</span>)</span>
@@ -809,89 +828,143 @@ best-avg_vaf gap (ViT - CNN) = +0.09 pp, against a difference-SE of 1.41 pp =&gt
 </div>
 </div>
 </div>
-<div id="6e0899fa" class="cell" data-execution_count="15">
+<div id="d9285a40" class="cell" data-execution_count="15">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="co"># T1  Thesis figure: the same whole-grid distribution for exact and for near-miss</span></span>
-<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="co"># validation accuracy, stacked, with one legend for both.</span></span>
-<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>_HUMAN_EXACT, _HUMAN_NEAR <span class="op">=</span> <span class="fl">0.6892</span>, <span class="fl">0.9280</span>   <span class="co"># Chapter 2 Metric 3, corrected, 308 test CDAs</span></span>
-<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>_fig, _ax <span class="op">=</span> plt.subplots(<span class="dv">2</span>, <span class="dv">1</span>, figsize<span class="op">=</span>(<span class="fl">6.4</span>, <span class="fl">6.6</span>))</span>
-<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _k, (_col, _human, _xlab) <span class="kw">in</span> <span class="bu">enumerate</span>([</span>
-<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a>        (<span class="st">"avg_vaf"</span>, _HUMAN_EXACT, <span class="st">"Average Validation Accuracy across Folds"</span>),</span>
-<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a>        (<span class="st">"avg_val_nearmiss"</span>, _HUMAN_NEAR,</span>
-<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a>         <span class="st">"Average Validation Near-Miss Accuracy across Folds"</span>)]):</span>
-<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a>    _c, _v <span class="op">=</span> cnn[_col].dropna(), vit[_col].dropna()</span>
-<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a>    _b <span class="op">=</span> np.histogram_bin_edges(np.concatenate([_c, _v]), bins<span class="op">=</span><span class="dv">60</span>)</span>
-<span id="cb29-11"><a href="#cb29-11" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Proportion of each grid's own configurations per bin: the CNN grid has 8,640 configs</span></span>
-<span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a>    <span class="co"># against the ViT's 2,592, so raw counts are not comparable between the two.</span></span>
-<span id="cb29-13"><a href="#cb29-13" aria-hidden="true" tabindex="-1"></a>    _ax[_k].hist(_c, bins<span class="op">=</span>_b, alpha<span class="op">=</span><span class="fl">0.6</span>, color<span class="op">=</span><span class="st">"#4C72B0"</span>,</span>
-<span id="cb29-14"><a href="#cb29-14" aria-hidden="true" tabindex="-1"></a>                 weights<span class="op">=</span>np.full(<span class="bu">len</span>(_c), <span class="dv">1</span> <span class="op">/</span> <span class="bu">len</span>(_c)), label<span class="op">=</span><span class="ss">f"CNN (n=</span><span class="sc">{</span><span class="bu">len</span>(_c)<span class="sc">}</span><span class="ss">)"</span>)</span>
-<span id="cb29-15"><a href="#cb29-15" aria-hidden="true" tabindex="-1"></a>    _ax[_k].hist(_v, bins<span class="op">=</span>_b, alpha<span class="op">=</span><span class="fl">0.6</span>, color<span class="op">=</span><span class="st">"#DD8452"</span>,</span>
-<span id="cb29-16"><a href="#cb29-16" aria-hidden="true" tabindex="-1"></a>                 weights<span class="op">=</span>np.full(<span class="bu">len</span>(_v), <span class="dv">1</span> <span class="op">/</span> <span class="bu">len</span>(_v)), label<span class="op">=</span><span class="ss">f"ViT (n=</span><span class="sc">{</span><span class="bu">len</span>(_v)<span class="sc">}</span><span class="ss">)"</span>)</span>
-<span id="cb29-17"><a href="#cb29-17" aria-hidden="true" tabindex="-1"></a>    <span class="co"># No number in the label: the shared legend is built from panel A's handles, and the</span></span>
-<span id="cb29-18"><a href="#cb29-18" aria-hidden="true" tabindex="-1"></a>    <span class="co"># two panels mark different human values (0.6892 exact, 0.9280 near-miss). The value is</span></span>
-<span id="cb29-19"><a href="#cb29-19" aria-hidden="true" tabindex="-1"></a>    <span class="co"># annotated on each panel instead.</span></span>
-<span id="cb29-20"><a href="#cb29-20" aria-hidden="true" tabindex="-1"></a>    _ax[_k].axvline(_human, color<span class="op">=</span><span class="st">"#C44E52"</span>, ls<span class="op">=</span><span class="st">"--"</span>, lw<span class="op">=</span><span class="fl">1.3</span>, label<span class="op">=</span><span class="st">"Human raters"</span>)</span>
-<span id="cb29-21"><a href="#cb29-21" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Exact sits at 0.6892 with the grids to its left, so its label goes right of the line;</span></span>
-<span id="cb29-22"><a href="#cb29-22" aria-hidden="true" tabindex="-1"></a>    <span class="co"># near-miss sits at 0.9280 with mass to its right, so that one stays on the left.</span></span>
-<span id="cb29-23"><a href="#cb29-23" aria-hidden="true" tabindex="-1"></a>    _dx, _ha <span class="op">=</span> (<span class="dv">3</span>, <span class="st">"left"</span>) <span class="cf">if</span> _k <span class="op">==</span> <span class="dv">0</span> <span class="cf">else</span> (<span class="op">-</span><span class="dv">3</span>, <span class="st">"right"</span>)</span>
-<span id="cb29-24"><a href="#cb29-24" aria-hidden="true" tabindex="-1"></a>    _ax[_k].annotate(<span class="ss">f"</span><span class="sc">{</span>_human<span class="sc">:.4f}</span><span class="ss">"</span>, (_human, _ax[_k].get_ylim()[<span class="dv">1</span>]),</span>
-<span id="cb29-25"><a href="#cb29-25" aria-hidden="true" tabindex="-1"></a>                     xytext<span class="op">=</span>(_dx, <span class="op">-</span><span class="dv">3</span>), textcoords<span class="op">=</span><span class="st">"offset points"</span>, ha<span class="op">=</span>_ha, va<span class="op">=</span><span class="st">"top"</span>,</span>
-<span id="cb29-26"><a href="#cb29-26" aria-hidden="true" tabindex="-1"></a>                     fontsize<span class="op">=</span><span class="dv">8</span>, color<span class="op">=</span><span class="st">"#C44E52"</span>)</span>
-<span id="cb29-27"><a href="#cb29-27" aria-hidden="true" tabindex="-1"></a>    _ax[_k].set_xlabel(_xlab)</span>
-<span id="cb29-28"><a href="#cb29-28" aria-hidden="true" tabindex="-1"></a>    _ax[_k].set_ylabel(<span class="st">"Proportion of Configurations"</span>)</span>
-<span id="cb29-29"><a href="#cb29-29" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Both panels on the full 0-1 accuracy range, so the exact and near-miss distributions</span></span>
-<span id="cb29-30"><a href="#cb29-30" aria-hidden="true" tabindex="-1"></a>    <span class="co"># are read against the same scale rather than each against its own data range.</span></span>
-<span id="cb29-31"><a href="#cb29-31" aria-hidden="true" tabindex="-1"></a>    _ax[_k].set_xlim(<span class="dv">0</span>, <span class="dv">1</span>)</span>
-<span id="cb29-32"><a href="#cb29-32" aria-hidden="true" tabindex="-1"></a>    _ax[_k].spines[[<span class="st">"top"</span>, <span class="st">"right"</span>]].set_visible(<span class="va">False</span>)</span>
-<span id="cb29-33"><a href="#cb29-33" aria-hidden="true" tabindex="-1"></a><span class="co"># One legend for both panels, above them, so neither carries its own.</span></span>
-<span id="cb29-34"><a href="#cb29-34" aria-hidden="true" tabindex="-1"></a>_h, _l <span class="op">=</span> _ax[<span class="dv">0</span>].get_legend_handles_labels()</span>
-<span id="cb29-35"><a href="#cb29-35" aria-hidden="true" tabindex="-1"></a>_fig.legend(_h, _l, loc<span class="op">=</span><span class="st">"upper center"</span>, bbox_to_anchor<span class="op">=</span>(<span class="fl">0.5</span>, <span class="fl">1.0</span>), ncol<span class="op">=</span><span class="dv">3</span>,</span>
-<span id="cb29-36"><a href="#cb29-36" aria-hidden="true" tabindex="-1"></a>            frameon<span class="op">=</span><span class="va">False</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
-<span id="cb29-37"><a href="#cb29-37" aria-hidden="true" tabindex="-1"></a>_fig.tight_layout(rect<span class="op">=</span>(<span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="fl">0.955</span>))</span>
-<span id="cb29-38"><a href="#cb29-38" aria-hidden="true" tabindex="-1"></a>_fig.savefig(_tp <span class="op">/</span> <span class="st">"cnn_vit_accuracy_distributions.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
-<span id="cb29-39"><a href="#cb29-39" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb29-40"><a href="#cb29-40" aria-hidden="true" tabindex="-1"></a><span class="co"># The thesis assembler letters one image per panel, so each axis is also written on its own</span></span>
-<span id="cb29-41"><a href="#cb29-41" aria-hidden="true" tabindex="-1"></a><span class="co"># and the shared legend as a third strip placed beneath them.</span></span>
-<span id="cb29-42"><a href="#cb29-42" aria-hidden="true" tabindex="-1"></a>_fig.canvas.draw()</span>
-<span id="cb29-43"><a href="#cb29-43" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _n, _a <span class="kw">in</span> <span class="bu">zip</span>(<span class="st">"ab"</span>, _ax):</span>
-<span id="cb29-44"><a href="#cb29-44" aria-hidden="true" tabindex="-1"></a>    _bb <span class="op">=</span> _a.get_tightbbox(_fig.canvas.get_renderer()).transformed(</span>
-<span id="cb29-45"><a href="#cb29-45" aria-hidden="true" tabindex="-1"></a>        _fig.dpi_scale_trans.inverted())</span>
-<span id="cb29-46"><a href="#cb29-46" aria-hidden="true" tabindex="-1"></a>    _fig.savefig(_tp <span class="op">/</span> <span class="ss">f"cnn_vit_accuracy_distributions_</span><span class="sc">{</span>_n<span class="sc">}</span><span class="ss">.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span>_bb)</span>
-<span id="cb29-47"><a href="#cb29-47" aria-hidden="true" tabindex="-1"></a>_lf <span class="op">=</span> plt.figure(figsize<span class="op">=</span>(<span class="fl">6.4</span>, <span class="fl">0.32</span>))</span>
-<span id="cb29-48"><a href="#cb29-48" aria-hidden="true" tabindex="-1"></a>_lf.legend(_h, _l, loc<span class="op">=</span><span class="st">"center"</span>, ncol<span class="op">=</span><span class="dv">3</span>, frameon<span class="op">=</span><span class="va">False</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
-<span id="cb29-49"><a href="#cb29-49" aria-hidden="true" tabindex="-1"></a>_lf.savefig(_tp <span class="op">/</span> <span class="st">"cnn_vit_accuracy_distributions_legend.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
-<span id="cb29-50"><a href="#cb29-50" aria-hidden="true" tabindex="-1"></a>plt.close(_lf)</span>
-<span id="cb29-51"><a href="#cb29-51" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="co"># T1  Thesis figure: how cross-validation accuracy maps onto test accuracy, one panel per</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="co"># architecture.</span></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a><span class="co">#</span></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a><span class="co"># The ranking metric is on the x axis and the reported metric on the y axis, so the width</span></span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a><span class="co"># of the tie band and the height of the spread inside it are both readable. The shaded band</span></span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a><span class="co"># is one standard error of the best cross-validation accuracy, the interval the chapter</span></span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a><span class="co"># calls tied, and every setting inside it is drawn filled.</span></span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a><span class="co">#</span></span>
+<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a><span class="co"># A third panel holding the two grids' test-accuracy distributions was dropped: it is the y</span></span>
+<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a><span class="co"># marginal of these two panels and adds no data, and three stacked panels force the thesis</span></span>
+<span id="cb29-11"><a href="#cb29-11" aria-hidden="true" tabindex="-1"></a><span class="co"># figure down from 155 mm wide to 124 mm. The medians it carried are quoted in the text.</span></span>
+<span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a>_SE_CV <span class="op">=</span> <span class="kw">lambda</span> p, n<span class="op">=</span><span class="dv">2289</span>: <span class="bu">float</span>(np.sqrt(p <span class="op">*</span> (<span class="dv">1</span> <span class="op">-</span> p) <span class="op">/</span> n))</span>
+<span id="cb29-13"><a href="#cb29-13" aria-hidden="true" tabindex="-1"></a>_HUMAN_EXACT <span class="op">=</span> <span class="fl">0.6892</span>           <span class="co"># Chapter 2 Metric 3, corrected, the same 308 test CDAs</span></span>
+<span id="cb29-14"><a href="#cb29-14" aria-hidden="true" tabindex="-1"></a>_CNN_C, _VIT_C <span class="op">=</span> <span class="st">"#4C72B0"</span>, <span class="st">"#DD8452"</span></span>
+<span id="cb29-15"><a href="#cb29-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-16"><a href="#cb29-16" aria-hidden="true" tabindex="-1"></a><span class="co"># One shared range on both axes, so the two architectures are read against each other</span></span>
+<span id="cb29-17"><a href="#cb29-17" aria-hidden="true" tabindex="-1"></a><span class="co"># rather than each against its own spread. The limits sit just outside the union of the two</span></span>
+<span id="cb29-18"><a href="#cb29-18" aria-hidden="true" tabindex="-1"></a><span class="co"># grids, which run 13.41-64.66% on cross-validation and 9.74-68.18% on test, and the ticks</span></span>
+<span id="cb29-19"><a href="#cb29-19" aria-hidden="true" tabindex="-1"></a><span class="co"># run the full 10-70% so both ends of the axis are labelled.</span></span>
+<span id="cb29-20"><a href="#cb29-20" aria-hidden="true" tabindex="-1"></a>_XLIM, _YLIM <span class="op">=</span> (<span class="dv">10</span>, <span class="dv">70</span>), (<span class="dv">8</span>, <span class="dv">71</span>)</span>
+<span id="cb29-21"><a href="#cb29-21" aria-hidden="true" tabindex="-1"></a>_TICKS <span class="op">=</span> np.arange(<span class="dv">10</span>, <span class="dv">71</span>, <span class="dv">10</span>)</span>
+<span id="cb29-22"><a href="#cb29-22" aria-hidden="true" tabindex="-1"></a>_fig, _ax <span class="op">=</span> plt.subplots(<span class="dv">2</span>, <span class="dv">1</span>, figsize<span class="op">=</span>(<span class="fl">6.4</span>, <span class="fl">7.4</span>), sharex<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb29-23"><a href="#cb29-23" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _k, (_grid, _name, _col) <span class="kw">in</span> <span class="bu">enumerate</span>([(cnn, <span class="st">"CNN"</span>, _CNN_C), (vit, <span class="st">"ViT"</span>, _VIT_C)]):</span>
+<span id="cb29-24"><a href="#cb29-24" aria-hidden="true" tabindex="-1"></a>    _g <span class="op">=</span> _grid.dropna(subset<span class="op">=</span>[<span class="st">"avg_vaf"</span>, <span class="st">"test_acc"</span>])</span>
+<span id="cb29-25"><a href="#cb29-25" aria-hidden="true" tabindex="-1"></a>    _best <span class="op">=</span> _g.loc[_g.avg_vaf.idxmax()]</span>
+<span id="cb29-26"><a href="#cb29-26" aria-hidden="true" tabindex="-1"></a>    _se <span class="op">=</span> _SE_CV(_best.avg_vaf)</span>
+<span id="cb29-27"><a href="#cb29-27" aria-hidden="true" tabindex="-1"></a>    _tied <span class="op">=</span> _g[_g.avg_vaf <span class="op">&gt;=</span> _best.avg_vaf <span class="op">-</span> _se]</span>
+<span id="cb29-28"><a href="#cb29-28" aria-hidden="true" tabindex="-1"></a>    _a <span class="op">=</span> _ax[_k]</span>
+<span id="cb29-29"><a href="#cb29-29" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 6,720 settings overplot badly at full opacity, so the mass is drawn as open markers</span></span>
+<span id="cb29-30"><a href="#cb29-30" aria-hidden="true" tabindex="-1"></a>    <span class="co"># at low alpha and only the tied set is filled.</span></span>
+<span id="cb29-31"><a href="#cb29-31" aria-hidden="true" tabindex="-1"></a>    _a.scatter(<span class="dv">100</span> <span class="op">*</span> _g.avg_vaf, <span class="dv">100</span> <span class="op">*</span> _g.test_acc, s<span class="op">=</span><span class="dv">5</span>, facecolors<span class="op">=</span><span class="st">"none"</span>,</span>
+<span id="cb29-32"><a href="#cb29-32" aria-hidden="true" tabindex="-1"></a>               edgecolors<span class="op">=</span><span class="st">"0.55"</span>, linewidths<span class="op">=</span><span class="fl">0.3</span>, alpha<span class="op">=</span><span class="fl">0.35</span>, zorder<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb29-33"><a href="#cb29-33" aria-hidden="true" tabindex="-1"></a>    _a.axvspan(<span class="dv">100</span> <span class="op">*</span> (_best.avg_vaf <span class="op">-</span> _se), <span class="dv">100</span> <span class="op">*</span> _best.avg_vaf, color<span class="op">=</span>_col, alpha<span class="op">=</span><span class="fl">0.13</span>,</span>
+<span id="cb29-34"><a href="#cb29-34" aria-hidden="true" tabindex="-1"></a>               zorder<span class="op">=</span><span class="dv">0</span>, label<span class="op">=</span><span class="ss">f"Within 1 SE of the best (n=</span><span class="sc">{</span><span class="bu">len</span>(_tied)<span class="sc">}</span><span class="ss">)"</span>)</span>
+<span id="cb29-35"><a href="#cb29-35" aria-hidden="true" tabindex="-1"></a>    _a.scatter(<span class="dv">100</span> <span class="op">*</span> _tied.avg_vaf, <span class="dv">100</span> <span class="op">*</span> _tied.test_acc, s<span class="op">=</span><span class="dv">26</span>, color<span class="op">=</span>_col,</span>
+<span id="cb29-36"><a href="#cb29-36" aria-hidden="true" tabindex="-1"></a>               edgecolors<span class="op">=</span><span class="st">"white"</span>, linewidths<span class="op">=</span><span class="fl">0.4</span>, zorder<span class="op">=</span><span class="dv">3</span>)</span>
+<span id="cb29-37"><a href="#cb29-37" aria-hidden="true" tabindex="-1"></a>    _a.scatter([<span class="dv">100</span> <span class="op">*</span> _best.avg_vaf], [<span class="dv">100</span> <span class="op">*</span> _best.test_acc], s<span class="op">=</span><span class="dv">90</span>, marker<span class="op">=</span><span class="st">"D"</span>,</span>
+<span id="cb29-38"><a href="#cb29-38" aria-hidden="true" tabindex="-1"></a>               color<span class="op">=</span><span class="st">"#C44E52"</span>, edgecolors<span class="op">=</span><span class="st">"white"</span>, linewidths<span class="op">=</span><span class="fl">0.6</span>, zorder<span class="op">=</span><span class="dv">4</span>,</span>
+<span id="cb29-39"><a href="#cb29-39" aria-hidden="true" tabindex="-1"></a>               label<span class="op">=</span><span class="st">"Best cross-validation accuracy"</span>)</span>
+<span id="cb29-40"><a href="#cb29-40" aria-hidden="true" tabindex="-1"></a>    _a.axhline(<span class="dv">100</span> <span class="op">*</span> _HUMAN_EXACT, color<span class="op">=</span><span class="st">"#C44E52"</span>, ls<span class="op">=</span><span class="st">"--"</span>, lw<span class="op">=</span><span class="fl">1.2</span>, zorder<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb29-41"><a href="#cb29-41" aria-hidden="true" tabindex="-1"></a>               label<span class="op">=</span><span class="st">"Human rater corrected agreement"</span>)</span>
+<span id="cb29-42"><a href="#cb29-42" aria-hidden="true" tabindex="-1"></a>    _a.set_xlim(<span class="op">*</span>_XLIM)</span>
+<span id="cb29-43"><a href="#cb29-43" aria-hidden="true" tabindex="-1"></a>    _a.set_ylim(<span class="op">*</span>_YLIM)</span>
+<span id="cb29-44"><a href="#cb29-44" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Percentages on the ticks of both panels: sharex hides the upper panel's labels, which</span></span>
+<span id="cb29-45"><a href="#cb29-45" aria-hidden="true" tabindex="-1"></a>    <span class="co"># is right for a stacked figure but wrong here, because the thesis assembler writes each</span></span>
+<span id="cb29-46"><a href="#cb29-46" aria-hidden="true" tabindex="-1"></a>    <span class="co"># panel out as its own image and A would arrive with a labelled axis carrying no numbers.</span></span>
+<span id="cb29-47"><a href="#cb29-47" aria-hidden="true" tabindex="-1"></a>    _a.tick_params(labelbottom<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb29-48"><a href="#cb29-48" aria-hidden="true" tabindex="-1"></a>    _a.set_xticks(_TICKS)</span>
+<span id="cb29-49"><a href="#cb29-49" aria-hidden="true" tabindex="-1"></a>    _a.set_yticks(_TICKS)</span>
+<span id="cb29-50"><a href="#cb29-50" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Faint gridlines on the 10% ticks: the two panels are read against each other, and a</span></span>
+<span id="cb29-51"><a href="#cb29-51" aria-hidden="true" tabindex="-1"></a>    <span class="co"># point's position is hard to carry between them by eye without a reference.</span></span>
+<span id="cb29-52"><a href="#cb29-52" aria-hidden="true" tabindex="-1"></a>    _a.grid(which<span class="op">=</span><span class="st">"major"</span>, color<span class="op">=</span><span class="st">"0.85"</span>, lw<span class="op">=</span><span class="fl">0.5</span>, zorder<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb29-53"><a href="#cb29-53" aria-hidden="true" tabindex="-1"></a>    _a.set_axisbelow(<span class="va">True</span>)</span>
+<span id="cb29-54"><a href="#cb29-54" aria-hidden="true" tabindex="-1"></a>    _a.xaxis.set_major_formatter(mticker.PercentFormatter(decimals<span class="op">=</span><span class="dv">0</span>))</span>
+<span id="cb29-55"><a href="#cb29-55" aria-hidden="true" tabindex="-1"></a>    _a.yaxis.set_major_formatter(mticker.PercentFormatter(decimals<span class="op">=</span><span class="dv">0</span>))</span>
+<span id="cb29-56"><a href="#cb29-56" aria-hidden="true" tabindex="-1"></a>    _a.set_xlabel(<span class="ss">f"</span><span class="sc">{</span>_name<span class="sc">}</span><span class="ss"> Cross-Validation Accuracy"</span>)</span>
+<span id="cb29-57"><a href="#cb29-57" aria-hidden="true" tabindex="-1"></a>    _a.set_ylabel(<span class="st">"Test Exact Accuracy"</span>)</span>
+<span id="cb29-58"><a href="#cb29-58" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Lower right: the points climb left-to-right, and the human line sits across the top,</span></span>
+<span id="cb29-59"><a href="#cb29-59" aria-hidden="true" tabindex="-1"></a>    <span class="co"># so any upper placement writes the legend over one or the other.</span></span>
+<span id="cb29-60"><a href="#cb29-60" aria-hidden="true" tabindex="-1"></a>    <span class="co"># sharex hides the upper panel's tick labels, which is right for a stacked figure but</span></span>
+<span id="cb29-61"><a href="#cb29-61" aria-hidden="true" tabindex="-1"></a>    <span class="co"># wrong here: the thesis assembler writes each panel out as its own image, so A would</span></span>
+<span id="cb29-62"><a href="#cb29-62" aria-hidden="true" tabindex="-1"></a>    <span class="co"># arrive with a labelled axis and no numbers on it.</span></span>
+<span id="cb29-63"><a href="#cb29-63" aria-hidden="true" tabindex="-1"></a>    _a.tick_params(labelbottom<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb29-64"><a href="#cb29-64" aria-hidden="true" tabindex="-1"></a>    <span class="co"># The marker for one configuration reads before the band holding many of them, and</span></span>
+<span id="cb29-65"><a href="#cb29-65" aria-hidden="true" tabindex="-1"></a>    <span class="co"># matplotlib orders the legend by drawing order, so the handles are reordered by hand.</span></span>
+<span id="cb29-66"><a href="#cb29-66" aria-hidden="true" tabindex="-1"></a>    <span class="co"># bbox_to_anchor pulls the legend in from the right edge so it clears the tie band,</span></span>
+<span id="cb29-67"><a href="#cb29-67" aria-hidden="true" tabindex="-1"></a>    <span class="co"># which sits at the top of the cross-validation range.</span></span>
+<span id="cb29-68"><a href="#cb29-68" aria-hidden="true" tabindex="-1"></a>    _h, _l <span class="op">=</span> _a.get_legend_handles_labels()</span>
+<span id="cb29-69"><a href="#cb29-69" aria-hidden="true" tabindex="-1"></a>    _order <span class="op">=</span> [_l.index(x) <span class="cf">for</span> x <span class="kw">in</span> [<span class="st">"Best cross-validation accuracy"</span>,</span>
+<span id="cb29-70"><a href="#cb29-70" aria-hidden="true" tabindex="-1"></a>                                    <span class="ss">f"Within 1 SE of the best (n=</span><span class="sc">{</span><span class="bu">len</span>(_tied)<span class="sc">}</span><span class="ss">)"</span>,</span>
+<span id="cb29-71"><a href="#cb29-71" aria-hidden="true" tabindex="-1"></a>                                    <span class="st">"Human rater corrected agreement"</span>]]</span>
+<span id="cb29-72"><a href="#cb29-72" aria-hidden="true" tabindex="-1"></a>    _a.legend([_h[_i] <span class="cf">for</span> _i <span class="kw">in</span> _order], [_l[_i] <span class="cf">for</span> _i <span class="kw">in</span> _order],</span>
+<span id="cb29-73"><a href="#cb29-73" aria-hidden="true" tabindex="-1"></a>              fontsize<span class="op">=</span><span class="dv">8</span>, frameon<span class="op">=</span><span class="va">False</span>, loc<span class="op">=</span><span class="st">"lower right"</span>, bbox_to_anchor<span class="op">=</span>(<span class="fl">0.90</span>, <span class="fl">0.02</span>))</span>
+<span id="cb29-74"><a href="#cb29-74" aria-hidden="true" tabindex="-1"></a>    _a.spines[[<span class="st">"top"</span>, <span class="st">"right"</span>]].set_visible(<span class="va">False</span>)</span>
+<span id="cb29-75"><a href="#cb29-75" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-76"><a href="#cb29-76" aria-hidden="true" tabindex="-1"></a>_fig.tight_layout()</span>
+<span id="cb29-77"><a href="#cb29-77" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path <span class="im">as</span> _P2</span>
+<span id="cb29-78"><a href="#cb29-78" aria-hidden="true" tabindex="-1"></a>_tp <span class="op">=</span> _P2(<span class="st">"thesis_plots"</span>)<span class="op">;</span> _tp.mkdir(exist_ok<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb29-79"><a href="#cb29-79" aria-hidden="true" tabindex="-1"></a>_fig.savefig(_tp <span class="op">/</span> <span class="st">"cnn_vit_accuracy_distributions.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb29-80"><a href="#cb29-80" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-81"><a href="#cb29-81" aria-hidden="true" tabindex="-1"></a><span class="co"># The thesis assembler letters one image per panel and scales each to a common display</span></span>
+<span id="cb29-82"><a href="#cb29-82" aria-hidden="true" tabindex="-1"></a><span class="co"># width, so a panel cropped to its own content would be stretched by a different factor and</span></span>
+<span id="cb29-83"><a href="#cb29-83" aria-hidden="true" tabindex="-1"></a><span class="co"># the x axes would no longer align. Every panel is therefore saved over the same horizontal</span></span>
+<span id="cb29-84"><a href="#cb29-84" aria-hidden="true" tabindex="-1"></a><span class="co"># extent, the union of the three, and only its own vertical extent.</span></span>
+<span id="cb29-85"><a href="#cb29-85" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> matplotlib.transforms <span class="im">import</span> Bbox <span class="im">as</span> _Bbox</span>
+<span id="cb29-86"><a href="#cb29-86" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-87"><a href="#cb29-87" aria-hidden="true" tabindex="-1"></a>_fig.canvas.draw()</span>
+<span id="cb29-88"><a href="#cb29-88" aria-hidden="true" tabindex="-1"></a>_bbs <span class="op">=</span> [_a2.get_tightbbox(_fig.canvas.get_renderer()).transformed(</span>
+<span id="cb29-89"><a href="#cb29-89" aria-hidden="true" tabindex="-1"></a>    _fig.dpi_scale_trans.inverted()) <span class="cf">for</span> _a2 <span class="kw">in</span> _ax]</span>
+<span id="cb29-90"><a href="#cb29-90" aria-hidden="true" tabindex="-1"></a>_x0, _x1 <span class="op">=</span> <span class="bu">min</span>(_b2.x0 <span class="cf">for</span> _b2 <span class="kw">in</span> _bbs), <span class="bu">max</span>(_b2.x1 <span class="cf">for</span> _b2 <span class="kw">in</span> _bbs)</span>
+<span id="cb29-91"><a href="#cb29-91" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _n, _bb <span class="kw">in</span> <span class="bu">zip</span>(<span class="st">"ab"</span>, _bbs):</span>
+<span id="cb29-92"><a href="#cb29-92" aria-hidden="true" tabindex="-1"></a>    _fig.savefig(_tp <span class="op">/</span> <span class="ss">f"cnn_vit_accuracy_distributions_</span><span class="sc">{</span>_n<span class="sc">}</span><span class="ss">.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>,</span>
+<span id="cb29-93"><a href="#cb29-93" aria-hidden="true" tabindex="-1"></a>                 bbox_inches<span class="op">=</span>_Bbox.from_extents(_x0, _bb.y0, _x1, _bb.y1))</span>
+<span id="cb29-94"><a href="#cb29-94" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb29-95"><a href="#cb29-95" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-96"><a href="#cb29-96" aria-hidden="true" tabindex="-1"></a><span class="co"># The medians the dropped panel showed, printed so the chapter can quote them.</span></span>
+<span id="cb29-97"><a href="#cb29-97" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _name, _g <span class="kw">in</span> ((<span class="st">"CNN"</span>, cnn), (<span class="st">"ViT"</span>, vit)):</span>
+<span id="cb29-98"><a href="#cb29-98" aria-hidden="true" tabindex="-1"></a>    _d <span class="op">=</span> _g.test_acc.dropna()</span>
+<span id="cb29-99"><a href="#cb29-99" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>_name<span class="sc">}</span><span class="ss">  median test </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> _d<span class="sc">.</span>median()<span class="sc">:.2f}</span><span class="ss">%   "</span></span>
+<span id="cb29-100"><a href="#cb29-100" aria-hidden="true" tabindex="-1"></a>          <span class="ss">f"IQR </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> _d<span class="sc">.</span>quantile(<span class="fl">.25</span>)<span class="sc">:.2f}</span><span class="ss">-</span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> _d<span class="sc">.</span>quantile(<span class="fl">.75</span>)<span class="sc">:.2f}</span><span class="ss">%   "</span></span>
+<span id="cb29-101"><a href="#cb29-101" aria-hidden="true" tabindex="-1"></a>          <span class="ss">f"best-model test </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> _g<span class="sc">.</span>loc[_g.avg_vaf.idxmax(), <span class="st">'test_acc'</span>]<span class="sc">:.2f}</span><span class="ss">%"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-display">
 <div>
 <figure class="figure">
-<p><img src="vit_grid_and_cnn_comparison_files/figure-html/cell-16-output-1.png" width="757" height="792" class="figure-img"></p>
+<p><img src="vit_grid_and_cnn_comparison_files/figure-html/cell-16-output-1.png" width="758" height="878" class="figure-img"></p>
 </figure>
 </div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>CNN  median test 53.25%   IQR 46.35-56.82%   best-model test 61.69%
+ViT  median test 59.09%   IQR 53.57-61.69%   best-model test 64.29%</code></pre>
 </div>
 </div>
 <section id="against-the-human-benchmark" class="level3">
 <h3 class="anchored" data-anchor-id="against-the-human-benchmark">6.3 Against the human benchmark</h3>
 <p><code>analyses/02</code> measured human agreement on the identical 308 test CDAs.</p>
-<div id="888860f6" class="cell" data-execution_count="16">
+<div id="0bbb0d48" class="cell" data-execution_count="16">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6.3</span></span>
-<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>HUMAN_EXACT, HUMAN_NEAR <span class="op">=</span> <span class="fl">0.6892</span>, <span class="fl">0.9280</span>  <span class="co"># analyses/02, Metric 3 on the same test split</span></span>
-<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>bench <span class="op">=</span> pd.DataFrame(</span>
-<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>    {</span>
-<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">"exact"</span>: [HUMAN_EXACT, cnn.test_acc.<span class="bu">max</span>(), vit.test_acc.<span class="bu">max</span>()],</span>
-<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">"near-miss (+/-1)"</span>: [HUMAN_NEAR, cnn.test_nearmiss.<span class="bu">max</span>(), vit.test_nearmiss.<span class="bu">max</span>()],</span>
-<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>    },</span>
-<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>    index<span class="op">=</span>[<span class="st">"human raters (analyses/02)"</span>, <span class="st">"best CNN (test)"</span>, <span class="st">"best ViT (test)"</span>],</span>
-<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a>).<span class="bu">round</span>(<span class="dv">4</span>)</span>
-<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(bench.to_string())</span>
-<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">note: the model rows are the MAXIMUM over </span><span class="sc">{</span><span class="bu">len</span>(cnn)<span class="sc">}</span><span class="ss"> and </span><span class="sc">{</span><span class="bu">len</span>(vit)<span class="sc">}</span><span class="ss"> configs "</span></span>
-<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"selected on the test set itself, so they are optimistically biased;</span><span class="ch">\n</span><span class="ss">"</span></span>
-<span id="cb30-13"><a href="#cb30-13" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"the CV-selected configs score </span><span class="sc">{</span>cnn<span class="sc">.</span>sort_values(<span class="st">'avg_vaf'</span>,ascending<span class="op">=</span><span class="va">False</span>)<span class="sc">.</span>iloc[<span class="dv">0</span>]<span class="sc">.</span>test_acc<span class="sc">:.4f}</span><span class="ss"> "</span></span>
-<span id="cb30-14"><a href="#cb30-14" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"(CNN) and </span><span class="sc">{</span>top<span class="sc">.</span>iloc[<span class="dv">0</span>]<span class="sc">.</span>test_acc<span class="sc">:.4f}</span><span class="ss"> (ViT)."</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb31"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6.3</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>HUMAN_EXACT, HUMAN_NEAR <span class="op">=</span> <span class="fl">0.6892</span>, <span class="fl">0.9280</span>  <span class="co"># analyses/02, Metric 3 on the same test split</span></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>bench <span class="op">=</span> pd.DataFrame(</span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>    {</span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">"exact"</span>: [HUMAN_EXACT, cnn.test_acc.<span class="bu">max</span>(), vit.test_acc.<span class="bu">max</span>()],</span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">"near-miss (+/-1)"</span>: [HUMAN_NEAR, cnn.test_nearmiss.<span class="bu">max</span>(), vit.test_nearmiss.<span class="bu">max</span>()],</span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>    },</span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>    index<span class="op">=</span>[<span class="st">"human raters (analyses/02)"</span>, <span class="st">"best CNN (test)"</span>, <span class="st">"best ViT (test)"</span>],</span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a>).<span class="bu">round</span>(<span class="dv">4</span>)</span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(bench.to_string())</span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">note: the model rows are the MAXIMUM over </span><span class="sc">{</span><span class="bu">len</span>(cnn)<span class="sc">}</span><span class="ss"> and </span><span class="sc">{</span><span class="bu">len</span>(vit)<span class="sc">}</span><span class="ss"> configs "</span></span>
+<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"selected on the test set itself, so they are optimistically biased;</span><span class="ch">\n</span><span class="ss">"</span></span>
+<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"the CV-selected configs score </span><span class="sc">{</span>cnn<span class="sc">.</span>sort_values(<span class="st">'avg_vaf'</span>,ascending<span class="op">=</span><span class="va">False</span>)<span class="sc">.</span>iloc[<span class="dv">0</span>]<span class="sc">.</span>test_acc<span class="sc">:.4f}</span><span class="ss"> "</span></span>
+<span id="cb31-14"><a href="#cb31-14" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"(CNN) and </span><span class="sc">{</span>top<span class="sc">.</span>iloc[<span class="dv">0</span>]<span class="sc">.</span>test_acc<span class="sc">:.4f}</span><span class="ss"> (ViT)."</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
 <pre><code>                             exact  near-miss (+/-1)
@@ -899,7 +972,7 @@ human raters (analyses/02)  0.6892            0.9280
 best CNN (test)             0.6818            0.9903
 best ViT (test)             0.6818            0.9903
 
-note: the model rows are the MAXIMUM over 8640 and 2592 configs selected on the test set itself, so they are optimistically biased;
+note: the model rows are the MAXIMUM over 6720 and 2592 configs selected on the test set itself, so they are optimistically biased;
 the CV-selected configs score 0.6169 (CNN) and 0.6429 (ViT).</code></pre>
 </div>
 </div>
@@ -910,15 +983,15 @@ the CV-selected configs score 0.6169 (CNN) and 0.6429 (ViT).</code></pre>
 <h2 class="anchored" data-anchor-id="interpretation-and-discussion">7. Interpretation and Discussion</h2>
 <ul>
 <li><p><strong>The search is sound, and the clean-exit budget is what made it so.</strong> All 2,592 indices appear exactly once across 138 task-lifetimes. That is the outcome the <code>--max_configs</code> budget existed to guarantee: because <code>claim()</code> advances the shared counter <em>before</em> training, an OOM-killed task would have left its index claimed and never trained, missing from the results with nothing raised anywhere. The failure mode is silent, so a completeness assertion belongs in every analysis that reads a self-scheduled grid, not only this one.</p></li>
-<li><p><strong>The ViT plateau is if anything tighter than the CNN’s.</strong> The top-100 spans 1.31 pp against a difference-SE of 1.41 pp, so the entire top hundred fits inside <strong>0.93</strong> of one standard error — where <code>analyses/03</code> found 1.64 for the CNN grid. 351 configs are not significantly worse than the winner at 5%, and that count is conservative for the same two reasons as before: shared CV folds correlate the errors, and training stochasticity is excluded. Changing the architecture did not change the measurement noise, because that is set by the 2,289 evaluation images, not by the model.</p></li>
+<li><p><strong>The ViT plateau is if anything tighter than the CNN’s.</strong> The top-100 spans 1.31 pp against a difference-SE of 1.41 pp, so the entire top hundred fits inside <strong>0.93</strong> of one standard error — where the CNN grid’s 6,720 settings give 1.76. 351 configs are not significantly worse than the winner at 5%, and that count is conservative for the same two reasons as before: shared CV folds correlate the errors, and training stochasticity is excluded. Changing the architecture did not change the measurement noise, because that is set by the 2,289 evaluation images, not by the model.</p></li>
 <li><p><strong>The winner’s curse reproduces exactly.</strong> The CV-best config ranks <strong>138th of 2,592</strong> on the held-out test set, and CV-to-test correlation falls from 0.928 across the whole grid to ~0.21 within the top 1,000 and 0.10 within the top 250. The winner’s margin over the top-500 mean is 1.88 pp against the 2.47 pp that selecting a maximum from 2,592 noisy draws produces on its own. The ranking carries real information across the full range and none of it survives into the plateau.</p></li>
 <li><p><strong>Learning rate is the whole story, and it acts as a switch rather than a dial.</strong> It takes 0.557 of the Gini importance, more than double <code>projection_dim</code> at 0.215. The mechanism is visible in the distribution: 307 configs (11.8%) sit at chance, and <strong>every one of them uses <code>learning_rate</code> 0.01</strong>. The grid is bimodal because one learning-rate level fails to train at all, so most of what the surrogate “explains” is the separation of dead configs from live ones, not fine discrimination among good ones.</p></li>
-<li><p><strong>Inside the plateau the surrogate has nothing left.</strong> OOB R² falls 0.963 → 0.279 (top-500) → <strong>−0.032</strong> (top-250). A negative out-of-bag R² means the forest predicts worse than the pool mean, which is what zero remaining signal looks like. This is a sharper collapse than the CNN grid’s 0.933 → 0.337, and it closes the same loop <code>analyses/04</code> drew: hyperparameters determine whether you reach the plateau, and nothing determines where on it you land.</p></li>
-<li><p><strong>Two of the three grid-design decisions did not pay for themselves, and both were made from a single pilot run.</strong> <code>projection_dim</code> was extended to 256 because one pilot config at 128 scored best. In the event 256 is the <em>worst</em> of the four levels (marginal mean 0.4693) and contributes 16 of the top 100 against 59 for <code>projection_dim</code> 32 — the optimum is at the small end, in the opposite direction to the extension. <code>mlp_ratio</code> 4 separates from 2 by 0.0040, well inside the 0.0100 single-config SE. Restricting to <code>projection_dim &lt;= 64</code> with <code>mlp_ratio</code> fixed at 2 would have been <strong>648 configs and roughly 68 GPU-hours instead of 2,592 and 273</strong>, and would have found a best <code>avg_vaf</code> of 0.6431 against 0.6466 — a gap of <strong>0.25 difference-SE</strong>, which is indistinguishable. 75% of the compute bought a quarter of one standard error. The general lesson is the one <code>analyses/03</code> already established and this grid re-learned the expensive way: a single configuration is not evidence about an axis.</p></li>
+<li><p><strong>Inside the plateau the surrogate has nothing left.</strong> OOB R² falls 0.963 → 0.279 (top-500) → <strong>−0.032</strong> (top-250). A negative out-of-bag R² means the forest predicts worse than the pool mean, which is what zero remaining signal looks like. This is a sharper collapse than the CNN grid’s 0.933 → 0.337, and it closes the same loop <code>analyses/09</code> drew: hyperparameters determine whether you reach the plateau, and nothing determines where on it you land.</p></li>
+<li><p><strong>Two of the three grid-design decisions did not pay for themselves, and both were made from a single pilot run.</strong> <code>projection_dim</code> was extended to 256 because one pilot config at 128 scored best. In the event 256 is the <em>worst</em> of the four levels (marginal mean 0.4693) and contributes 16 of the top 100 against 59 for <code>projection_dim</code> 32 — the optimum is at the small end, in the opposite direction to the extension. <code>mlp_ratio</code> 4 separates from 2 by 0.0040, well inside the 0.0100 single-config SE. Restricting to <code>projection_dim &lt;= 64</code> with <code>mlp_ratio</code> fixed at 2 would have been <strong>648 configs and roughly 68 GPU-hours instead of 2,592 and 273</strong>, and would have found a best <code>avg_vaf</code> of 0.6431 against 0.6466 — a gap of <strong>0.25 difference-SE</strong>, which is indistinguishable. 75% of the compute bought a quarter of one standard error. The general lesson is the one <code>analyses/08</code> already established and this grid re-learned the expensive way: a single configuration is not evidence about an axis.</p></li>
 <li><p><strong>The regularisation axis was cheap and inert.</strong> L2 versus none differs by 0.0014 in marginal mean, and the two strengths by 0.0014. Both are an order of magnitude below the 1.00 pp noise floor. Splitting the grid into sub-grids so <code>reg=None</code> was not duplicated across strengths avoided 864 redundant configs, which was worth doing, but the axis itself answered nothing.</p></li>
-<li><p><strong>On matched data the two architectures are indistinguishable.</strong> Both grids ran the same harness and <code>cv_seed</code> on the same <code>medoid_64</code> dataset, so this is a clean architecture comparison. Best <code>avg_vaf</code> is 0.6466 (ViT) against 0.6457 (CNN), a gap of 0.09 pp against a 1.41 pp difference-SE — 0.06 SE, which is as close to identical as the measurement can resolve. The best test accuracy reached by any config is <strong>0.6818 in both grids</strong>. The CV-selected models differ by more (0.6429 against 0.6169), but that is 1 test-SE and is the winner’s-curse lottery described above rather than an architecture effect. The ViT reached this with 2,592 configs and 273 GPU-hours against the CNN’s 8,640 configs and 1,194 CPU-hours, so the architectures tie on accuracy while differing in search cost and hardware, which are not comparable in the same units.</p></li>
+<li><p><strong>On matched data the two architectures are indistinguishable.</strong> Both grids ran the same harness and <code>cv_seed</code> on the same <code>medoid_64</code> dataset, so this is a clean architecture comparison. Best <code>avg_vaf</code> is 0.6466 (ViT) against 0.6457 (CNN), a gap of 0.09 pp against a 1.41 pp difference-SE — 0.06 SE, which is as close to identical as the measurement can resolve. The best test accuracy reached by any config is <strong>0.6818 in both grids</strong>. The CV-selected models differ by more (0.6429 against 0.6169), but that is 1 test-SE and is the winner’s-curse lottery described above rather than an architecture effect. The ViT reached this with 2,592 configs and 273 GPU-hours against the CNN’s 6,720 settings and 1,194 CPU-hours, so the architectures tie on accuracy while differing in search cost and hardware, which are not comparable in the same units.</p></li>
 <li><p><strong>Both model classes remain below human exact agreement and above it on near-miss.</strong> Against the 0.6892 exact and 0.9280 near-miss that <code>analyses/02</code> measured for human raters on these same 308 CDAs, the best ViT reaches 0.6818 and 0.9903. The first of those is a maximum taken over 2,592 configs <em>selected on the test set</em>, so it is optimistically biased and should not be read as a headline; the CV-selected model scores 0.6429. The near-miss figure is the robust one, and it says the same thing as every earlier analysis: the coarse task is solved and the residual error is adjacent-score confusion, which is where the human raters disagree too.</p></li>
-<li><p><strong>What to do next.</strong> With the architecture question answered as a tie, the remaining headroom is not in the model. Since 351 ViT configs are statistically tied here, the useful object is the committee rather than the argmax: <code>analyses/05</code> showed a 100-model CNN vote matched the best single model with none of the per-model lottery. Both grids now have a kept top-100 on the same splits, so the informative test is a <strong>mixed CNN+ViT committee</strong>, where the two classes may fail on different images even though they reach the same accuracy separately. Their agreement rate is the quantity to measure first, because a tie in accuracy with low agreement is exactly the situation in which ensembling pays.</p></li>
+<li><p><strong>What to do next.</strong> With the architecture question answered as a tie, the remaining headroom is not in the model. Since 351 ViT configs are statistically tied here, the useful object is the committee rather than the argmax: <code>analyses/10</code> showed a 100-model CNN vote matched the best single model with none of the per-model lottery. Both grids now have a kept top-100 on the same splits, so the informative test is a <strong>mixed CNN+ViT committee</strong>, where the two classes may fail on different images even though they reach the same accuracy separately. Their agreement rate is the quantity to measure first, because a tie in accuracy with low agreement is exactly the situation in which ensembling pays.</p></li>
 </ul>
 </section>
 

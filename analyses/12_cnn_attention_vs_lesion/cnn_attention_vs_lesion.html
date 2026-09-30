@@ -119,7 +119,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#does-looking-at-the-lesion-mean-getting-it-right" id="toc-does-looking-at-the-lesion-mean-getting-it-right" class="nav-link" data-scroll-target="#does-looking-at-the-lesion-mean-getting-it-right">6.3 Does looking at the lesion mean getting it right?</a></li>
   </ul></li>
   <li><a href="#interpretation-and-discussion" id="toc-interpretation-and-discussion" class="nav-link" data-scroll-target="#interpretation-and-discussion">7. Interpretation and Discussion</a></li>
-  <li><a href="#thesis-figure" id="toc-thesis-figure" class="nav-link" data-scroll-target="#thesis-figure">Thesis figure</a></li>
+  <li><a href="#thesis-figure-example-attributions" id="toc-thesis-figure-example-attributions" class="nav-link" data-scroll-target="#thesis-figure-example-attributions">Thesis figure: example attributions</a></li>
+  <li><a href="#thesis-figure-2-inside-the-lesion-but-not-the-shape-of-it" id="toc-thesis-figure-2-inside-the-lesion-but-not-the-shape-of-it" class="nav-link" data-scroll-target="#thesis-figure-2-inside-the-lesion-but-not-the-shape-of-it">Thesis figure 2: inside the lesion, but not the shape of it</a></li>
+  <li><a href="#is-the-low-tail-a-bad-otsu-mask" id="toc-is-the-low-tail-a-bad-otsu-mask" class="nav-link" data-scroll-target="#is-the-low-tail-a-bad-otsu-mask">Is the low tail a bad Otsu mask?</a></li>
   </ul>
 </nav>
 </div>
@@ -148,7 +150,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="gohrep" class="level2">
 <h2 class="anchored" data-anchor-id="gohrep">GOHREP</h2>
 <p><strong>Goal:</strong></p>
-<p>Take the single best CNN from the Medoid-CNN grid search (the top model by <code>avg_vaf</code>) and ask <em>where in the image it is looking</em> when it assigns a severity score. Produce two independent attribution maps — <strong>Grad-CAM</strong> and <strong>SHAP</strong> — and measure how much of each falls inside the <strong>Otsu-segmented cell death area</strong>, using the segmentation from the sibling dataset repo. Show examples where attention lands on the lesion and examples where it does not, quantify the overlap with metrics borrowed from the segmentation and saliency-evaluation literature, and identify images where the two methods disagree.</p>
+<p>Take the chapter’s selected best CNN from the geometric-augmentation grid search (the top model by <code>avg_vaf_orig</code>) and ask <em>where in the image it is looking</em> when it assigns a severity score. Produce two independent attribution maps — <strong>Grad-CAM</strong> and <strong>SHAP</strong> — and measure how much of each falls inside the <strong>Otsu-segmented cell death area</strong>, using the segmentation from the sibling dataset repo. Show examples where attention lands on the lesion and examples where it does not, quantify the overlap with metrics borrowed from the segmentation and saliency-evaluation literature, and identify images where the two methods disagree.</p>
 <p><strong>Hypotheses:</strong></p>
 <ol type="1">
 <li>Attention concentrates on the lesion more than chance. The label is a property of the cell death area, so a model that has learned the task should weight those pixels above the surrounding healthy leaf.</li>
@@ -157,7 +159,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>Where attention sits off-lesion, it will tend to sit on leaf tissue immediately around it rather than on the black background, since the background carries no colour information the model could use.</li>
 </ol>
 <p><strong>Rationale:</strong></p>
-<p><code>analyses/03</code> established that the top ~210 configs are statistically tied, so <em>which</em> model is “best” is arbitrary. That makes the question “is this model right for the right reasons?” more useful than “which model wins”. A model that scores lesion severity by looking at the lesion is one you can defend; one that scores well while looking at the background is exploiting something about the crop, not the biology.</p>
+<p><code>analyses/08</code> established that 17 settings are tied within one standard error of the best, and 88 are not significantly worse than it at 5%, so <em>which</em> model is “best” is arbitrary. That makes the question “is this model right for the right reasons?” more useful than “which model wins”. A model that scores lesion severity by looking at the lesion is one you can defend; one that scores well while looking at the background is exploiting something about the crop, not the biology.</p>
 <p>Using two independent attribution methods guards against reading artefacts of a single method as findings, and the Otsu mask gives an objective, pre-existing definition of “the lesion” that was not built for this purpose.</p>
 <p><strong>Experimental plan:</strong></p>
 <ol type="1">
@@ -175,7 +177,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="setup">1. Setup</h2>
 <section id="packages" class="level3">
 <h3 class="anchored" data-anchor-id="packages">1.1 Packages</h3>
-<div id="a193fa23" class="cell" data-execution_count="1">
+<div id="3d73234a" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.1</span></span>
@@ -219,52 +221,55 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-39"><a href="#cb1-39" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> img[..., ::<span class="op">-</span><span class="dv">1</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stderr">
-<pre><code>2026-09-12 14:48:49.288585: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+<pre><code>2026-09-16 10:40:23.945814: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
 To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.</code></pre>
 </div>
 </div>
 </section>
 <section id="the-model-under-study" class="level3">
 <h3 class="anchored" data-anchor-id="the-model-under-study">1.2 The model under study</h3>
-<p>The top model by <code>avg_vaf</code> in the Medoid-CNN grid. <code>analyses/03</code> showed the ranking within the top cluster is noise, so this is “a representative best model”, not “the best model”.</p>
-<div id="a565eb1a" class="cell" data-execution_count="2">
+<p>The top model by <code>avg_vaf_orig</code> in the geometric-augmentation grid. <code>analyses/08</code> showed the ranking within the top cluster is noise, so this is “a representative best model”, not “the best model”.</p>
+<div id="5f999193" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.2</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co"># The chapter's selected best model, from the geometric-augmentation run rather than the</span></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># unaugmented grid. Ranked on avg_vaf_orig, validation accuracy over ORIGINAL crops: the</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co"># plain avg_vaf of an augmented run is measured over a fold containing augmented copies and</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="co"># is not comparable with the unaugmented grids. The same model tops the ensemble split.</span></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>SEARCH <span class="op">=</span> repo_root <span class="op">/</span> <span class="st">"models"</span> <span class="op">/</span> <span class="st">"07_Medoid_CNN_GeomAug"</span> <span class="op">/</span> <span class="st">"01_MatchLargestClass"</span></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Resolve the top model from the results CSV rather than hard-coding a directory name,</span></span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="co"># so this cannot silently point at a stale model if the grid is ever re-run.</span></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>_res <span class="op">=</span> pd.read_csv(SEARCH <span class="op">/</span> <span class="st">"random_search_results.csv"</span>).drop_duplicates(<span class="st">"model_id"</span>)</span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>_rank_col <span class="op">=</span> <span class="st">"avg_vaf_orig"</span> <span class="cf">if</span> <span class="st">"avg_vaf_orig"</span> <span class="kw">in</span> _res.columns <span class="cf">else</span> <span class="st">"avg_vaf"</span></span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>BEST_ID <span class="op">=</span> <span class="bu">int</span>(_res.dropna(subset<span class="op">=</span>[_rank_col]).sort_values(_rank_col, ascending<span class="op">=</span><span class="va">False</span>).iloc[<span class="dv">0</span>].model_id)</span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>MODEL_DIR <span class="op">=</span> <span class="bu">next</span>((SEARCH <span class="op">/</span> <span class="st">"results"</span>).glob(<span class="ss">f"*_</span><span class="sc">{</span>BEST_ID<span class="sc">}</span><span class="ss">"</span>))</span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> keras.models.load_model(MODEL_DIR <span class="op">/</span> <span class="st">"model.keras"</span>)</span>
-<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> _res</span>
-<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>row <span class="op">=</span> results.loc[results.model_id <span class="op">==</span> BEST_ID].iloc[<span class="dv">0</span>]</span>
-<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"model_id </span><span class="sc">{</span>BEST_ID<span class="sc">}</span><span class="ss"> (</span><span class="sc">{</span>MODEL_DIR<span class="sc">.</span>name<span class="sc">}</span><span class="ss">)  avg_vaf=</span><span class="sc">{</span>row<span class="sc">.</span>avg_vaf<span class="sc">:.4f}</span><span class="ss">  "</span></span>
-<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"recorded test_acc=</span><span class="sc">{</span>row<span class="sc">.</span>test_acc<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(</span>
-<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>    <span class="st">"hyperparameters: "</span></span>
-<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> <span class="st">", "</span>.join(</span>
-<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"</span><span class="sc">{</span>k<span class="sc">}</span><span class="ss">=</span><span class="sc">{</span>row[k]<span class="sc">}</span><span class="ss">"</span></span>
-<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> k <span class="kw">in</span> [</span>
-<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>            <span class="st">"num_filters"</span>, <span class="st">"filter_size"</span>, <span class="st">"num_layers"</span>, <span class="st">"activation_function"</span>,</span>
-<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>            <span class="st">"opt"</span>, <span class="st">"learning_rate"</span>, <span class="st">"reg"</span>, <span class="st">"reg_strength"</span>, <span class="st">"dropout"</span>,</span>
-<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>        ]</span>
-<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>conv_layers <span class="op">=</span> [l <span class="cf">for</span> l <span class="kw">in</span> model.layers <span class="cf">if</span> <span class="bu">isinstance</span>(l, keras.layers.Conv2D)]</span>
-<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">conv feature-map sizes:"</span>, [(l.name, <span class="bu">tuple</span>(l.output.shape[<span class="dv">1</span>:])) <span class="cf">for</span> l <span class="kw">in</span> conv_layers])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># unaugmented grid. The two configurations at the top of that grid are separated by</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 0.2458 pp of avg_vaf, which is 28 crops of the 11,389-crop augmented pool, so</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="co"># cross-validation does not rank them. The chapter breaks the tie on the held-out</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="co"># ensemble split, where 6848 reaches 68.13% against 7927's 65.71%, and 6848 is rank 1 on</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="co"># avg_vaf_orig. Ranking here on avg_vaf_orig therefore resolves to the model the chapter</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="co"># selects.</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>SEARCH <span class="op">=</span> repo_root <span class="op">/</span> <span class="st">"models"</span> <span class="op">/</span> <span class="st">"07_Medoid_CNN_GeomAug"</span> <span class="op">/</span> <span class="st">"01_MatchLargestClass"</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Resolve the top model from the results CSV rather than hard-coding a directory name,</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="co"># so this cannot silently point at a stale model if the grid is ever re-run.</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>_res <span class="op">=</span> pd.read_csv(SEARCH <span class="op">/</span> <span class="st">"random_search_results.csv"</span>).drop_duplicates(<span class="st">"model_id"</span>)</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>_rank_col <span class="op">=</span> <span class="st">"avg_vaf_orig"</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>BEST_ID <span class="op">=</span> <span class="bu">int</span>(_res.dropna(subset<span class="op">=</span>[_rank_col]).sort_values(_rank_col, ascending<span class="op">=</span><span class="va">False</span>).iloc[<span class="dv">0</span>].model_id)</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>MODEL_DIR <span class="op">=</span> <span class="bu">next</span>((SEARCH <span class="op">/</span> <span class="st">"results"</span>).glob(<span class="ss">f"*_</span><span class="sc">{</span>BEST_ID<span class="sc">}</span><span class="ss">"</span>))</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> keras.models.load_model(MODEL_DIR <span class="op">/</span> <span class="st">"model.keras"</span>)</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> _res</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>row <span class="op">=</span> results.loc[results.model_id <span class="op">==</span> BEST_ID].iloc[<span class="dv">0</span>]</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"model_id </span><span class="sc">{</span>BEST_ID<span class="sc">}</span><span class="ss"> (</span><span class="sc">{</span>MODEL_DIR<span class="sc">.</span>name<span class="sc">}</span><span class="ss">)  avg_vaf=</span><span class="sc">{</span>row<span class="sc">.</span>avg_vaf<span class="sc">:.4f}</span><span class="ss">  "</span></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"recorded test_acc=</span><span class="sc">{</span>row<span class="sc">.</span>test_acc<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>    <span class="st">"hyperparameters: "</span></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> <span class="st">", "</span>.join(</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"</span><span class="sc">{</span>k<span class="sc">}</span><span class="ss">=</span><span class="sc">{</span>row[k]<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> k <span class="kw">in</span> [</span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>            <span class="st">"num_filters"</span>, <span class="st">"filter_size"</span>, <span class="st">"num_layers"</span>, <span class="st">"activation_function"</span>,</span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>            <span class="st">"opt"</span>, <span class="st">"learning_rate"</span>, <span class="st">"reg"</span>, <span class="st">"reg_strength"</span>, <span class="st">"dropout"</span>,</span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>        ]</span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>conv_layers <span class="op">=</span> [l <span class="cf">for</span> l <span class="kw">in</span> model.layers <span class="cf">if</span> <span class="bu">isinstance</span>(l, keras.layers.Conv2D)]</span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">conv feature-map sizes:"</span>, [(l.name, <span class="bu">tuple</span>(l.output.shape[<span class="dv">1</span>:])) <span class="cf">for</span> l <span class="kw">in</span> conv_layers])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>model_id 6848 (0.672831_6848)  avg_vaf=0.6728  recorded test_acc=0.6688
+<pre><code>model_id 6848 (0.672755_6848)  avg_vaf=0.6728  recorded test_acc=0.6688
 hyperparameters: num_filters=64, filter_size=3, num_layers=4, activation_function=relu, opt=Adam, learning_rate=0.001, reg=nan, reg_strength=0.01, dropout=0.3
 
 conv feature-map sizes: [('conv2d', (62, 62, 64)), ('conv2d_1', (29, 29, 64)), ('conv2d_2', (12, 12, 64)), ('conv2d_3', (4, 4, 64))]</code></pre>
@@ -275,7 +280,7 @@ conv feature-map sizes: [('conv2d', (62, 62, 64)), ('conv2d_1', (29, 29, 64)), (
 <section id="data-and-a-validation-of-the-loaded-model" class="level3">
 <h3 class="anchored" data-anchor-id="data-and-a-validation-of-the-loaded-model">1.3 Data, and a validation of the loaded model</h3>
 <p>Before any attribution, confirm this model reproduces the number the grid search wrote for it. If it does not, everything downstream is describing a different model.</p>
-<div id="326d2c58" class="cell" data-execution_count="3">
+<div id="974c7138" class="cell" data-execution_count="3">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.3</span></span>
@@ -312,7 +317,7 @@ test crops: 308 total, 264 with score &gt;= 1 (score 0 dropped)</code></pre>
 <h3 class="anchored" data-anchor-id="grad-cam">2.1 Grad-CAM</h3>
 <p>Grad-CAM weights each channel of a convolutional feature map by the average gradient of the target class score with respect to that channel, sums the channels, and keeps the positive part. The result highlights regions whose activation <em>increases</em> the score for the predicted class.</p>
 <p>A loaded <code>Sequential</code> does not expose its intermediate activations as graph nodes under Keras 3, so the layer stack is re-run on a fresh <code>Input</code> to tap the convolution. The rebuilt model is checked to give identical predictions.</p>
-<div id="5084729d" class="cell" data-execution_count="4">
+<div id="e6a45182" class="cell" data-execution_count="4">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2.1</span></span>
@@ -360,38 +365,40 @@ test crops: 308 total, 264 with score &gt;= 1 (score 0 dropped)</code></pre>
 <h3 class="anchored" data-anchor-id="shap">2.2 SHAP</h3>
 <p><code>shap.DeepExplainer</code> implements DeepLIFT-style Shapley approximation for deep models and is the explainer the SHAP documentation uses for Keras CNNs. It returns a value per <strong>input pixel per channel per class</strong>, so unlike Grad-CAM it is not limited by the convolutional grid.</p>
 <p>The background distribution is drawn from the <em>training</em> split, never from test, so the reference the attributions are measured against is not built from the images being explained.</p>
-<div id="6ab10d02" class="cell" data-execution_count="5">
+<div id="0e8f7072" class="cell" data-execution_count="5">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2.2</span></span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>N_BACKGROUND <span class="op">=</span> <span class="dv">100</span></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>CACHE_FILE <span class="op">=</span> CACHE <span class="op">/</span> <span class="st">"attributions.npz"</span></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> CACHE_FILE.exists():</span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    z <span class="op">=</span> np.load(CACHE_FILE)</span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    cam_all, shap_all, cached_preds <span class="op">=</span> z[<span class="st">"cam"</span>], z[<span class="st">"shap"</span>], z[<span class="st">"preds"</span>]</span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> np.array_equal(cached_preds, preds), <span class="st">"cache is stale: predictions changed"</span></span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"loaded cached attributions from </span><span class="sc">{</span>CACHE_FILE<span class="sc">.</span>name<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    rng <span class="op">=</span> np.random.default_rng(<span class="dv">42</span>)</span>
-<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>    background <span class="op">=</span> X_train[rng.choice(<span class="bu">len</span>(X_train), N_BACKGROUND, replace<span class="op">=</span><span class="va">False</span>)]</span>
-<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>    cam_all <span class="op">=</span> grad_cam(tapped, X_test, preds)</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Keyed by model id, so changing the ranking metric misses the cache instead of silently</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># reusing the previous model's maps, and each model's cache is kept alongside the others.</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>CACHE_FILE <span class="op">=</span> CACHE <span class="op">/</span> <span class="ss">f"attributions_</span><span class="sc">{</span>BEST_ID<span class="sc">}</span><span class="ss">.npz"</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> CACHE_FILE.exists():</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    z <span class="op">=</span> np.load(CACHE_FILE)</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    cam_all, shap_all, cached_preds <span class="op">=</span> z[<span class="st">"cam"</span>], z[<span class="st">"shap"</span>], z[<span class="st">"preds"</span>]</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> np.array_equal(cached_preds, preds), <span class="st">"cache is stale: predictions changed"</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"loaded cached attributions from </span><span class="sc">{</span>CACHE_FILE<span class="sc">.</span>name<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>    rng <span class="op">=</span> np.random.default_rng(<span class="dv">42</span>)</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>    background <span class="op">=</span> X_train[rng.choice(<span class="bu">len</span>(X_train), N_BACKGROUND, replace<span class="op">=</span><span class="va">False</span>)]</span>
 <span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>    explainer <span class="op">=</span> shap.DeepExplainer(model, background)</span>
-<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>    sv <span class="op">=</span> explainer.shap_values(X_test, check_additivity<span class="op">=</span><span class="va">False</span>)</span>
-<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>    sv <span class="op">=</span> np.asarray(sv)  <span class="co"># (n, 64, 64, 3, n_classes)</span></span>
-<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>    shap_all <span class="op">=</span> np.take_along_axis(</span>
-<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>        sv, preds[:, <span class="va">None</span>, <span class="va">None</span>, <span class="va">None</span>, <span class="va">None</span>], axis<span class="op">=-</span><span class="dv">1</span></span>
-<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>    )[..., <span class="dv">0</span>]  <span class="co"># (n, 64, 64, 3) for the predicted class</span></span>
-<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>    np.savez_compressed(CACHE_FILE, cam<span class="op">=</span>cam_all, shap<span class="op">=</span>shap_all, preds<span class="op">=</span>preds)</span>
-<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"computed and cached attributions -&gt; </span><span class="sc">{</span>CACHE_FILE<span class="sc">.</span>name<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Grad-CAM:"</span>, cam_all.shape, <span class="st">" SHAP:"</span>, shap_all.shape)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>    cam_all <span class="op">=</span> grad_cam(tapped, X_test, preds)</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>    explainer <span class="op">=</span> shap.DeepExplainer(model, background)</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>    sv <span class="op">=</span> explainer.shap_values(X_test, check_additivity<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>    sv <span class="op">=</span> np.asarray(sv)  <span class="co"># (n, 64, 64, 3, n_classes)</span></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>    shap_all <span class="op">=</span> np.take_along_axis(</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>        sv, preds[:, <span class="va">None</span>, <span class="va">None</span>, <span class="va">None</span>, <span class="va">None</span>], axis<span class="op">=-</span><span class="dv">1</span></span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>    )[..., <span class="dv">0</span>]  <span class="co"># (n, 64, 64, 3) for the predicted class</span></span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>    np.savez_compressed(CACHE_FILE, cam<span class="op">=</span>cam_all, shap<span class="op">=</span>shap_all, preds<span class="op">=</span>preds)</span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"computed and cached attributions -&gt; </span><span class="sc">{</span>CACHE_FILE<span class="sc">.</span>name<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Grad-CAM:"</span>, cam_all.shape, <span class="st">" SHAP:"</span>, shap_all.shape)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>computed and cached attributions -&gt; attributions.npz
+<pre><code>loaded cached attributions from attributions_6848.npz
 Grad-CAM: (308, 64, 64)  SHAP: (308, 64, 64, 3)</code></pre>
 </div>
 </div>
@@ -400,7 +407,7 @@ Grad-CAM: (308, 64, 64)  SHAP: (308, 64, 64, 3)</code></pre>
 <h3 class="anchored" data-anchor-id="reducing-both-to-a-comparable-saliency-map">2.3 Reducing both to a comparable saliency map</h3>
 <p>Grad-CAM is already a single non-negative map per image. SHAP is signed and per-channel. To compare like with like, SHAP is summed over the three colour channels (giving each pixel’s total contribution) and the <strong>positive part</strong> is kept, so both maps answer the same question: <em>which pixels push the predicted score up?</em></p>
 <p>Negative SHAP is discarded rather than absolute-valued deliberately. Evidence <em>against</em> the predicted class is a different quantity from evidence <em>for</em> it, and mixing the two would let a pixel that argues against the prediction count as “attention”.</p>
-<div id="757c2402" class="cell" data-execution_count="6">
+<div id="80e30e16" class="cell" data-execution_count="6">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2.3</span></span>
@@ -432,7 +439,7 @@ Grad-CAM: (308, 64, 64)  SHAP: (308, 64, 64, 3)</code></pre>
 <section id="the-otsu-lesion-masks" class="level2">
 <h2 class="anchored" data-anchor-id="the-otsu-lesion-masks">3. The Otsu lesion masks</h2>
 <p>Regenerated by <code>export_otsu_masks.R</code>, which copies <code>segment_cda</code> verbatim from the dataset repo (<code>10_segmentation_and_feature_extraction</code>, chunk 1.3) and applies it to <code>data/cropped_images_medoid</code> — the same medoid crops <code>medoid_64</code> is built from, and so the same images the model sees. The dataset repo itself segments the <em>medoid</em> crops; using those here would compare a saliency map on one crop against a mask on a different crop of the same lesion.</p>
-<div id="e534246f" class="cell" data-execution_count="7">
+<div id="ba5e78ff" class="cell" data-execution_count="7">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3.1</span></span>
@@ -466,7 +473,7 @@ lesion area as a fraction of the crop: mean 0.452, min 0.075, max 0.713</code></
 <h3 class="anchored" data-anchor-id="orientation-check">3.2 Orientation check</h3>
 <p>The masks travel from R to Python through a PNG, and R’s <code>readTIFF</code>/<code>writePNG</code> index <code>[row, col]</code> while EBImage works in <code>[x, y]</code>. A single stray transpose would put every mask on its own diagonal reflection, which for an off-centre lesion looks like a double flip and would quietly corrupt every overlap number below while leaving the mask <em>areas</em> untouched — so it would not show up in any of the summaries.</p>
 <p>The check uses the segmentation’s own criterion. <code>segment_cda</code> thresholds greenness (<code>G - R</code>) and keeps the high side, so on a correctly oriented mask the mean greenness inside must exceed that outside by more than for any other orientation of the same mask.</p>
-<div id="c6054d70" class="cell" data-execution_count="8">
+<div id="a10ee110" class="cell" data-execution_count="8">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3.2</span></span>
@@ -511,7 +518,7 @@ best orientation: as loaded</code></pre>
 </div>
 </div>
 <p>The lesion fills about half of every crop, and that fraction barely varies with severity:</p>
-<div id="d6d0180d" class="cell" data-execution_count="9">
+<div id="222f318c" class="cell" data-execution_count="9">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3.3</span></span>
@@ -544,7 +551,7 @@ score
 <p><strong>Energy-based pointing game (EBPG).</strong> The share of the map’s total attention that falls inside the lesion. Defined in Score-CAM (Wang et al., CVPRW 2020, arXiv:1910.01279): <em>“we care about how much energy of the saliency map falls into the target object bounding box… We denote this metric as Proportion = ΣL^c_(i,j)∈bbox / (ΣL^c_∈bbox + ΣL^c_∉bbox), and call this metric an energy-based pointing game.”</em> Their ground truth is a bounding box; the Otsu mask used here is a segmentation, which is a tighter target.</p>
 <p><strong>Pointing game.</strong> Whether the single highest-attention pixel lies inside the lesion. The older, coarser criterion the EBPG generalises.</p>
 <p><strong>IoU and Dice.</strong> The standard segmentation-overlap measures, which need a <em>binary</em> prediction. Binarising a continuous map requires a threshold, and any fixed threshold would favour whichever method happens to produce peakier maps. Instead each map is thresholded at its own top-<code>a</code> quantile, where <code>a</code> is that image’s lesion area fraction — <strong>matched-area binarisation</strong>, so the predicted region is always the same size as the lesion. This makes IoU comparable across images and methods, and removes the free parameter. Under matched areas IoU and Dice are monotone transforms of each other, so both are reported but they rank identically.</p>
-<div id="01ce9d82" class="cell" data-execution_count="10">
+<div id="1c5c4cda" class="cell" data-execution_count="10">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.1</span></span>
@@ -605,7 +612,7 @@ score
 <span id="cb19-56"><a href="#cb19-56" aria-hidden="true" tabindex="-1"></a>metrics[<span class="st">"cam_lift"</span>] <span class="op">=</span> metrics.cam_ebpg <span class="op">-</span> metrics.lesion_fraction</span>
 <span id="cb19-57"><a href="#cb19-57" aria-hidden="true" tabindex="-1"></a>metrics[<span class="st">"shap_lift"</span>] <span class="op">=</span> metrics.shap_ebpg <span class="op">-</span> metrics.lesion_fraction</span>
 <span id="cb19-58"><a href="#cb19-58" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb19-59"><a href="#cb19-59" aria-hidden="true" tabindex="-1"></a>metrics.to_csv(CACHE <span class="op">/</span> <span class="st">"overlap_metrics.csv"</span>, index<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb19-59"><a href="#cb19-59" aria-hidden="true" tabindex="-1"></a>metrics.to_csv(CACHE <span class="op">/</span> <span class="ss">f"overlap_metrics_</span><span class="sc">{</span>BEST_ID<span class="sc">}</span><span class="ss">.csv"</span>, index<span class="op">=</span><span class="va">False</span>)</span>
 <span id="cb19-60"><a href="#cb19-60" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"metrics for </span><span class="sc">{</span><span class="bu">len</span>(metrics)<span class="sc">}</span><span class="ss"> images"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
@@ -614,7 +621,7 @@ score
 </div>
 <section id="headline-numbers" class="level3">
 <h3 class="anchored" data-anchor-id="headline-numbers">4.2 Headline numbers</h3>
-<div id="13473643" class="cell" data-execution_count="11">
+<div id="d8bed7f5" class="cell" data-execution_count="11">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.2</span></span>
@@ -648,7 +655,7 @@ Dice (matched area)        0.4941  0.7046               NaN</code></pre>
 </div>
 </div>
 <p>A one-sided sign test asks whether the lift is positive more often than chance, without assuming the lift is normally distributed.</p>
-<div id="6ee7a5a9" class="cell" data-execution_count="12">
+<div id="7acc437d" class="cell" data-execution_count="12">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.3</span></span>
@@ -674,7 +681,7 @@ SHAP     : lift &gt; 0 in 260/264 images (98.5%), sign test p=6.78e-72, Wilcoxon
 <section id="is-the-weak-grad-cam-result-a-property-of-the-model-or-of-the-layer" class="level3">
 <h3 class="anchored" data-anchor-id="is-the-weak-grad-cam-result-a-property-of-the-model-or-of-the-layer">4.4 Is the weak Grad-CAM result a property of the model or of the layer?</h3>
 <p>Grad-CAM barely clears the baseline, and its pointing game falls <em>below</em> it. Before concluding anything about the model, that has to be separated from the 4x4 resolution of the layer Grad-CAM is defined on. If the cause is resolution, computing the same Grad-CAM at shallower convolutions — which have finer grids but represent less abstract features — should recover the overlap.</p>
-<div id="323d4af2" class="cell" data-execution_count="13">
+<div id="0864ad1e" class="cell" data-execution_count="13">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.4</span></span>
@@ -715,7 +722,7 @@ uniform baseline: 0.4520</code></pre>
 <h3 class="anchored" data-anchor-id="two-stronger-nulls">4.5 Two stronger nulls</h3>
 <p>The uniform baseline asks “could this be achieved by spreading attention evenly?”. That is too weak a question here, because the crop is the scorer’s box drawn around the lesion, so the lesion is not just large but reliably <strong>central</strong>. Any map biased towards the middle of the frame scores well without using the image at all.</p>
 <p><strong>Null 1 — a centred Gaussian.</strong> A fixed blob at the image centre, identical for every image, with no access to the pixels.</p>
-<div id="85522390" class="cell" data-execution_count="14">
+<div id="2a45632c" class="cell" data-execution_count="14">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb27"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.5a</span></span>
@@ -742,7 +749,7 @@ centred Gaussian, sigma=24px 0.5741
 </div>
 </div>
 <p><strong>Null 2 — the same map against someone else’s lesion.</strong> For each image, EBPG is recomputed against a mask taken from a <em>different, randomly chosen</em> crop. Shuffled masks are just as central and just as large as the real ones, so this null holds the geometry fixed and removes only the image-specific correspondence. The gap between own and shuffled is the part of the overlap that genuinely tracks <em>this</em> lesion.</p>
-<div id="cb2d4c52" class="cell" data-execution_count="15">
+<div id="6d813fbe" class="cell" data-execution_count="15">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.5b</span></span>
@@ -787,7 +794,7 @@ Grad-CAM  0.459390       0.452693    0.006697        126/264    0.168551
 <h2 class="anchored" data-anchor-id="where-the-model-looks">5. Where the model looks</h2>
 <section id="overlap-by-severity-score" class="level3">
 <h3 class="anchored" data-anchor-id="overlap-by-severity-score">5.1 Overlap by severity score</h3>
-<div id="8253d995" class="cell" data-execution_count="16">
+<div id="92faeb8d" class="cell" data-execution_count="16">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb31"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 5.1</span></span>
@@ -847,7 +854,7 @@ Grad-CAM  0.459390       0.452693    0.006697        126/264    0.168551
 <section id="on-lesion-and-off-lesion-examples" class="level3">
 <h3 class="anchored" data-anchor-id="on-lesion-and-off-lesion-examples">5.2 On-lesion and off-lesion examples</h3>
 <p>Chosen by SHAP lift, so “good” and “bad” are defined by a measurement rather than by eye. Each row shows the crop, the Otsu lesion outline, Grad-CAM, and SHAP.</p>
-<div id="6f09a6fb" class="cell" data-execution_count="17">
+<div id="25709aea" class="cell" data-execution_count="17">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 5.2</span></span>
@@ -913,7 +920,7 @@ Grad-CAM  0.459390       0.452693    0.006697        126/264    0.168551
 <section id="where-does-off-lesion-attention-go" class="level3">
 <h3 class="anchored" data-anchor-id="where-does-off-lesion-attention-go">5.3 Where does off-lesion attention go?</h3>
 <p>Hypothesis 4 said off-lesion attention should land on surrounding leaf rather than the black background. The leaf mask from the segmentation (mean RGB &gt;= 0.15) splits the non-lesion pixels into leaf and background.</p>
-<div id="a43f0c39" class="cell" data-execution_count="18">
+<div id="8561550f" class="cell" data-execution_count="18">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 5.3</span></span>
@@ -960,7 +967,7 @@ dark background         0.0608</code></pre>
 <section id="do-grad-cam-and-shap-agree" class="level2">
 <h2 class="anchored" data-anchor-id="do-grad-cam-and-shap-agree">6. Do Grad-CAM and SHAP agree?</h2>
 <p>Two maps can have the same EBPG while highlighting different pixels, so agreement is measured directly: the correlation between the two maps over pixels, per image.</p>
-<div id="9d28ed28" class="cell" data-execution_count="19">
+<div id="144c34cc" class="cell" data-execution_count="19">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb35"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6.1</span></span>
@@ -1011,7 +1018,7 @@ dark background         0.0608</code></pre>
 </div>
 <section id="the-images-where-they-disagree-most" class="level3">
 <h3 class="anchored" data-anchor-id="the-images-where-they-disagree-most">6.2 The images where they disagree most</h3>
-<div id="66dca4f0" class="cell" data-execution_count="20">
+<div id="9fd7fd41" class="cell" data-execution_count="20">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb37"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6.2</span></span>
@@ -1048,7 +1055,7 @@ DSC_4391_2_2_2      4     5     0.314      0.885     0.571          0.033</code>
 </section>
 <section id="does-looking-at-the-lesion-mean-getting-it-right" class="level3">
 <h3 class="anchored" data-anchor-id="does-looking-at-the-lesion-mean-getting-it-right">6.3 Does looking at the lesion mean getting it right?</h3>
-<div id="bd136aee" class="cell" data-execution_count="21">
+<div id="a1ff3ba8" class="cell" data-execution_count="21">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb39"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 6.3</span></span>
@@ -1089,60 +1096,249 @@ SHAP     : correct n=166 median +0.3679 | wrong n=98 median +0.3454 | Mann-Whitn
 <li><p><strong>Grad-CAM’s failure here is the architecture, not the method or the model.</strong> At the last convolution its lift is +0.044 and its pointing game 0.341, below the 0.452 area baseline. Section 4.4 locates the cause: the same computation at the 29x29 convolution gives lift +0.182. The last layer is 4x4, so the map has 16 values and its argmax can only sit at one of 16 lattice points, most of them peripheral, while the baseline counts pixel area. Those two quantities are not comparable at that resolution, which is why the pointing game can fall below “chance” without the model doing anything strange. Any Grad-CAM result on a network this small should be reported with the feature-map size attached.</p></li>
 <li><p><strong>The two methods disagree far more than expected.</strong> 115 of 262 images are <em>negatively</em> correlated pixelwise. Hypothesis 3 predicted agreement on coarse location with divergence in detail; at 4x4 Grad-CAM does not really have a coarse location to agree about. The disagreement is therefore mostly uninformative about the model — it is dominated by the resolution gap between a 16-cell map and a 4,096-pixel one. The practical consequence is that on this architecture SHAP is the method to trust, and using Grad-CAM alone would have given a materially wrong answer.</p></li>
 <li><p><strong>Attention avoids the background, which is the one clean positive.</strong> SHAP places 3.5% of its energy on dark background occupying 6.1% of the pixels, and 17.9% on non-lesion leaf occupying 48.8%. Both are under-weighted relative to area, so hypothesis 4 holds: what little attention falls outside the lesion lands on leaf tissue rather than on the black surround. The model is not keying on the crop border or the padding.</p></li>
-<li><p><strong>Looking at the lesion is NOT associated with being right on this crop set.</strong> SHAP lift is nominally higher on correctly scored crops than on errors (median +0.363 vs +0.335) but Mann-Whitney gives p = 0.46, and Grad-CAM p = 0.59. On the centre-of-overlap crops the SHAP comparison did reach p = 0.004, so this association does not survive the change of crop and should not be relied on. Errors are not explained by the model looking in the wrong place.</p></li>
+<li><p><strong>Looking at the lesion is NOT associated with being right on this crop set.</strong> SHAP lift is nominally higher on correctly scored crops than on errors (median +0.368 vs +0.345) at Mann-Whitney p = 0.048, and Grad-CAM p = 0.414. On the EBPG itself rather than the lift the same comparison gives SHAP p = 0.068 and Grad-CAM p = 0.987. On the centre-of-overlap crops the SHAP comparison did reach p = 0.004, so this association does not survive the change of crop and should not be relied on. Errors are not explained by the model looking in the wrong place.</p></li>
 <li><p><strong>A methodological caution for reuse.</strong> The masks cross an R-to-Python boundary where the two languages disagree about index order, and an early version of <code>export_otsu_masks.R</code> transposed every mask. That corrupted every overlap metric while leaving mask <em>areas</em>, lesion fractions and the uniform baseline completely unchanged, so nothing in the summary tables looked wrong. It was caught by checking mean greenness inside versus outside the mask, the quantity Otsu itself thresholds. Section 3.2 now runs that check on every render and fails the build if any other orientation separates greenness better.</p></li>
-<li><p><strong>Scope.</strong> This is one model. <code>analyses/03</code> showed roughly 210 configs are statistically tied at the top, so this model is a representative member of that cluster rather than a uniquely best model, and nothing here establishes that the other 209 attend the same way. Extending sections 4.4 and 4.5 across the kept top-100 would say whether centre-bias is a property of this network or of the task as posed.</p></li>
+<li><p><strong>Scope.</strong> This is one model. <code>analyses/08</code> showed 17 settings tied within one standard error of the best, so this model is a representative member of that cluster rather than a uniquely best model, and nothing here establishes that the other 16 attend the same way. Extending sections 4.4 and 4.5 across the kept top-100 would say whether centre-bias is a property of this network or of the task as posed.</p></li>
 <li><p><strong>What would sharpen this.</strong> The centrality confound is baked into the crops, so the informative experiment is off-centre: re-crop each CDA with the lesion deliberately displaced from the frame centre, and re-measure. If the attention follows the lesion, the own-versus-shuffled gap should widen sharply; if it stays at the frame centre, the model is using position rather than appearance.</p></li>
 </ul>
 </section>
-<section id="thesis-figure" class="level2">
-<h2 class="anchored" data-anchor-id="thesis-figure">Thesis figure</h2>
-<p>Three columns rather than the four in section 5.2: the Otsu outline is drawn on the crop itself instead of taking a column of its own, so the same rows fit the page.</p>
-<div id="fbc60464" class="cell" data-execution_count="22">
+<section id="thesis-figure-example-attributions" class="level2">
+<h2 class="anchored" data-anchor-id="thesis-figure-example-attributions">Thesis figure: example attributions</h2>
+<p>SHAP only. Grad-CAM is excluded from the thesis figure because this network’s last convolution is 4x4, so its map holds 16 values over a 64x64 CDA image and section 4.4 shows the same computation at 12x12 recovers most of the overlap: the panel would report the feature-map size, not the model.</p>
+<p>Four columns, and each CDA image sits directly above its own attribution map. The top two rows are the four highest inside/outside ratios in the test split, left to right, and the bottom two rows the four lowest. Ranking on that ratio picks the examples by the measure the panels below use rather than by eye.</p>
+<div id="b5347268" class="cell" data-execution_count="22">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb41"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="co"># T1</span></span>
 <span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path <span class="im">as</span> _P</span>
 <span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>_tp <span class="op">=</span> _P(<span class="st">"thesis_plots"</span>)<span class="op">;</span> _tp.mkdir(exist_ok<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Two rows where the attribution sits on the lesion and two where it does not, picked by</span></span>
-<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a><span class="co"># SHAP lift so the pair is chosen by a measurement rather than by eye.</span></span>
-<span id="cb41-7"><a href="#cb41-7" aria-hidden="true" tabindex="-1"></a>_ranked <span class="op">=</span> metrics.sort_values(<span class="st">"shap_lift"</span>, ascending<span class="op">=</span><span class="va">False</span>)</span>
-<span id="cb41-8"><a href="#cb41-8" aria-hidden="true" tabindex="-1"></a>_pick <span class="op">=</span> <span class="bu">list</span>(_ranked.head(<span class="dv">2</span>).index) <span class="op">+</span> <span class="bu">list</span>(_ranked.tail(<span class="dv">2</span>).index)</span>
-<span id="cb41-9"><a href="#cb41-9" aria-hidden="true" tabindex="-1"></a>_rows <span class="op">=</span> [metrics.index.get_loc(i) <span class="cf">for</span> i <span class="kw">in</span> _pick]</span>
-<span id="cb41-10"><a href="#cb41-10" aria-hidden="true" tabindex="-1"></a>_sel_idx <span class="op">=</span> np.where(sel)[<span class="dv">0</span>]</span>
-<span id="cb41-11"><a href="#cb41-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb41-12"><a href="#cb41-12" aria-hidden="true" tabindex="-1"></a>_fig, _ax <span class="op">=</span> plt.subplots(<span class="bu">len</span>(_rows), <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="fl">6.4</span>, <span class="fl">2.25</span> <span class="op">*</span> <span class="bu">len</span>(_rows)))</span>
-<span id="cb41-13"><a href="#cb41-13" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _r, _mi <span class="kw">in</span> <span class="bu">enumerate</span>(_rows):</span>
-<span id="cb41-14"><a href="#cb41-14" aria-hidden="true" tabindex="-1"></a>    _gi <span class="op">=</span> _sel_idx[_mi]</span>
-<span id="cb41-15"><a href="#cb41-15" aria-hidden="true" tabindex="-1"></a>    <span class="co"># to_rgb for DISPLAY only: the arrays are BGR from cv.imread and imshow assumes RGB.</span></span>
-<span id="cb41-16"><a href="#cb41-16" aria-hidden="true" tabindex="-1"></a>    _img, _mk, _m <span class="op">=</span> to_rgb(X_test[_gi]), masks[_gi], metrics.iloc[_mi]</span>
-<span id="cb41-17"><a href="#cb41-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _c, (_data, _ttl) <span class="kw">in</span> <span class="bu">enumerate</span>([</span>
-<span id="cb41-18"><a href="#cb41-18" aria-hidden="true" tabindex="-1"></a>            (<span class="va">None</span>, <span class="ss">f"Score </span><span class="sc">{</span>_m<span class="sc">.</span>score<span class="sc">}</span><span class="ss">, predicted </span><span class="sc">{</span>_m<span class="sc">.</span>pred<span class="sc">}</span><span class="ss">"</span>),</span>
-<span id="cb41-19"><a href="#cb41-19" aria-hidden="true" tabindex="-1"></a>            (shap_n[_gi], <span class="ss">f"SHAP  EBPG </span><span class="sc">{</span>_m<span class="sc">.</span>shap_ebpg<span class="sc">:.2f}</span><span class="ss">"</span>),</span>
-<span id="cb41-20"><a href="#cb41-20" aria-hidden="true" tabindex="-1"></a>            (cam_n[_gi], <span class="ss">f"Grad-CAM  EBPG </span><span class="sc">{</span>_m<span class="sc">.</span>cam_ebpg<span class="sc">:.2f}</span><span class="ss">"</span>)]):</span>
-<span id="cb41-21"><a href="#cb41-21" aria-hidden="true" tabindex="-1"></a>        _a <span class="op">=</span> _ax[_r, _c]</span>
-<span id="cb41-22"><a href="#cb41-22" aria-hidden="true" tabindex="-1"></a>        _a.imshow(_img)</span>
-<span id="cb41-23"><a href="#cb41-23" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> _data <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
-<span id="cb41-24"><a href="#cb41-24" aria-hidden="true" tabindex="-1"></a>            _a.imshow(_data, cmap<span class="op">=</span><span class="st">"inferno"</span>, alpha<span class="op">=</span><span class="fl">0.65</span>)</span>
-<span id="cb41-25"><a href="#cb41-25" aria-hidden="true" tabindex="-1"></a>        _a.contour(_mk, levels<span class="op">=</span>[<span class="fl">0.5</span>], colors<span class="op">=</span><span class="st">"cyan"</span>, linewidths<span class="op">=</span><span class="fl">1.0</span>)</span>
-<span id="cb41-26"><a href="#cb41-26" aria-hidden="true" tabindex="-1"></a>        _a.set_title(_ttl, fontsize<span class="op">=</span><span class="fl">7.5</span>)</span>
-<span id="cb41-27"><a href="#cb41-27" aria-hidden="true" tabindex="-1"></a>        _a.axis(<span class="st">"off"</span>)</span>
-<span id="cb41-28"><a href="#cb41-28" aria-hidden="true" tabindex="-1"></a>_fig.tight_layout()</span>
-<span id="cb41-29"><a href="#cb41-29" aria-hidden="true" tabindex="-1"></a>_fig.savefig(_tp <span class="op">/</span> <span class="st">"best_model_attributions.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
-<span id="cb41-30"><a href="#cb41-30" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb41-31"><a href="#cb41-31" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"rows by SHAP lift: "</span> <span class="op">+</span> <span class="st">", "</span>.join(<span class="ss">f"</span><span class="sc">{</span>metrics<span class="sc">.</span>iloc[r]<span class="sc">.</span>shap_lift<span class="sc">:+.2f}</span><span class="ss">"</span> <span class="cf">for</span> r <span class="kw">in</span> _rows))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a>_ms2, _sh2 <span class="op">=</span> masks[sel], shap_n[sel]</span>
+<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-7"><a href="#cb41-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-8"><a href="#cb41-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> _inout(maps, ks):</span>
+<span id="cb41-9"><a href="#cb41-9" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Mean attribution per lesion pixel / mean per non-lesion pixel, one value per image.</span></span>
+<span id="cb41-10"><a href="#cb41-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-11"><a href="#cb41-11" aria-hidden="true" tabindex="-1"></a><span class="co">    Dividing by the pixel count in each region removes the lesion's size from the</span></span>
+<span id="cb41-12"><a href="#cb41-12" aria-hidden="true" tabindex="-1"></a><span class="co">    comparison, and the ratio moves very little when the Otsu boundary is slightly wrong,</span></span>
+<span id="cb41-13"><a href="#cb41-13" aria-hidden="true" tabindex="-1"></a><span class="co">    unlike an overlap measure that scores the boundary itself.</span></span>
+<span id="cb41-14"><a href="#cb41-14" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb41-15"><a href="#cb41-15" aria-hidden="true" tabindex="-1"></a>    out <span class="op">=</span> []</span>
+<span id="cb41-16"><a href="#cb41-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _m3, _k3 <span class="kw">in</span> <span class="bu">zip</span>(maps, ks):</span>
+<span id="cb41-17"><a href="#cb41-17" aria-hidden="true" tabindex="-1"></a>        _w <span class="op">=</span> _m3 <span class="op">/</span> _m3.<span class="bu">sum</span>() <span class="cf">if</span> _m3.<span class="bu">sum</span>() <span class="op">&gt;</span> <span class="dv">0</span> <span class="cf">else</span> _m3</span>
+<span id="cb41-18"><a href="#cb41-18" aria-hidden="true" tabindex="-1"></a>        _o <span class="op">=</span> _w[<span class="op">~</span>_k3].mean() <span class="cf">if</span> (<span class="op">~</span>_k3).<span class="bu">any</span>() <span class="cf">else</span> <span class="fl">0.0</span></span>
+<span id="cb41-19"><a href="#cb41-19" aria-hidden="true" tabindex="-1"></a>        out.append(_w[_k3].mean() <span class="op">/</span> _o <span class="cf">if</span> (_k3.<span class="bu">any</span>() <span class="kw">and</span> _o <span class="op">&gt;</span> <span class="dv">0</span>) <span class="cf">else</span> np.nan)</span>
+<span id="cb41-20"><a href="#cb41-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.array(out)</span>
+<span id="cb41-21"><a href="#cb41-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-22"><a href="#cb41-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-23"><a href="#cb41-23" aria-hidden="true" tabindex="-1"></a>_ratio <span class="op">=</span> _inout(_sh2, _ms2)</span>
+<span id="cb41-24"><a href="#cb41-24" aria-hidden="true" tabindex="-1"></a>_order <span class="op">=</span> np.argsort(<span class="op">-</span>np.nan_to_num(_ratio, nan<span class="op">=-</span>np.inf))</span>
+<span id="cb41-25"><a href="#cb41-25" aria-hidden="true" tabindex="-1"></a>_top, _bot <span class="op">=</span> <span class="bu">list</span>(_order[:<span class="dv">4</span>]), <span class="bu">list</span>(_order[<span class="op">-</span><span class="dv">4</span>:][::<span class="op">-</span><span class="dv">1</span>])</span>
+<span id="cb41-26"><a href="#cb41-26" aria-hidden="true" tabindex="-1"></a>_sel_idx <span class="op">=</span> np.where(sel)[<span class="dv">0</span>]</span>
+<span id="cb41-27"><a href="#cb41-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-28"><a href="#cb41-28" aria-hidden="true" tabindex="-1"></a><span class="co"># Four rows, not two columns of pairs: the CDA image sits directly above its own</span></span>
+<span id="cb41-29"><a href="#cb41-29" aria-hidden="true" tabindex="-1"></a><span class="co"># attribution, so a reader compares down the column instead of across a gap. Left to right</span></span>
+<span id="cb41-30"><a href="#cb41-30" aria-hidden="true" tabindex="-1"></a><span class="co"># is best-to-fourth-best in the top pair and worst-to-fourth-worst in the bottom pair.</span></span>
+<span id="cb41-31"><a href="#cb41-31" aria-hidden="true" tabindex="-1"></a>_fig, _ax <span class="op">=</span> plt.subplots(<span class="dv">4</span>, <span class="dv">4</span>, figsize<span class="op">=</span>(<span class="fl">7.4</span>, <span class="fl">7.8</span>))</span>
+<span id="cb41-32"><a href="#cb41-32" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _band, _idx <span class="kw">in</span> <span class="bu">enumerate</span>((_top, _bot)):</span>
+<span id="cb41-33"><a href="#cb41-33" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _c, _mi <span class="kw">in</span> <span class="bu">enumerate</span>(_idx):</span>
+<span id="cb41-34"><a href="#cb41-34" aria-hidden="true" tabindex="-1"></a>        _gi <span class="op">=</span> _sel_idx[_mi]</span>
+<span id="cb41-35"><a href="#cb41-35" aria-hidden="true" tabindex="-1"></a>        <span class="co"># to_rgb for DISPLAY only: the arrays are BGR from cv.imread, imshow assumes RGB.</span></span>
+<span id="cb41-36"><a href="#cb41-36" aria-hidden="true" tabindex="-1"></a>        _img, _mk, _m <span class="op">=</span> to_rgb(X_test[_gi]), masks[_gi], metrics.iloc[_mi]</span>
+<span id="cb41-37"><a href="#cb41-37" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> _k, (_data, _ttl) <span class="kw">in</span> <span class="bu">enumerate</span>([</span>
+<span id="cb41-38"><a href="#cb41-38" aria-hidden="true" tabindex="-1"></a>                (<span class="va">None</span>, <span class="ss">f"Score </span><span class="sc">{</span>_m<span class="sc">.</span>score<span class="sc">}</span><span class="ss">, predicted </span><span class="sc">{</span>_m<span class="sc">.</span>pred<span class="sc">}</span><span class="ss">"</span>),</span>
+<span id="cb41-39"><a href="#cb41-39" aria-hidden="true" tabindex="-1"></a>                (shap_n[_gi], <span class="ss">f"</span><span class="sc">{</span>_ratio[_mi]<span class="sc">:.1f}</span><span class="ss">x inside"</span>)]):</span>
+<span id="cb41-40"><a href="#cb41-40" aria-hidden="true" tabindex="-1"></a>            _a <span class="op">=</span> _ax[_band <span class="op">*</span> <span class="dv">2</span> <span class="op">+</span> _k, _c]</span>
+<span id="cb41-41"><a href="#cb41-41" aria-hidden="true" tabindex="-1"></a>            <span class="co"># The attribution row drops the CDA image underneath it. Overlaying SHAP on the</span></span>
+<span id="cb41-42"><a href="#cb41-42" aria-hidden="true" tabindex="-1"></a>            <span class="co"># leaf mixes two colour scales in one panel, and the leaf's own red-green</span></span>
+<span id="cb41-43"><a href="#cb41-43" aria-hidden="true" tabindex="-1"></a>            <span class="co"># variation is easy to read as attribution when it is not.</span></span>
+<span id="cb41-44"><a href="#cb41-44" aria-hidden="true" tabindex="-1"></a>            _a.imshow(_img <span class="cf">if</span> _data <span class="kw">is</span> <span class="va">None</span> <span class="cf">else</span> _data,</span>
+<span id="cb41-45"><a href="#cb41-45" aria-hidden="true" tabindex="-1"></a>                      cmap<span class="op">=</span><span class="va">None</span> <span class="cf">if</span> _data <span class="kw">is</span> <span class="va">None</span> <span class="cf">else</span> <span class="st">"inferno"</span>)</span>
+<span id="cb41-46"><a href="#cb41-46" aria-hidden="true" tabindex="-1"></a>            _a.contour(_mk, levels<span class="op">=</span>[<span class="fl">0.5</span>], colors<span class="op">=</span><span class="st">"cyan"</span>, linewidths<span class="op">=</span><span class="fl">1.0</span>)</span>
+<span id="cb41-47"><a href="#cb41-47" aria-hidden="true" tabindex="-1"></a>            _a.set_title(_ttl, fontsize<span class="op">=</span><span class="fl">7.5</span>)</span>
+<span id="cb41-48"><a href="#cb41-48" aria-hidden="true" tabindex="-1"></a>            _a.axis(<span class="st">"off"</span>)</span>
+<span id="cb41-49"><a href="#cb41-49" aria-hidden="true" tabindex="-1"></a>_fig.tight_layout()</span>
+<span id="cb41-50"><a href="#cb41-50" aria-hidden="true" tabindex="-1"></a>_fig.savefig(_tp <span class="op">/</span> <span class="st">"best_model_attributions.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb41-51"><a href="#cb41-51" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb41-52"><a href="#cb41-52" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"top row ratios:    "</span> <span class="op">+</span> <span class="st">", "</span>.join(<span class="ss">f"</span><span class="sc">{</span>_ratio[r]<span class="sc">:.1f}</span><span class="ss">x"</span> <span class="cf">for</span> r <span class="kw">in</span> _top))</span>
+<span id="cb41-53"><a href="#cb41-53" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"bottom row ratios: "</span> <span class="op">+</span> <span class="st">", "</span>.join(<span class="ss">f"</span><span class="sc">{</span>_ratio[r]<span class="sc">:.1f}</span><span class="ss">x"</span> <span class="cf">for</span> r <span class="kw">in</span> _bot))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="cnn_attention_vs_lesion_files/figure-html/cell-23-output-1.png" width="758" height="1072" class="figure-img"></p>
-<figcaption>Best CNN attributions on four test crops: the crop with its Otsu lesion outline, SHAP, and Grad-CAM.</figcaption>
+<p><img src="cnn_attention_vs_lesion_files/figure-html/cell-23-output-1.png" width="876" height="929" class="figure-img"></p>
+<figcaption>SHAP attribution for the selected CNN on four test CDA images, each shown as the image with its Otsu lesion outline in cyan and then with SHAP overlaid. The top row is the highest inside/outside ratio in the test split and the bottom row the lowest.</figcaption>
 </figure>
 </div>
 </div>
 <div class="cell-output cell-output-stdout">
-<pre><code>rows by SHAP lift: +0.64, +0.55, -0.09, -0.09</code></pre>
+<pre><code>top row ratios:    301.7x, 241.5x, 54.1x, 43.7x
+bottom row ratios: 0.2x, 0.7x, 0.8x, 0.9x</code></pre>
+</div>
+</div>
+</section>
+<section id="thesis-figure-2-inside-the-lesion-but-not-the-shape-of-it" class="level2">
+<h2 class="anchored" data-anchor-id="thesis-figure-2-inside-the-lesion-but-not-the-shape-of-it">Thesis figure 2: inside the lesion, but not the shape of it</h2>
+<p>Two panels, each one measure split by whether the model scored the CDA image correctly, and each written out on its own so the thesis assembler can place them.</p>
+<p><strong>A, matched-area IoU.</strong> Threshold the map to the lesion’s own pixel count, then overlap. This scores outline and placement together and leaves no free threshold. The centred disc is the reference: matched-area binarisation of any radially decreasing map selects the same n most-central pixels, so every Gaussian width collapses to one disc and the bar carries no free parameter.</p>
+<p><strong>B, inside/outside ratio.</strong> Mean attribution on a lesion pixel divided by the mean on a pixel outside. Dividing by the pixel count in each region removes the lesion’s size, and the ratio barely moves when the Otsu boundary is slightly wrong. No disc here: without binarisation its ratio runs from 44.5x at sigma=8 to 1.7x at sigma=24, so any bar drawn would be a choice of sigma rather than a null.</p>
+<div id="eb988041" class="cell" data-execution_count="23">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb43"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="co"># T2</span></span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.stats <span class="im">import</span> mannwhitneyu <span class="im">as</span> _mwu  <span class="co"># noqa: E402</span></span>
+<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a>_cor <span class="op">=</span> metrics.correct.to_numpy()</span>
+<span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-6"><a href="#cb43-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-7"><a href="#cb43-7" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> _matched_iou(maps, ks):</span>
+<span id="cb43-8"><a href="#cb43-8" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""IoU after thresholding each map to its own lesion's pixel count."""</span></span>
+<span id="cb43-9"><a href="#cb43-9" aria-hidden="true" tabindex="-1"></a>    out <span class="op">=</span> []</span>
+<span id="cb43-10"><a href="#cb43-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _mp, _k <span class="kw">in</span> <span class="bu">zip</span>(maps, ks):</span>
+<span id="cb43-11"><a href="#cb43-11" aria-hidden="true" tabindex="-1"></a>        _n <span class="op">=</span> <span class="bu">int</span>(_k.<span class="bu">sum</span>())</span>
+<span id="cb43-12"><a href="#cb43-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> _n <span class="op">==</span> <span class="dv">0</span>:</span>
+<span id="cb43-13"><a href="#cb43-13" aria-hidden="true" tabindex="-1"></a>            out.append(np.nan)</span>
+<span id="cb43-14"><a href="#cb43-14" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span></span>
+<span id="cb43-15"><a href="#cb43-15" aria-hidden="true" tabindex="-1"></a>        _pr <span class="op">=</span> np.zeros(_mp.size, <span class="bu">bool</span>)</span>
+<span id="cb43-16"><a href="#cb43-16" aria-hidden="true" tabindex="-1"></a>        _pr[np.argpartition(<span class="op">-</span>_mp.ravel(), _n <span class="op">-</span> <span class="dv">1</span>)[:_n]] <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb43-17"><a href="#cb43-17" aria-hidden="true" tabindex="-1"></a>        out.append(np.logical_and(_pr, _k.ravel()).<span class="bu">sum</span>() <span class="op">/</span> np.logical_or(_pr, _k.ravel()).<span class="bu">sum</span>())</span>
+<span id="cb43-18"><a href="#cb43-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.array(out)</span>
+<span id="cb43-19"><a href="#cb43-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-20"><a href="#cb43-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-21"><a href="#cb43-21" aria-hidden="true" tabindex="-1"></a>_yy2, _xx2 <span class="op">=</span> np.mgrid[<span class="dv">0</span>:<span class="dv">64</span>, <span class="dv">0</span>:<span class="dv">64</span>]</span>
+<span id="cb43-22"><a href="#cb43-22" aria-hidden="true" tabindex="-1"></a>_disc_iou <span class="op">=</span> _matched_iou(</span>
+<span id="cb43-23"><a href="#cb43-23" aria-hidden="true" tabindex="-1"></a>    np.repeat(np.exp(<span class="op">-</span>(((_yy2 <span class="op">-</span> <span class="fl">31.5</span>) <span class="op">**</span> <span class="dv">2</span> <span class="op">+</span> (_xx2 <span class="op">-</span> <span class="fl">31.5</span>) <span class="op">**</span> <span class="dv">2</span>) <span class="op">/</span> (<span class="dv">2</span> <span class="op">*</span> <span class="fl">12.0</span> <span class="op">**</span> <span class="dv">2</span>)))[<span class="va">None</span>],</span>
+<span id="cb43-24"><a href="#cb43-24" aria-hidden="true" tabindex="-1"></a>              <span class="bu">len</span>(_ms2), axis<span class="op">=</span><span class="dv">0</span>), _ms2)</span>
+<span id="cb43-25"><a href="#cb43-25" aria-hidden="true" tabindex="-1"></a>_iou <span class="op">=</span> metrics.shap_iou.to_numpy()   <span class="co"># _ratio comes from the cell above</span></span>
+<span id="cb43-26"><a href="#cb43-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-27"><a href="#cb43-27" aria-hidden="true" tabindex="-1"></a><span class="co"># Ratio first: it carries the positive finding (the prediction is built from lesion</span></span>
+<span id="cb43-28"><a href="#cb43-28" aria-hidden="true" tabindex="-1"></a><span class="co"># pixels), and the IoU panel then qualifies it (but not the whole lesion, and not its</span></span>
+<span id="cb43-29"><a href="#cb43-29" aria-hidden="true" tabindex="-1"></a><span class="co"># shape). The panel letters follow this order into the thesis figure.</span></span>
+<span id="cb43-30"><a href="#cb43-30" aria-hidden="true" tabindex="-1"></a>PANELS <span class="op">=</span> [</span>
+<span id="cb43-31"><a href="#cb43-31" aria-hidden="true" tabindex="-1"></a>    <span class="bu">dict</span>(tag<span class="op">=</span><span class="st">"a"</span>, v<span class="op">=</span>_ratio, extra<span class="op">=</span><span class="va">None</span>, log<span class="op">=</span><span class="va">True</span>, ref<span class="op">=</span><span class="fl">1.0</span>,</span>
+<span id="cb43-32"><a href="#cb43-32" aria-hidden="true" tabindex="-1"></a>         lab<span class="op">=</span><span class="st">"SHAP per lesion pixel</span><span class="ch">\n</span><span class="st">/ per pixel outside"</span>,</span>
+<span id="cb43-33"><a href="#cb43-33" aria-hidden="true" tabindex="-1"></a>         ttl<span class="op">=</span><span class="st">"concentrates inside the lesion"</span>),</span>
+<span id="cb43-34"><a href="#cb43-34" aria-hidden="true" tabindex="-1"></a>    <span class="bu">dict</span>(tag<span class="op">=</span><span class="st">"b"</span>, v<span class="op">=</span>_iou, extra<span class="op">=</span>(<span class="st">"Centred disc,</span><span class="ch">\n</span><span class="st">same area"</span>, _disc_iou), log<span class="op">=</span><span class="va">False</span>, ref<span class="op">=</span><span class="va">None</span>,</span>
+<span id="cb43-35"><a href="#cb43-35" aria-hidden="true" tabindex="-1"></a>         lab<span class="op">=</span><span class="st">"SHAP IoU with the lesion</span><span class="ch">\n</span><span class="st">(matched area)"</span>,</span>
+<span id="cb43-36"><a href="#cb43-36" aria-hidden="true" tabindex="-1"></a>         ttl<span class="op">=</span><span class="st">"does not trace the lesion's shape"</span>),</span>
+<span id="cb43-37"><a href="#cb43-37" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb43-38"><a href="#cb43-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-39"><a href="#cb43-39" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _P <span class="kw">in</span> PANELS:</span>
+<span id="cb43-40"><a href="#cb43-40" aria-hidden="true" tabindex="-1"></a>    _v, _ok <span class="op">=</span> _P[<span class="st">"v"</span>], <span class="op">~</span>np.isnan(_P[<span class="st">"v"</span>])</span>
+<span id="cb43-41"><a href="#cb43-41" aria-hidden="true" tabindex="-1"></a>    _f, _a <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="fl">4.6</span>, <span class="fl">4.4</span>))</span>
+<span id="cb43-42"><a href="#cb43-42" aria-hidden="true" tabindex="-1"></a>    _g <span class="op">=</span> [_v[_cor <span class="op">&amp;</span> _ok], _v[<span class="op">~</span>_cor <span class="op">&amp;</span> _ok]]</span>
+<span id="cb43-43"><a href="#cb43-43" aria-hidden="true" tabindex="-1"></a>    _names <span class="op">=</span> [<span class="ss">f"Correct</span><span class="ch">\n</span><span class="ss">(n=</span><span class="sc">{</span><span class="bu">len</span>(_g[<span class="dv">0</span>])<span class="sc">}</span><span class="ss">)"</span>, <span class="ss">f"Wrong</span><span class="ch">\n</span><span class="ss">(n=</span><span class="sc">{</span><span class="bu">len</span>(_g[<span class="dv">1</span>])<span class="sc">}</span><span class="ss">)"</span>]</span>
+<span id="cb43-44"><a href="#cb43-44" aria-hidden="true" tabindex="-1"></a>    _cols <span class="op">=</span> [<span class="st">"#DD8452"</span>, <span class="st">"#C44E52"</span>]</span>
+<span id="cb43-45"><a href="#cb43-45" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> _P[<span class="st">"extra"</span>]:</span>
+<span id="cb43-46"><a href="#cb43-46" aria-hidden="true" tabindex="-1"></a>        _g.append(_P[<span class="st">"extra"</span>][<span class="dv">1</span>][<span class="op">~</span>np.isnan(_P[<span class="st">"extra"</span>][<span class="dv">1</span>])])</span>
+<span id="cb43-47"><a href="#cb43-47" aria-hidden="true" tabindex="-1"></a>        _names.append(_P[<span class="st">"extra"</span>][<span class="dv">0</span>])</span>
+<span id="cb43-48"><a href="#cb43-48" aria-hidden="true" tabindex="-1"></a>        _cols.append(<span class="st">"#8C8C8C"</span>)</span>
+<span id="cb43-49"><a href="#cb43-49" aria-hidden="true" tabindex="-1"></a>    _bp <span class="op">=</span> _a.boxplot(_g, positions<span class="op">=</span><span class="bu">range</span>(<span class="bu">len</span>(_g)), widths<span class="op">=</span><span class="fl">0.6</span>, patch_artist<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb43-50"><a href="#cb43-50" aria-hidden="true" tabindex="-1"></a>                     showfliers<span class="op">=</span><span class="va">False</span>, medianprops<span class="op">=</span><span class="bu">dict</span>(color<span class="op">=</span><span class="st">"black"</span>))</span>
+<span id="cb43-51"><a href="#cb43-51" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _p, _c <span class="kw">in</span> <span class="bu">zip</span>(_bp[<span class="st">"boxes"</span>], _cols):</span>
+<span id="cb43-52"><a href="#cb43-52" aria-hidden="true" tabindex="-1"></a>        _p.set_facecolor(_c)</span>
+<span id="cb43-53"><a href="#cb43-53" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> _P[<span class="st">"ref"</span>] <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb43-54"><a href="#cb43-54" aria-hidden="true" tabindex="-1"></a>        _a.axhline(_P[<span class="st">"ref"</span>], color<span class="op">=</span><span class="st">"black"</span>, ls<span class="op">=</span><span class="st">"--"</span>, lw<span class="op">=</span><span class="fl">1.0</span>)</span>
+<span id="cb43-55"><a href="#cb43-55" aria-hidden="true" tabindex="-1"></a>    <span class="co"># The ratio spans 0.25x to 302x, so a linear axis puts every box in the bottom tenth of</span></span>
+<span id="cb43-56"><a href="#cb43-56" aria-hidden="true" tabindex="-1"></a>    <span class="co"># the panel. IoU is bounded in [0, 1] and stays linear.</span></span>
+<span id="cb43-57"><a href="#cb43-57" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> _P[<span class="st">"log"</span>]:</span>
+<span id="cb43-58"><a href="#cb43-58" aria-hidden="true" tabindex="-1"></a>        _a.set_yscale(<span class="st">"log"</span>)</span>
+<span id="cb43-59"><a href="#cb43-59" aria-hidden="true" tabindex="-1"></a>    _pcw <span class="op">=</span> _mwu(_g[<span class="dv">0</span>], _g[<span class="dv">1</span>], alternative<span class="op">=</span><span class="st">"two-sided"</span>).pvalue</span>
+<span id="cb43-60"><a href="#cb43-60" aria-hidden="true" tabindex="-1"></a>    _a.set_xticks(<span class="bu">range</span>(<span class="bu">len</span>(_g)), _names, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
+<span id="cb43-61"><a href="#cb43-61" aria-hidden="true" tabindex="-1"></a>    _a.set_ylabel(_P[<span class="st">"lab"</span>])</span>
+<span id="cb43-62"><a href="#cb43-62" aria-hidden="true" tabindex="-1"></a>    _a.spines[[<span class="st">"top"</span>, <span class="st">"right"</span>]].set_visible(<span class="va">False</span>)</span>
+<span id="cb43-63"><a href="#cb43-63" aria-hidden="true" tabindex="-1"></a>    _f.tight_layout()</span>
+<span id="cb43-64"><a href="#cb43-64" aria-hidden="true" tabindex="-1"></a>    _f.savefig(_tp <span class="op">/</span> <span class="ss">f"attribution_diagnostics_</span><span class="sc">{</span>_P[<span class="st">'tag'</span>]<span class="sc">}</span><span class="ss">.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb43-65"><a href="#cb43-65" aria-hidden="true" tabindex="-1"></a>    plt.show()</span>
+<span id="cb43-66"><a href="#cb43-66" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>_P[<span class="st">'tag'</span>]<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>_P[<span class="st">'ttl'</span>]<span class="sc">}</span><span class="ss"> | correct </span><span class="sc">{</span>np<span class="sc">.</span>median(_g[<span class="dv">0</span>])<span class="sc">:.3f}</span><span class="ss">, wrong "</span></span>
+<span id="cb43-67"><a href="#cb43-67" aria-hidden="true" tabindex="-1"></a>          <span class="ss">f"</span><span class="sc">{</span>np<span class="sc">.</span>median(_g[<span class="dv">1</span>])<span class="sc">:.3f}</span><span class="ss">, p = </span><span class="sc">{</span>_pcw<span class="sc">:.3f}</span><span class="ss">"</span></span>
+<span id="cb43-68"><a href="#cb43-68" aria-hidden="true" tabindex="-1"></a>          <span class="op">+</span> (<span class="ss">f", disc </span><span class="sc">{</span>np<span class="sc">.</span>median(_g[<span class="dv">2</span>])<span class="sc">:.3f}</span><span class="ss">"</span> <span class="cf">if</span> _P[<span class="st">"extra"</span>] <span class="cf">else</span> <span class="st">""</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="cnn_attention_vs_lesion_files/figure-html/cell-24-output-1.png" width="543" height="519" class="figure-img"></p>
+<figcaption>SHAP attribution against the Otsu lesion for the selected CNN on the 264 test CDA images with a lesion. (A) matched-area IoU, with a centred disc of the same area for reference. (B) attribution per lesion pixel relative to per pixel outside, where 1 means no concentration.</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>a: concentrates inside the lesion | correct 6.357, wrong 4.763, p = 0.031</code></pre>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="cnn_attention_vs_lesion_files/figure-html/cell-24-output-3.png" width="542" height="519" class="figure-img"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>b: does not trace the lesion's shape | correct 0.574, wrong 0.545, p = 0.171, disc 0.762</code></pre>
+</div>
+</div>
+</section>
+<section id="is-the-low-tail-a-bad-otsu-mask" class="level2">
+<h2 class="anchored" data-anchor-id="is-the-low-tail-a-bad-otsu-mask">Is the low tail a bad Otsu mask?</h2>
+<p>The inside/outside ratio has a low tail, and a mask that is not the lesion would produce exactly that: attribution on the real lesion would be counted as “outside”. Circularity, <code>4*pi*area / perimeter^2</code>, is 1 for a disc and falls as the boundary becomes ragged, so a speckled or multi-part Otsu mask scores low on it. If the low-ratio images are segmentation failures they should sit at low circularity.</p>
+<div id="d8c3ccfb" class="cell" data-execution_count="24">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb46"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="co"># T3</span></span>
+<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy <span class="im">import</span> ndimage <span class="im">as</span> _ndi3  <span class="co"># noqa: E402</span></span>
+<span id="cb46-3"><a href="#cb46-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.stats <span class="im">import</span> spearmanr  <span class="co"># noqa: E402</span></span>
+<span id="cb46-4"><a href="#cb46-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb46-5"><a href="#cb46-5" aria-hidden="true" tabindex="-1"></a>_circ, _ncomp <span class="op">=</span> [], []</span>
+<span id="cb46-6"><a href="#cb46-6" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _k <span class="kw">in</span> _ms2:</span>
+<span id="cb46-7"><a href="#cb46-7" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 4-connectivity boundary length: every edge where a lesion pixel meets a non-lesion</span></span>
+<span id="cb46-8"><a href="#cb46-8" aria-hidden="true" tabindex="-1"></a>    <span class="co"># one. Measured on the 64x64 mask the network sees, not the native-resolution one.</span></span>
+<span id="cb46-9"><a href="#cb46-9" aria-hidden="true" tabindex="-1"></a>    _per <span class="op">=</span> (np.<span class="bu">abs</span>(np.diff(_k.astype(<span class="bu">int</span>), axis<span class="op">=</span><span class="dv">0</span>)).<span class="bu">sum</span>()</span>
+<span id="cb46-10"><a href="#cb46-10" aria-hidden="true" tabindex="-1"></a>            <span class="op">+</span> np.<span class="bu">abs</span>(np.diff(_k.astype(<span class="bu">int</span>), axis<span class="op">=</span><span class="dv">1</span>)).<span class="bu">sum</span>())</span>
+<span id="cb46-11"><a href="#cb46-11" aria-hidden="true" tabindex="-1"></a>    _circ.append(<span class="dv">4</span> <span class="op">*</span> np.pi <span class="op">*</span> _k.<span class="bu">sum</span>() <span class="op">/</span> _per <span class="op">**</span> <span class="dv">2</span> <span class="cf">if</span> _per <span class="cf">else</span> np.nan)</span>
+<span id="cb46-12"><a href="#cb46-12" aria-hidden="true" tabindex="-1"></a>    _ncomp.append(_ndi3.label(_k)[<span class="dv">1</span>])</span>
+<span id="cb46-13"><a href="#cb46-13" aria-hidden="true" tabindex="-1"></a>_circ, _ncomp <span class="op">=</span> np.array(_circ), np.array(_ncomp)</span>
+<span id="cb46-14"><a href="#cb46-14" aria-hidden="true" tabindex="-1"></a>_rat <span class="op">=</span> _ratio   <span class="co"># the inside/outside ratio from the panel above</span></span>
+<span id="cb46-15"><a href="#cb46-15" aria-hidden="true" tabindex="-1"></a>_okc <span class="op">=</span> <span class="op">~</span>np.isnan(_circ) <span class="op">&amp;</span> <span class="op">~</span>np.isnan(_rat)</span>
+<span id="cb46-16"><a href="#cb46-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb46-17"><a href="#cb46-17" aria-hidden="true" tabindex="-1"></a>_f3, _a3 <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="fl">6.2</span>, <span class="fl">4.8</span>))</span>
+<span id="cb46-18"><a href="#cb46-18" aria-hidden="true" tabindex="-1"></a>_sc3 <span class="op">=</span> _a3.scatter(_circ[_okc], _rat[_okc], c<span class="op">=</span>metrics.score.to_numpy()[_okc],</span>
+<span id="cb46-19"><a href="#cb46-19" aria-hidden="true" tabindex="-1"></a>                   cmap<span class="op">=</span>plt.matplotlib.colors.ListedColormap(</span>
+<span id="cb46-20"><a href="#cb46-20" aria-hidden="true" tabindex="-1"></a>                       [<span class="st">"#2c7bb6"</span>, <span class="st">"#66c2a5"</span>, <span class="st">"#abdda4"</span>, <span class="st">"#ffcc66"</span>, <span class="st">"#fdae61"</span>, <span class="st">"#f46d43"</span>, <span class="st">"#d7191c"</span>]), vmin<span class="op">=-</span><span class="fl">0.5</span>, vmax<span class="op">=</span><span class="fl">6.5</span>,</span>
+<span id="cb46-21"><a href="#cb46-21" aria-hidden="true" tabindex="-1"></a>                   s<span class="op">=</span><span class="dv">26</span>, edgecolor<span class="op">=</span><span class="st">"white"</span>, linewidth<span class="op">=</span><span class="fl">0.4</span>)</span>
+<span id="cb46-22"><a href="#cb46-22" aria-hidden="true" tabindex="-1"></a>_a3.axhline(<span class="fl">1.0</span>, color<span class="op">=</span><span class="st">"black"</span>, ls<span class="op">=</span><span class="st">"--"</span>, lw<span class="op">=</span><span class="fl">1.0</span>)</span>
+<span id="cb46-23"><a href="#cb46-23" aria-hidden="true" tabindex="-1"></a>_a3.set_yscale(<span class="st">"log"</span>)</span>
+<span id="cb46-24"><a href="#cb46-24" aria-hidden="true" tabindex="-1"></a>_rho3, _p3 <span class="op">=</span> spearmanr(_circ[_okc], _rat[_okc])</span>
+<span id="cb46-25"><a href="#cb46-25" aria-hidden="true" tabindex="-1"></a>_a3.set_xlabel(<span class="st">"Otsu mask circularity  ($4</span><span class="ch">\\</span><span class="st">pi A / P^2$)"</span>)</span>
+<span id="cb46-26"><a href="#cb46-26" aria-hidden="true" tabindex="-1"></a>_a3.set_ylabel(<span class="st">"SHAP per lesion pixel / per pixel outside"</span>)</span>
+<span id="cb46-27"><a href="#cb46-27" aria-hidden="true" tabindex="-1"></a>_a3.set_title(<span class="ss">f"Spearman </span><span class="sc">{</span>_rho3<span class="sc">:+.3f}</span><span class="ss">, p = </span><span class="sc">{</span>_p3<span class="sc">:.2g}</span><span class="ss">"</span>, fontsize<span class="op">=</span><span class="dv">9</span>, loc<span class="op">=</span><span class="st">"left"</span>)</span>
+<span id="cb46-28"><a href="#cb46-28" aria-hidden="true" tabindex="-1"></a>_a3.spines[[<span class="st">"top"</span>, <span class="st">"right"</span>]].set_visible(<span class="va">False</span>)</span>
+<span id="cb46-29"><a href="#cb46-29" aria-hidden="true" tabindex="-1"></a>_cb3 <span class="op">=</span> _f3.colorbar(_sc3, ax<span class="op">=</span>_a3, ticks<span class="op">=</span><span class="bu">range</span>(<span class="dv">7</span>), fraction<span class="op">=</span><span class="fl">0.046</span>, pad<span class="op">=</span><span class="fl">0.03</span>)</span>
+<span id="cb46-30"><a href="#cb46-30" aria-hidden="true" tabindex="-1"></a>_cb3.set_label(<span class="st">"Severity score"</span>, fontsize<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb46-31"><a href="#cb46-31" aria-hidden="true" tabindex="-1"></a>_f3.tight_layout()</span>
+<span id="cb46-32"><a href="#cb46-32" aria-hidden="true" tabindex="-1"></a>_f3.savefig(_tp <span class="op">/</span> <span class="st">"circularity_vs_ratio.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb46-33"><a href="#cb46-33" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb46-34"><a href="#cb46-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb46-35"><a href="#cb46-35" aria-hidden="true" tabindex="-1"></a>_lo <span class="op">=</span> _rat <span class="op">&lt;</span> np.nanquantile(_rat, <span class="fl">0.10</span>)</span>
+<span id="cb46-36"><a href="#cb46-36" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"lowest-decile ratio (n=</span><span class="sc">{</span><span class="bu">int</span>(_lo.<span class="bu">sum</span>())<span class="sc">}</span><span class="ss">): circularity </span><span class="sc">{</span>np<span class="sc">.</span>nanmedian(_circ[_lo])<span class="sc">:.3f}</span><span class="ss">, "</span></span>
+<span id="cb46-37"><a href="#cb46-37" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"components </span><span class="sc">{</span>np<span class="sc">.</span>median(_ncomp[_lo])<span class="sc">:.0f}</span><span class="ss">, lesion fraction "</span></span>
+<span id="cb46-38"><a href="#cb46-38" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span>metrics<span class="sc">.</span>lesion_fraction<span class="sc">.</span>to_numpy()[_lo]<span class="sc">.</span>mean()<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb46-39"><a href="#cb46-39" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"the rest (n=</span><span class="sc">{</span><span class="bu">int</span>((<span class="op">~</span>_lo).<span class="bu">sum</span>())<span class="sc">}</span><span class="ss">):            circularity </span><span class="sc">{</span>np<span class="sc">.</span>nanmedian(_circ[<span class="op">~</span>_lo])<span class="sc">:.3f}</span><span class="ss">, "</span></span>
+<span id="cb46-40"><a href="#cb46-40" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"components </span><span class="sc">{</span>np<span class="sc">.</span>median(_ncomp[<span class="op">~</span>_lo])<span class="sc">:.0f}</span><span class="ss">, lesion fraction "</span></span>
+<span id="cb46-41"><a href="#cb46-41" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span>metrics<span class="sc">.</span>lesion_fraction<span class="sc">.</span>to_numpy()[<span class="op">~</span>_lo]<span class="sc">.</span>mean()<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb46-42"><a href="#cb46-42" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Mann-Whitney on circularity, low decile vs rest: "</span></span>
+<span id="cb46-43"><a href="#cb46-43" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"p = </span><span class="sc">{</span>_mwu(_circ[_lo <span class="op">&amp;</span> _okc], _circ[<span class="op">~</span>_lo <span class="op">&amp;</span> _okc], alternative<span class="op">=</span><span class="st">'two-sided'</span>)<span class="sc">.</span>pvalue<span class="sc">:.3f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="cnn_attention_vs_lesion_files/figure-html/cell-25-output-1.png" width="734" height="567" class="figure-img"></p>
+<figcaption>Otsu mask circularity against SHAP attribution inside the lesion relative to outside, one point per test CDA image. Circularity is 1 for a disc; the dashed line is no concentration.</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>lowest-decile ratio (n=27): circularity 0.438, components 1, lesion fraction 0.422
+the rest (n=237):            circularity 0.469, components 1, lesion fraction 0.455
+Mann-Whitney on circularity, low decile vs rest: p = 0.170</code></pre>
 </div>
 </div>
 </section>

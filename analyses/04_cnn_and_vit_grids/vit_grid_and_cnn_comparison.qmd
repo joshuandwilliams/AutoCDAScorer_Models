@@ -14,7 +14,7 @@ Date: 09/09/2026
 **Goal:**
 
 Analyse the completed Medoid-ViT grid search (2,592 configs, 5-fold CV) on the same
-footing as `analyses/03` and `analyses/04` did for the CNN grid, and then compare
+footing as `analyses/08` and `analyses/09` did for the CNN grid, and then compare
 the two model classes. Four questions: (1) did the search actually complete and are the
 numbers trustworthy; (2) is the top of the ViT grid a rankable ordering or a noise
 plateau, as it was for the CNNs; (3) which hyperparameters move accuracy, and in
@@ -23,23 +23,24 @@ compare with the best CNN, and what can and cannot be concluded from that compar
 
 **Hypotheses:**
 
-1. The ViT grid will show the same noise plateau as the CNN grid. `analyses/03` found
-   ~210 CNN configs statistically tied at the top and CV-to-test correlation collapsing
-   from 0.89 to 0.04 within the top 100. Nothing about swapping the architecture should
-   change the measurement noise, which is set by the size of the evaluation set.
-2. Learning rate will dominate, as it did for the CNNs (`analyses/04`: mean |SHAP| for
-   learning rate was ~29x that of dropout).
+1. The ViT grid will show the same noise plateau as the CNN grid. The CNN grid has 88 of
+   its 6,720 settings not significantly worse than the best at 5%, and CV-to-test
+   correlation collapsing from 0.89 to 0.04 within the top 100. Nothing about swapping the
+   architecture should change the measurement noise, which is set by the size of the
+   evaluation set.
+2. Learning rate will dominate, as it did for the CNNs (`analyses/09`: mean |SHAP| for
+   learning rate was ~33x that of dropout).
 3. The two capacity axes this grid added — `projection_dim` 256 and `mlp_ratio` 4 —
    will not pay for themselves. They were added because a single pilot config with
    `projection_dim` 128 scored best, which is a sample of one.
 4. The best ViT and the best CNN will land within noise of each other, consistent with
-   `analyses/03`'s conclusion that ~62-65% is a ceiling set by label noise rather than
+   `analyses/08`'s conclusion that ~62-65% is a ceiling set by label noise rather than
    by architecture.
 
 **Rationale:**
 
 A grid search produces two things: a best model, and a dataset of 2,592 (hyperparameters
-→ accuracy) observations. `analyses/03` showed the first is largely noise, which makes
+→ accuracy) observations. `analyses/08` showed the first is largely noise, which makes
 the second the more valuable output. Treating the grid as data is also the only way to
 answer whether the grid was *well designed* — a question that matters here because this
 grid's shape was chosen partly on the basis of one pilot run, and that reasoning deserves
@@ -55,8 +56,8 @@ to the crop.
 
 1. Validate: every grid index present exactly once, and a saved model reproducing its
    recorded test accuracy.
-2. Distributions, then the noise-floor treatment of `analyses/03` applied to the ViT grid.
-3. A random-forest surrogate over the hyperparameters, as in `analyses/04`, plus explicit
+2. Distributions, then the noise-floor treatment of `analyses/08` applied to the ViT grid.
+3. A random-forest surrogate over the hyperparameters, as in `analyses/09`, plus explicit
    per-axis marginals with confidence intervals.
 4. A direct audit of the three grid-design decisions, and a costing of what a corrected
    grid would have been.
@@ -78,11 +79,14 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import matplotlib.ticker as mticker
 from scipy.stats import norm as normal_dist
 
 warnings.filterwarnings("ignore")
 repo_root = next(p for p in Path.cwd().parents if (p / ".git").exists())
 sys.path.append(str(repo_root / "src"))
+
+from grid_results import deduplicate  # noqa: E402
 
 plt.rcParams.update({"figure.dpi": 120, "font.size": 9})
 
@@ -127,6 +131,20 @@ print(f"CNN grid : {len(cnn)} rows, {cnn.model_id.nunique()} unique ids, "
 assert not missing, f"grid incomplete: {len(missing)} configs never trained"
 assert dupes == 0, "a config was trained more than once"
 print("\nBoth grids complete; every config trained exactly once.")
+
+# The CNN grid crosses reg=None with all three reg_strength values, and reg_strength does
+# nothing without a regulariser, so 1,920 of its 8,640 rows repeat a setting already in
+# the grid. Everything below treats the grid as its 6,720 distinct settings, keeping each
+# setting's best-scoring run. The ViT grid is built as two sub-grids and needs no such
+# collapse, which the assert records.
+cnn_runs = len(cnn)
+cnn = deduplicate(cnn)
+vit_rows = len(vit)
+vit = deduplicate(vit)
+assert len(vit) == vit_rows, "the ViT grid should contain no repeated settings"
+print(f"CNN grid : {cnn_runs} runs -> {len(cnn)} distinct settings "
+      f"({cnn_runs - len(cnn)} repeats dropped)")
+print(f"ViT grid : {vit_rows} runs, all distinct settings")
 
 total_gpu_h = vit.train_seconds.sum() / 3600
 print(f"\nViT search cost: {total_gpu_h:.1f} GPU-hours "
@@ -214,7 +232,7 @@ print(vit.loc[dead].groupby("learning_rate").size().to_string())
 
 ## 3. Is the top of the ViT grid rankable, or a noise plateau?
 
-`analyses/03` established the method for the CNN grid. `avg_vaf` is the mean accuracy
+`analyses/08` established the method for the CNN grid. `avg_vaf` is the mean accuracy
 over 5 folds, and because each pooled image appears in validation exactly once, it is
 effectively one accuracy measured over all **N = 2,289** train+val images. The standard
 error of such a proportion is `sqrt(p(1-p)/N)`, and the standard error of the
@@ -250,9 +268,9 @@ for alpha, label in [(0.05, "5%"), (0.01, "1%")]:
 This count is **conservative**: all configs share the same CV folds (`cv_seed` is fixed at
 42 across every task), so their errors are positively correlated and the true
 difference-SE is smaller than the independent-proportions value used here. It also
-ignores training stochasticity. `analyses/04` measured that separately on the CNN grid,
-where 960 triples of functionally identical configs gave a median within-triple SD of
-1.00 pp — the same magnitude as the sampling SE above.
+ignores training stochasticity. The CNN grid measures that directly: its 960 triples of
+functionally identical configs, dropped in section 1.2, give a median within-triple SD of
+1.10 pp on CV and 1.97 pp on test, the same magnitude as the sampling SE above.
 
 ### 3.2 The winner's curse, measured
 
@@ -306,7 +324,7 @@ print("=> " + ("margin is WITHIN what noise alone produces"
 
 ### 4.1 A surrogate model over the grid
 
-Same method as `analyses/04`: fit a random forest mapping hyperparameters to `avg_vaf`
+Same method as `analyses/09`: fit a random forest mapping hyperparameters to `avg_vaf`
 and report honest out-of-bag R². Constant columns carry no information and are dropped.
 
 ```{python}
@@ -394,7 +412,7 @@ plt.show()
 
 This grid was not the obvious one. Three decisions were made before it ran, and 2,592
 results are now available to judge them. Two of the three were made on the evidence of a
-**single pilot config**, which `analyses/03` is precisely the argument against.
+**single pilot config**, which `analyses/08` is precisely the argument against.
 
 Marginal means alone would be misleading here, because the levels are not balanced across
 the other axes in a way that guarantees comparability. Two views are reported: the
@@ -495,7 +513,7 @@ print(f"\nbest-avg_vaf gap (ViT - CNN) = {d_cv*100:+.2f} pp, "
 # 6.2
 fig, axes = plt.subplots(1, 2, figsize=(11, 3.8))
 # Proportion of each grid's own configurations per bin, not density and not counts: the
-# CNN grid has 8,640 configs against the ViT's 2,592, so counts are not comparable, and
+# CNN grid has 6,720 settings against the ViT's 2,592, so counts are not comparable, and
 # density integrates to 1 over the x-axis rather than summing to 1 over the bars.
 _cnn_v, _vit_v = cnn.avg_vaf.dropna(), vit.avg_vaf.dropna()
 _bins = np.histogram_bin_edges(np.concatenate([_cnn_v, _vit_v]), bins=60)
@@ -529,57 +547,107 @@ plt.show()
 ```
 
 ```{python}
-# T1  Thesis figure: the same whole-grid distribution for exact and for near-miss
-# validation accuracy, stacked, with one legend for both.
-_HUMAN_EXACT, _HUMAN_NEAR = 0.6892, 0.9280   # Chapter 2 Metric 3, corrected, 308 test CDAs
-_fig, _ax = plt.subplots(2, 1, figsize=(6.4, 6.6))
-for _k, (_col, _human, _xlab) in enumerate([
-        ("avg_vaf", _HUMAN_EXACT, "Average Validation Accuracy across Folds"),
-        ("avg_val_nearmiss", _HUMAN_NEAR,
-         "Average Validation Near-Miss Accuracy across Folds")]):
-    _c, _v = cnn[_col].dropna(), vit[_col].dropna()
-    _b = np.histogram_bin_edges(np.concatenate([_c, _v]), bins=60)
-    # Proportion of each grid's own configurations per bin: the CNN grid has 8,640 configs
-    # against the ViT's 2,592, so raw counts are not comparable between the two.
-    _ax[_k].hist(_c, bins=_b, alpha=0.6, color="#4C72B0",
-                 weights=np.full(len(_c), 1 / len(_c)), label=f"CNN (n={len(_c)})")
-    _ax[_k].hist(_v, bins=_b, alpha=0.6, color="#DD8452",
-                 weights=np.full(len(_v), 1 / len(_v)), label=f"ViT (n={len(_v)})")
-    # No number in the label: the shared legend is built from panel A's handles, and the
-    # two panels mark different human values (0.6892 exact, 0.9280 near-miss). The value is
-    # annotated on each panel instead.
-    _ax[_k].axvline(_human, color="#C44E52", ls="--", lw=1.3, label="Human raters")
-    # Exact sits at 0.6892 with the grids to its left, so its label goes right of the line;
-    # near-miss sits at 0.9280 with mass to its right, so that one stays on the left.
-    _dx, _ha = (3, "left") if _k == 0 else (-3, "right")
-    _ax[_k].annotate(f"{_human:.4f}", (_human, _ax[_k].get_ylim()[1]),
-                     xytext=(_dx, -3), textcoords="offset points", ha=_ha, va="top",
-                     fontsize=8, color="#C44E52")
-    _ax[_k].set_xlabel(_xlab)
-    _ax[_k].set_ylabel("Proportion of Configurations")
-    # Both panels on the full 0-1 accuracy range, so the exact and near-miss distributions
-    # are read against the same scale rather than each against its own data range.
-    _ax[_k].set_xlim(0, 1)
-    _ax[_k].spines[["top", "right"]].set_visible(False)
-# One legend for both panels, above them, so neither carries its own.
-_h, _l = _ax[0].get_legend_handles_labels()
-_fig.legend(_h, _l, loc="upper center", bbox_to_anchor=(0.5, 1.0), ncol=3,
-            frameon=False, fontsize=9)
-_fig.tight_layout(rect=(0, 0, 1, 0.955))
+# T1  Thesis figure: how cross-validation accuracy maps onto test accuracy, one panel per
+# architecture.
+#
+# The ranking metric is on the x axis and the reported metric on the y axis, so the width
+# of the tie band and the height of the spread inside it are both readable. The shaded band
+# is one standard error of the best cross-validation accuracy, the interval the chapter
+# calls tied, and every setting inside it is drawn filled.
+#
+# A third panel holding the two grids' test-accuracy distributions was dropped: it is the y
+# marginal of these two panels and adds no data, and three stacked panels force the thesis
+# figure down from 155 mm wide to 124 mm. The medians it carried are quoted in the text.
+_SE_CV = lambda p, n=2289: float(np.sqrt(p * (1 - p) / n))
+_HUMAN_EXACT = 0.6892           # Chapter 2 Metric 3, corrected, the same 308 test CDAs
+_CNN_C, _VIT_C = "#4C72B0", "#DD8452"
+
+# One shared range on both axes, so the two architectures are read against each other
+# rather than each against its own spread. The limits sit just outside the union of the two
+# grids, which run 13.41-64.66% on cross-validation and 9.74-68.18% on test, and the ticks
+# run the full 10-70% so both ends of the axis are labelled.
+_XLIM, _YLIM = (10, 70), (8, 71)
+_TICKS = np.arange(10, 71, 10)
+_fig, _ax = plt.subplots(2, 1, figsize=(6.4, 7.4), sharex=True)
+for _k, (_grid, _name, _col) in enumerate([(cnn, "CNN", _CNN_C), (vit, "ViT", _VIT_C)]):
+    _g = _grid.dropna(subset=["avg_vaf", "test_acc"])
+    _best = _g.loc[_g.avg_vaf.idxmax()]
+    _se = _SE_CV(_best.avg_vaf)
+    _tied = _g[_g.avg_vaf >= _best.avg_vaf - _se]
+    _a = _ax[_k]
+    # 6,720 settings overplot badly at full opacity, so the mass is drawn as open markers
+    # at low alpha and only the tied set is filled.
+    _a.scatter(100 * _g.avg_vaf, 100 * _g.test_acc, s=5, facecolors="none",
+               edgecolors="0.55", linewidths=0.3, alpha=0.35, zorder=1)
+    _a.axvspan(100 * (_best.avg_vaf - _se), 100 * _best.avg_vaf, color=_col, alpha=0.13,
+               zorder=0, label=f"Within 1 SE of the best (n={len(_tied)})")
+    _a.scatter(100 * _tied.avg_vaf, 100 * _tied.test_acc, s=26, color=_col,
+               edgecolors="white", linewidths=0.4, zorder=3)
+    _a.scatter([100 * _best.avg_vaf], [100 * _best.test_acc], s=90, marker="D",
+               color="#C44E52", edgecolors="white", linewidths=0.6, zorder=4,
+               label="Best cross-validation accuracy")
+    _a.axhline(100 * _HUMAN_EXACT, color="#C44E52", ls="--", lw=1.2, zorder=2,
+               label="Human rater corrected agreement")
+    _a.set_xlim(*_XLIM)
+    _a.set_ylim(*_YLIM)
+    # Percentages on the ticks of both panels: sharex hides the upper panel's labels, which
+    # is right for a stacked figure but wrong here, because the thesis assembler writes each
+    # panel out as its own image and A would arrive with a labelled axis carrying no numbers.
+    _a.tick_params(labelbottom=True)
+    _a.set_xticks(_TICKS)
+    _a.set_yticks(_TICKS)
+    # Faint gridlines on the 10% ticks: the two panels are read against each other, and a
+    # point's position is hard to carry between them by eye without a reference.
+    _a.grid(which="major", color="0.85", lw=0.5, zorder=0)
+    _a.set_axisbelow(True)
+    _a.xaxis.set_major_formatter(mticker.PercentFormatter(decimals=0))
+    _a.yaxis.set_major_formatter(mticker.PercentFormatter(decimals=0))
+    _a.set_xlabel(f"{_name} Cross-Validation Accuracy")
+    _a.set_ylabel("Test Exact Accuracy")
+    # Lower right: the points climb left-to-right, and the human line sits across the top,
+    # so any upper placement writes the legend over one or the other.
+    # sharex hides the upper panel's tick labels, which is right for a stacked figure but
+    # wrong here: the thesis assembler writes each panel out as its own image, so A would
+    # arrive with a labelled axis and no numbers on it.
+    _a.tick_params(labelbottom=True)
+    # The marker for one configuration reads before the band holding many of them, and
+    # matplotlib orders the legend by drawing order, so the handles are reordered by hand.
+    # bbox_to_anchor pulls the legend in from the right edge so it clears the tie band,
+    # which sits at the top of the cross-validation range.
+    _h, _l = _a.get_legend_handles_labels()
+    _order = [_l.index(x) for x in ["Best cross-validation accuracy",
+                                    f"Within 1 SE of the best (n={len(_tied)})",
+                                    "Human rater corrected agreement"]]
+    _a.legend([_h[_i] for _i in _order], [_l[_i] for _i in _order],
+              fontsize=8, frameon=False, loc="lower right", bbox_to_anchor=(0.90, 0.02))
+    _a.spines[["top", "right"]].set_visible(False)
+
+_fig.tight_layout()
+from pathlib import Path as _P2
+_tp = _P2("thesis_plots"); _tp.mkdir(exist_ok=True)
 _fig.savefig(_tp / "cnn_vit_accuracy_distributions.png", dpi=300, bbox_inches="tight")
 
-# The thesis assembler letters one image per panel, so each axis is also written on its own
-# and the shared legend as a third strip placed beneath them.
+# The thesis assembler letters one image per panel and scales each to a common display
+# width, so a panel cropped to its own content would be stretched by a different factor and
+# the x axes would no longer align. Every panel is therefore saved over the same horizontal
+# extent, the union of the three, and only its own vertical extent.
+from matplotlib.transforms import Bbox as _Bbox
+
 _fig.canvas.draw()
-for _n, _a in zip("ab", _ax):
-    _bb = _a.get_tightbbox(_fig.canvas.get_renderer()).transformed(
-        _fig.dpi_scale_trans.inverted())
-    _fig.savefig(_tp / f"cnn_vit_accuracy_distributions_{_n}.png", dpi=300, bbox_inches=_bb)
-_lf = plt.figure(figsize=(6.4, 0.32))
-_lf.legend(_h, _l, loc="center", ncol=3, frameon=False, fontsize=9)
-_lf.savefig(_tp / "cnn_vit_accuracy_distributions_legend.png", dpi=300, bbox_inches="tight")
-plt.close(_lf)
+_bbs = [_a2.get_tightbbox(_fig.canvas.get_renderer()).transformed(
+    _fig.dpi_scale_trans.inverted()) for _a2 in _ax]
+_x0, _x1 = min(_b2.x0 for _b2 in _bbs), max(_b2.x1 for _b2 in _bbs)
+for _n, _bb in zip("ab", _bbs):
+    _fig.savefig(_tp / f"cnn_vit_accuracy_distributions_{_n}.png", dpi=300,
+                 bbox_inches=_Bbox.from_extents(_x0, _bb.y0, _x1, _bb.y1))
 plt.show()
+
+# The medians the dropped panel showed, printed so the chapter can quote them.
+for _name, _g in (("CNN", cnn), ("ViT", vit)):
+    _d = _g.test_acc.dropna()
+    print(f"{_name}  median test {100 * _d.median():.2f}%   "
+          f"IQR {100 * _d.quantile(.25):.2f}-{100 * _d.quantile(.75):.2f}%   "
+          f"best-model test {100 * _g.loc[_g.avg_vaf.idxmax(), 'test_acc']:.2f}%")
 ```
 
 ### 6.3 Against the human benchmark
@@ -617,7 +685,7 @@ print(f"\nnote: the model rows are the MAXIMUM over {len(cnn)} and {len(vit)} co
 
 - **The ViT plateau is if anything tighter than the CNN's.** The top-100 spans 1.31 pp
   against a difference-SE of 1.41 pp, so the entire top hundred fits inside **0.93** of
-  one standard error — where `analyses/03` found 1.64 for the CNN grid. 351 configs are
+  one standard error — where the CNN grid's 6,720 settings give 1.76. 351 configs are
   not significantly worse than the winner at 5%, and that count is conservative for the
   same two reasons as before: shared CV folds correlate the errors, and training
   stochasticity is excluded. Changing the architecture did not change the measurement
@@ -641,7 +709,7 @@ print(f"\nnote: the model rows are the MAXIMUM over {len(cnn)} and {len(vit)} co
   (top-500) → **−0.032** (top-250). A negative out-of-bag R² means the forest predicts
   worse than the pool mean, which is what zero remaining signal looks like. This is a
   sharper collapse than the CNN grid's 0.933 → 0.337, and it closes the same loop
-  `analyses/04` drew: hyperparameters determine whether you reach the plateau, and
+  `analyses/09` drew: hyperparameters determine whether you reach the plateau, and
   nothing determines where on it you land.
 
 - **Two of the three grid-design decisions did not pay for themselves, and both were
@@ -654,7 +722,7 @@ print(f"\nnote: the model rows are the MAXIMUM over {len(cnn)} and {len(vit)} co
   **648 configs and roughly 68 GPU-hours instead of 2,592 and 273**, and would have found
   a best `avg_vaf` of 0.6431 against 0.6466 — a gap of **0.25 difference-SE**, which is
   indistinguishable. 75% of the compute bought a quarter of one standard error. The
-  general lesson is the one `analyses/03` already established and this grid re-learned the
+  general lesson is the one `analyses/08` already established and this grid re-learned the
   expensive way: a single configuration is not evidence about an axis.
 
 - **The regularisation axis was cheap and inert.** L2 versus none differs by 0.0014 in
@@ -671,7 +739,7 @@ print(f"\nnote: the model rows are the MAXIMUM over {len(cnn)} and {len(vit)} co
   both grids**. The CV-selected models differ by more (0.6429 against 0.6169), but that is
   1 test-SE and is the winner's-curse lottery described above rather than an architecture
   effect. The ViT reached this with 2,592 configs and 273 GPU-hours against the CNN's
-  8,640 configs and 1,194 CPU-hours, so the architectures tie on accuracy while differing
+  6,720 settings and 1,194 CPU-hours, so the architectures tie on accuracy while differing
   in search cost and hardware, which are not comparable in the same units.
 
 - **Both model classes remain below human exact agreement and above it on near-miss.**
@@ -685,7 +753,7 @@ print(f"\nnote: the model rows are the MAXIMUM over {len(cnn)} and {len(vit)} co
 
 - **What to do next.** With the architecture question answered as a tie, the remaining
   headroom is not in the model. Since 351 ViT configs are statistically tied here, the
-  useful object is the committee rather than the argmax: `analyses/05` showed a 100-model
+  useful object is the committee rather than the argmax: `analyses/10` showed a 100-model
   CNN vote matched the best single model with none of the per-model lottery. Both grids
   now have a kept top-100 on the same splits, so the informative test is a **mixed
   CNN+ViT committee**, where the two classes may fail on different images even though

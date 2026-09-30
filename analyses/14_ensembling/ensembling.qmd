@@ -21,7 +21,7 @@ ensembling is a standard thing to do.
 
 Combining will not raise accuracy much. Every member is trained on the same 1,834 crops,
 and `analyses/10` §3 already found the top-100 CNNs give the same score as each other on
-77.9% of test crops. Averaging cannot fix a mistake the members share.
+77.5% of test crops. Averaging cannot fix a mistake the members share.
 
 One gain is expected, in §5. Cross-validated near-miss accuracy is 0.966-0.985 across the
 tied members of all three grids (recorded in each grid's `random_search_results.csv`), so
@@ -38,7 +38,7 @@ cited; "conjecture" means the section measures it before testing it.
 
 | § | Idea | Why try it | Basis |
 |:--|:--|:--|:--|
-| 2 | Vote over the 22 tied CNNs | At least one of 100 CNNs is right on 93% of test crops against 66% for the best one | Known (`analyses/10` §3.5) |
+| 2 | Vote over the 17 tied CNNs | At least one of 100 CNNs is right on 93% of test crops against 66% for the best one | Known (`analyses/10` §3.5) |
 | 3 | Mix model families | A CNN, a transformer and a 12-feature regression may fail on different crops | Conjecture, measured in §3.1 |
 | 4 | Mix training data, keep the architecture | The augmented CNNs were trained on a different set of crops | Known (`models/07` builds from `medoid_64_aug`) |
 | 5 | Average the score instead of voting on it | Scores are ordered, and near-miss is 0.966-0.985, so nearly every error is off by one | Known (grid `avg_val_nearmiss`) |
@@ -58,6 +58,7 @@ Both are shown so the drop between them is visible.
 
 ```{python}
 # 1.1
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -83,6 +84,8 @@ FAM_COL = {"CNN": "#4C72B0", "ViT": "#DD8452", "CNN (geom. aug)": "#55A868",
 # the argmax, neither of which works here: selection happens on `ensemble`, and
 # probability-averaging rules need the full distribution.
 ROOT = Path.cwd().parents[1]
+sys.path.append(str(ROOT / "src"))
+from grid_results import deduplicate  # noqa: E402
 Z = np.load("pred_cache/probs.npz", allow_pickle=True)
 ye, yt = Z["ye"].astype(int), Z["yt"].astype(int)
 files_e = [str(f).replace(".tif", "") for f in Z["files_e"]]
@@ -175,25 +178,36 @@ print("OK: no ensemble or test crop, and no augmented copy of one, is in the poo
 # standard error of its own best. That rule reads cross-validation only and never touches
 # `ensemble` or `test`.
 #
-# models/07 is ranked on avg_vaf_orig (accuracy on the ORIGINAL crops in the validation
-# fold). Its plain avg_vaf is measured over a fold containing augmented copies, which
-# makes it incomparable with the other grids.
+# Every grid is ranked on avg_vaf, including models/07. The augmented pool is topped up to
+# 1,627 crops per class, so avg_vaf there is measured on the same class balance as the
+# 308-crop test split, while avg_vaf_orig is measured on the originals alone and those are
+# 42.6% score 0 against the test split's 14.3%. Over the whole geometric grid avg_vaf
+# correlates 0.838 with test accuracy against avg_vaf_orig's 0.808, and stays ahead in the
+# top 2,000, 1,000 and 500. The cGAN grid is the exception and keeps avg_vaf_orig: only
+# 10.9% of its pool is real, so its avg_vaf is largely accuracy on generated crops, which
+# section 10 of analyses/06 shows does not transfer.
 SE_CV = lambda p, n=2289: float(np.sqrt(p * (1 - p) / n))
-RANK_ON = {"cnn": "avg_vaf", "vit": "avg_vaf", "geo": "avg_vaf_orig"}
+RANK_ON = {"cnn": "avg_vaf", "vit": "avg_vaf", "geo": "avg_vaf"}
 NICE = {"cnn": "CNN", "vit": "ViT", "geo": "CNN (geom. aug)"}
 
+# Every CNN-family grid trains reg=None once per reg_strength, so 1,920 of its 8,640 runs
+# repeat a setting the grid already holds. Collapsing to distinct settings first stops one
+# setting taking several of the tie's places and voting several times. The ViT grid is
+# built as two sub-grids and is unchanged by this.
 FAM = {}
 tie_report = []
 for tag in GRID:
     col = RANK_ON[tag]
-    full = RES[tag][col].dropna()
+    settings = deduplicate(RES[tag].reset_index(), col).set_index("model_id")
+    full = settings[col].dropna()
     cut = full.max() - SE_CV(full.max())
     tied_ids = set(full[full >= cut].index)
     have = Z[f"{tag}_ids"]
     assert len(set(have.tolist())) == len(have), f"duplicate model_id in the {tag} cache"
     keep = np.array([i for i, m in enumerate(have) if m in tied_ids])
     FAM[NICE[tag]] = {"e": Z[f"{tag}_e"][keep], "t": Z[f"{tag}_t"][keep], "ids": have[keep]}
-    tie_report.append({"family": NICE[tag], "configs in grid": len(full),
+    tie_report.append({"family": NICE[tag], "runs in grid": len(RES[tag]),
+                       "distinct settings": len(full),
                        "best CV": round(float(full.max()), 4), "1 SE": round(SE_CV(full.max()), 4),
                        "tied": len(tied_ids), "tied & saved": len(keep)})
 
@@ -207,7 +221,8 @@ assert not nde[PCOL].isna().any().any() and not ndt[PCOL].isna().any().any()
 assert (nde["true"].to_numpy() == ye).all() and (ndt["true"].to_numpy() == yt).all()
 FAM["Ordinal regression"] = {"e": nde[PCOL].to_numpy(float)[None], "t": ndt[PCOL].to_numpy(float)[None],
                              "ids": np.array([0])}
-tie_report.append({"family": "Ordinal regression", "configs in grid": 1, "best CV": np.nan,
+tie_report.append({"family": "Ordinal regression", "runs in grid": 1,
+                   "distinct settings": 1, "best CV": np.nan,
                    "1 SE": np.nan, "tied": 1, "tied & saved": 1})
 pd.DataFrame(tie_report)
 ```
@@ -275,7 +290,7 @@ def paired_ci(a, b, y=None):
 
 ---
 
-## 2. Vote over the 22 tied CNNs
+## 2. Vote over the 17 tied CNNs
 
 ```{python}
 # 2.1
@@ -293,11 +308,11 @@ print(f"  gap                  : {oracle_e - best_e:.4f}")
 ```
 
 ```{python}
-#| fig-cap: "How often the 22 tied CNNs get a crop right. Dark bars are crops the vote gets right. The vote can only win where the correct score is the most common one."
+#| fig-cap: "How often the 17 tied CNNs get a crop right. Dark bars are crops the vote gets right. The vote can only win where the correct score is the most common one."
 # 2.2
 # Before building anything: split the crops by how many members get them right. A vote
 # returns the most common answer, so it can only win where the true score is that answer.
-# If the oracle's extra crops sit where 3 or 4 members of 22 are right, no vote reaches
+# If the oracle's extra crops sit where 3 or 4 members are right, no vote reaches
 # them.
 mode_right_e = plurality(Ce) == ye
 bins = np.arange(0, nC + 2) - 0.5
@@ -330,7 +345,7 @@ R1["Plurality vote, tied CNNs"] = (plurality(Ce), plurality(Ct))
 R1["Mean softmax, tied CNNs"] = (mean_prob(FAM["CNN"]["e"]), mean_prob(FAM["CNN"]["t"]))
 for k, (pe, pt) in R1.items():
     print(f"{k:28s} ensemble {exact(pe, ye):.4f}   test {exact(pt, yt):.4f}")
-print(f"{'best of the 22 (on ensemble)':28s} ensemble {best_e:.4f}   test "
+print(f"{'best single (on ensemble)':28s} ensemble {best_e:.4f}   test "
       f"{(Ct == yt[None, :]).mean(1)[np.argmax((Ce == ye[None, :]).mean(1))]:.4f}")
 ```
 
@@ -394,7 +409,7 @@ plt.show()
 
 ```{python}
 # 3.3
-# Averaging all 91 members directly lets the 51 ViTs win on numbers, which is an accident
+# Averaging all 84 members directly lets the 51 ViTs win on numbers, which is an accident
 # of how many configs happened to tie. family_mean() averages inside each family first,
 # then across the four, so each family carries the same weight.
 R2 = {}
@@ -402,8 +417,8 @@ Qs_e, Qs_t = [FAM[n]["e"] for n in names], [FAM[n]["t"] for n in names]
 R2["Family-balanced mean softmax (4 families)"] = (
     mean_prob(family_mean(Qs_e)), mean_prob(family_mean(Qs_t)))
 allE, allT = np.concatenate(Qs_e), np.concatenate(Qs_t)
-R2["Flat mean softmax (all 91 members)"] = (mean_prob(allE), mean_prob(allT))
-R2["Plurality vote (all 91 members)"] = (plurality(allE.argmax(2)), plurality(allT.argmax(2)))
+R2["Flat mean softmax (all 84 members)"] = (mean_prob(allE), mean_prob(allT))
+R2["Plurality vote (all 84 members)"] = (plurality(allE.argmax(2)), plurality(allT.argmax(2)))
 for k, (pe, pt) in R2.items():
     print(f"{k:44s} ensemble {exact(pe, ye):.4f}   test {exact(pt, yt):.4f}")
 ```
@@ -466,7 +481,7 @@ print(f"                 expected exact {exact(x_e, ye):.4f}  MAE {mae(x_e, ye):
 # throughout. np.rint rounds halves to even.
 R4 = {}
 FB_e, FB_t = family_mean(Qs_e), family_mean(Qs_t)
-R4["Plurality vote (all 91 members)"] = (plurality(allE.argmax(2)), plurality(allT.argmax(2)))
+R4["Plurality vote (all 84 members)"] = (plurality(allE.argmax(2)), plurality(allT.argmax(2)))
 R4["Family-balanced mean softmax (4 families)"] = (mean_prob(FB_e), mean_prob(FB_t))
 R4["Family-balanced mean softmax, expected score rounded"] = (expected_score(FB_e), expected_score(FB_t))
 for k, (pe, pt) in R4.items():
@@ -771,50 +786,50 @@ print(f"rule with the best test accuracy: '{win['rule']}' at {win['test exact']:
 
 ## 10. Interpretation and Discussion
 
-- **The oracle gap is not spare accuracy (§2).** At least one of the 22 tied CNNs is right
-  on 89.67% of ensemble crops against a best single of 63.96%. Almost none of that is
-  reachable: on 97.5% of the crops where some member is right but the vote is not, the
-  correct score is a *minority* answer, a median of 4.5 members of 22. A vote returns the
-  most common answer, so those crops are out of reach. The vote lands at 64.94% on test
-  against 64.61% for the best of the 22.
+- **The oracle gap is not spare accuracy (§2).** At least one of the 17 tied CNNs is right
+  on 89.23% of ensemble crops against a best single of 63.96%. None of that is reachable:
+  on every one of the crops where some member is right but the vote is not, the correct
+  score is a *minority* answer, a median of 4 members of 17. A vote returns the most common
+  answer, so those crops are out of reach. The vote lands at 64.94% on test against 64.61%
+  for the best single member.
 - **Different families do fail differently, and it is not worth much (§3).** The four
-  lowest joint-error ratios are all across families (CNN–ViT 1.754 lowest) and the two
-  highest are within one family (augmented CNN 2.176, CNN 1.933). Mixing all four gives
+  lowest joint-error ratios are all across families (CNN–ViT 1.753 lowest) and the two
+  highest are within one family (augmented CNN 2.194, CNN 1.923). Mixing all four gives
   66.88% on test: 3.9 pp above the average single member, and level with the best one.
 - **Different training data decorrelates *less* than a different architecture (§4).** CNN
-  against augmented CNN is 1.909, CNN against ViT is 1.754. Same architecture on different
+  against augmented CNN is 1.919, CNN against ViT is 1.753. Same architecture on different
   crops stays more alike than a different architecture on the same crops. The accuracies
-  follow: CNN + augmented CNN is the worst pair at 65.26%, below CNN + ViT at 67.86% and
-  CNN + ordinal regression at 68.18%.
-- **Averaging the score beats voting on it (§5).** The two rules differ on 52 of 455
-  ensemble crops. On those the average is right 55.77% of the time against the vote's
-  40.38%, mean error 0.442 against 0.635. It wins on the split used to choose (65.71%
-  against 65.49% for the argmax and 63.96% for the vote) and stays ahead on test: 68.51%
-  exact and mean error 0.328, both the best of any rule here. Its near-miss, 98.70%, is
+  follow: CNN + augmented CNN is the worst pair at 65.91%, below CNN + ViT at 67.53% and
+  CNN + ordinal regression at 68.51%.
+- **Averaging the score beats voting on it (§5).** The two rules differ on 54 of 455
+  ensemble crops. On those the average is right 53.70% of the time against the vote's
+  42.59%, mean error 0.463 against 0.611. It wins on the split used to choose (65.49%
+  against 65.49% for the argmax and 64.18% for the vote) and stays ahead on test: 68.83%
+  exact and mean error 0.325, both the best of any rule here. Its near-miss, 98.70%, is
   *not* the best — the chapter's single model reaches 99.03%.
 - **Picking members for disagreement does not work (§6).** Greedy selection's first pick is
   already the best single member at 70.33%, and over 25 steps the curve only moves between
-  69.23% and 70.77%, a 1.54 pp range against a 2.24 pp standard error, so choosing k is
+  69.67% and 70.77%, a 1.10 pp range against a 2.24 pp standard error, so choosing k is
   choosing noise. Its k = 3 committee drops 5.83 pp on test where the average rule *gains*
   0.34 pp. Adding to a lucky model on the split that made it look lucky does not help
   either: the ranked curve starts at the same 70.33% and is down to 68.57% by five members.
 - **A learned combiner cannot use the per-score differences (§7).** They are real: on score
-  2 the ordinal regression reaches 0.569 against the CNNs' 0.462, on score 5, 0.662 against
-  0.515. But 455 rows force regularisation (C = 0.1; by C = 10 the train-to-CV gap is
-  8.8 pp), and it gains 0.33 pp on test, CI −3.25 to +3.90. Shuffled labels give 0.145
+  2 the ordinal regression reaches 0.569 against the CNNs' 0.452, on score 5, 0.662 against
+  0.521. But 455 rows force regularisation (C = 0.01; by C = 10 the train-to-CV gap is
+  8.6 pp), and it gains 0.97 pp on test, CI −2.92 to +4.87. Shuffled labels give 0.156
   against a chance rate of 0.143, so the fit is real, just small.
 - **Declining uncertain crops is the one thing a committee can do that a single model
-  cannot (§8).** Accuracy rises from 50.0% on the 20 crops where under half the members
-  agree to 78.8% on the 132 where over 90% do. Thresholds set on the ensemble split
-  transfer: the cut giving 75.3% at 64.8% coverage there gives 73.5% at 66.2% on test.
-  Declining the least-agreed 10% lifts the committee from 66.88% to 68.95%, which is the
-  human raters' 68.92%; declining half gives 75.97%.
+  cannot (§8).** Accuracy rises from 47.4% on the 19 crops where under half the members
+  agree to 79.1% on the 129 where over 90% do. Thresholds set on the ensemble split
+  transfer: the cut giving 75.4% at 61.5% coverage there gives 75.1% at 60.1% on test.
+  Declining the least-agreed 10% lifts the committee from 66.88% to 69.31%, just above the
+  human raters' 68.92%; declining half gives 76.62%.
 - **No rule beats a good single model, but every rule beats a badly chosen one (§9).**
   Every paired-bootstrap interval spans zero and the smallest p is 0.34. The one
   significant comparison runs the other way: the model that looked best on the ensemble
   split, at 70.33% there, falls to 62.34% on test — 4.55 pp below the chapter's selected
   model, CI −8.77 to −0.33, p = 0.040. Single models from this pool span 56.82% to 67.53%
-  on test while every fixed rule lands between 64.61% and 68.51%. Combining removes the
+  on test while every fixed rule lands between 64.94% and 68.83%. Combining removes the
   risk of picking the wrong model; it does not raise the ceiling.
 
 ### Recommendation
@@ -836,10 +851,13 @@ Everything else here is a negative result with a reason. One paragraph between t
   other are not separable.
 - 13 rules were scored on 455 selection crops, so the best of them is optimistic by
   construction. §9.4 measures that rather than assuming it away.
-- The augmented grid contributes 17 of its 18 tied configurations. Model 1440 ranks 9 of
-  8,640 on `avg_vaf_orig` but 161 on `avg_vaf`, and `TopNStore` (`src/results_store.py`)
-  keeps the top 100 by `avg_vaf`, so its weights were never written on the cluster or here.
-- The cGAN-augmented grid and the soft-label grid are absent: neither has a saved set of
-  tied models.
+- The augmented grid contributes all 16 of its tied settings. `TopNStore`
+  (`src/results_store.py`) writes weights for the top 100 runs by `avg_vaf`, which is also
+  the measure the tie is taken on, so a tied setting always has weights. Earlier runs of
+  this analysis saw only 15, because only 17 of the grid's 100 saved models had been synced
+  from the cluster.
+- The cGAN-augmented grid is absent on the Results P11 finding. The soft-label grid now has
+  its 100 saved models on disk and its 10-member tie is fully covered, so it could be added
+  as a fifth family; it is left out here because no paragraph currently calls for it.
 - Labels are the recorded median human scores, which `analyses/10` §4 shows are wrong on a
   handful of test crops.

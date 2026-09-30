@@ -91,7 +91,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#setup" id="toc-setup" class="nav-link" data-scroll-target="#setup">1. Setup</a>
   <ul class="collapse">
   <li><a href="#packages" id="toc-packages" class="nav-link" data-scroll-target="#packages">1.1 Packages</a></li>
-  <li><a href="#the-22-tied-cnns" id="toc-the-22-tied-cnns" class="nav-link" data-scroll-target="#the-22-tied-cnns">1.2 The 22 tied CNNs</a></li>
+  <li><a href="#the-17-tied-cnns" id="toc-the-17-tied-cnns" class="nav-link" data-scroll-target="#the-17-tied-cnns">1.2 The 17 tied CNNs</a></li>
   <li><a href="#check-the-cached-predictions-match-what-the-grid-search-recorded" id="toc-check-the-cached-predictions-match-what-the-grid-search-recorded" class="nav-link" data-scroll-target="#check-the-cached-predictions-match-what-the-grid-search-recorded">1.3 Check: the cached predictions match what the grid search recorded</a></li>
   <li><a href="#metrics" id="toc-metrics" class="nav-link" data-scroll-target="#metrics">1.4 Metrics</a></li>
   </ul></li>
@@ -132,9 +132,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p><strong>Goal:</strong></p>
 <p>Test whether combining the CNNs that cross-validation cannot tell apart beats using one of them.</p>
 <p><strong>Hypothesis:</strong></p>
-<p>It will not. The 22 tied CNNs are trained on the same 1,834 crops and give the same score as each other on 77.9% of held-out crops, so most of what one gets wrong the others get wrong too. Averaging cannot fix a shared mistake.</p>
+<p>It will not. The 17 tied CNNs are trained on the same 1,834 crops and give the same score as each other on 77.5% of held-out crops, so most of what one gets wrong the others get wrong too. Averaging cannot fix a shared mistake.</p>
 <p><strong>Rationale:</strong></p>
-<p>At least one of the 22 is right on 89.67% of crops while the best single one reaches 63.96%. That gap is worth testing even if the models are correlated. The 22 agree exactly on 77.9% of crops and to within one score on 99.7%, so where they disagree it is the same adjacent-score confusion the human raters show against each other.</p>
+<p>At least one of the 17 is right on 89.23% of crops while the best single one reaches 63.96%. That gap is worth testing even if the models are correlated. The 17 agree exactly on 77.5% of crops and to within one score on 99.7%, so where they disagree it is the same adjacent-score confusion the human raters show against each other.</p>
 <p>Members, rule and any choice are made on the <code>ensemble</code> split (455 crops, held out of all training). <code>test</code> (308 crops) is scored once. Both are reported.</p>
 <hr>
 </section>
@@ -142,68 +142,76 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="setup">1. Setup</h2>
 <section id="packages" class="level3">
 <h3 class="anchored" data-anchor-id="packages">1.1 Packages</h3>
-<div id="c471f544" class="cell" data-execution_count="1">
+<div id="f0532dce" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.1</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>plt.rcParams.update({<span class="st">"figure.dpi"</span>: <span class="dv">120</span>})</span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>THESIS_PLOTS <span class="op">=</span> Path(<span class="st">"thesis_plots"</span>)</span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>THESIS_PLOTS.mkdir(exist_ok<span class="op">=</span><span class="va">True</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> sys</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>plt.rcParams.update({<span class="st">"figure.dpi"</span>: <span class="dv">120</span>})</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>THESIS_PLOTS <span class="op">=</span> Path(<span class="st">"thesis_plots"</span>)</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>THESIS_PLOTS.mkdir(exist_ok<span class="op">=</span><span class="va">True</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 </div>
 </section>
-<section id="the-22-tied-cnns" class="level3">
-<h3 class="anchored" data-anchor-id="the-22-tied-cnns">1.2 The 22 tied CNNs</h3>
-<div id="c8173887" class="cell" data-execution_count="2">
+<section id="the-17-tied-cnns" class="level3">
+<h3 class="anchored" data-anchor-id="the-17-tied-cnns">1.2 The 17 tied CNNs</h3>
+<div id="c6960e23" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.2</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co"># A grid's single best config is not reproducibly the best: on 2,289 cross-validation</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co"># crops the standard error near 0.65 is about 1.0 pp, and 22 of the 8,640 configs sit</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co"># inside that of the winner. The tie is defined on cross-validation only, so it never</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co"># touches `ensemble` or `test`.</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co"># crops the standard error near 0.65 is about 1.0 pp, and 17 of the grid's 6,720 distinct</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co"># settings sit inside that of the winner. The tie is defined on cross-validation only, so</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co"># it never touches `ensemble` or `test`.</span></span>
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="co">#</span></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Predictions come from pred_cache/probs.npz, built by build_cache.py in this folder:</span></span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="co"># every saved model scored over both held-out splits, full softmax rather than argmax.</span></span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>ROOT <span class="op">=</span> Path.cwd().parents[<span class="dv">1</span>]</span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>Z <span class="op">=</span> np.load(<span class="st">"pred_cache/probs.npz"</span>, allow_pickle<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>ye, yt <span class="op">=</span> Z[<span class="st">"ye"</span>].astype(<span class="bu">int</span>), Z[<span class="st">"yt"</span>].astype(<span class="bu">int</span>)</span>
-<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>GRID <span class="op">=</span> ROOT <span class="op">/</span> <span class="st">"models/03_Medoid_CNN_RandomSearch/01_Categorical_Loss"</span></span>
-<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>res <span class="op">=</span> pd.concat(</span>
-<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    [pd.read_csv(GRID <span class="op">/</span> <span class="st">"random_search_results.csv"</span>)]</span>
-<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> [pd.read_csv(p) <span class="cf">for</span> p <span class="kw">in</span> (GRID <span class="op">/</span> <span class="st">"parts"</span>).glob(<span class="st">"*.csv"</span>)],</span>
-<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    ignore_index<span class="op">=</span><span class="va">True</span>).drop_duplicates(<span class="st">"model_id"</span>).set_index(<span class="st">"model_id"</span>)</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="co"># The grid trains reg=None once per reg_strength, so 1,920 of its 8,640 runs repeat a</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="co"># setting. grid_results.deduplicate keeps each setting's best run before the band is taken;</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="co"># otherwise one setting can hold three of the tie's places and cast three votes.</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="co">#</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Predictions come from pred_cache/probs.npz, built by build_cache.py in this folder:</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="co"># every saved model scored over both held-out splits, full softmax rather than argmax.</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>ROOT <span class="op">=</span> Path.cwd().parents[<span class="dv">1</span>]</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>sys.path.append(<span class="bu">str</span>(ROOT <span class="op">/</span> <span class="st">"src"</span>))</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> grid_results <span class="im">import</span> deduplicate  <span class="co"># noqa: E402</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>Z <span class="op">=</span> np.load(<span class="st">"pred_cache/probs.npz"</span>, allow_pickle<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>ye, yt <span class="op">=</span> Z[<span class="st">"ye"</span>].astype(<span class="bu">int</span>), Z[<span class="st">"yt"</span>].astype(<span class="bu">int</span>)</span>
 <span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>v <span class="op">=</span> res[<span class="st">"avg_vaf"</span>]</span>
-<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>se_cv <span class="op">=</span> <span class="bu">float</span>(np.sqrt(v.<span class="bu">max</span>() <span class="op">*</span> (<span class="dv">1</span> <span class="op">-</span> v.<span class="bu">max</span>()) <span class="op">/</span> <span class="dv">2289</span>))</span>
-<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>tied <span class="op">=</span> <span class="bu">set</span>(v[v <span class="op">&gt;=</span> v.<span class="bu">max</span>() <span class="op">-</span> se_cv].index)</span>
-<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>keep <span class="op">=</span> [i <span class="cf">for</span> i, m <span class="kw">in</span> <span class="bu">enumerate</span>(Z[<span class="st">"cnn_ids"</span>]) <span class="cf">if</span> m <span class="kw">in</span> tied]</span>
-<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">len</span>(<span class="bu">set</span>(Z[<span class="st">"cnn_ids"</span>][keep].tolist())) <span class="op">==</span> <span class="bu">len</span>(keep), <span class="st">"duplicate model_id in the cache"</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>GRID <span class="op">=</span> ROOT <span class="op">/</span> <span class="st">"models/03_Medoid_CNN_RandomSearch/01_Categorical_Loss"</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>res <span class="op">=</span> pd.concat(</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    [pd.read_csv(GRID <span class="op">/</span> <span class="st">"random_search_results.csv"</span>)]</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> [pd.read_csv(p) <span class="cf">for</span> p <span class="kw">in</span> (GRID <span class="op">/</span> <span class="st">"parts"</span>).glob(<span class="st">"*.csv"</span>)],</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>    ignore_index<span class="op">=</span><span class="va">True</span>).drop_duplicates(<span class="st">"model_id"</span>).set_index(<span class="st">"model_id"</span>)</span>
 <span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>Qe, Qt <span class="op">=</span> Z[<span class="st">"cnn_e"</span>][keep], Z[<span class="st">"cnn_t"</span>][keep]      <span class="co"># softmax, (models, crops, 7)</span></span>
-<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>He, Ht <span class="op">=</span> Qe.argmax(<span class="dv">2</span>), Qt.argmax(<span class="dv">2</span>)              <span class="co"># each model's predicted score</span></span>
-<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>nC <span class="op">=</span> <span class="bu">len</span>(keep)</span>
-<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"best cross-validated accuracy </span><span class="sc">{</span>v<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.4f}</span><span class="ss">, 1 SE = </span><span class="sc">{</span>se_cv<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>nC<span class="sc">}</span><span class="ss"> configs tied within 1 SE, all with saved weights"</span>)</span>
-<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"ensemble split </span><span class="sc">{</span><span class="bu">len</span>(ye)<span class="sc">}</span><span class="ss"> crops, test split </span><span class="sc">{</span><span class="bu">len</span>(yt)<span class="sc">}</span><span class="ss"> crops"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>res <span class="op">=</span> deduplicate(res.reset_index()).set_index(<span class="st">"model_id"</span>)</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>v <span class="op">=</span> res[<span class="st">"avg_vaf"</span>]</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>se_cv <span class="op">=</span> <span class="bu">float</span>(np.sqrt(v.<span class="bu">max</span>() <span class="op">*</span> (<span class="dv">1</span> <span class="op">-</span> v.<span class="bu">max</span>()) <span class="op">/</span> <span class="dv">2289</span>))</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>tied <span class="op">=</span> <span class="bu">set</span>(v[v <span class="op">&gt;=</span> v.<span class="bu">max</span>() <span class="op">-</span> se_cv].index)</span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>keep <span class="op">=</span> [i <span class="cf">for</span> i, m <span class="kw">in</span> <span class="bu">enumerate</span>(Z[<span class="st">"cnn_ids"</span>]) <span class="cf">if</span> m <span class="kw">in</span> tied]</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">len</span>(<span class="bu">set</span>(Z[<span class="st">"cnn_ids"</span>][keep].tolist())) <span class="op">==</span> <span class="bu">len</span>(keep), <span class="st">"duplicate model_id in the cache"</span></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>Qe, Qt <span class="op">=</span> Z[<span class="st">"cnn_e"</span>][keep], Z[<span class="st">"cnn_t"</span>][keep]      <span class="co"># softmax, (models, crops, 7)</span></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>He, Ht <span class="op">=</span> Qe.argmax(<span class="dv">2</span>), Qt.argmax(<span class="dv">2</span>)              <span class="co"># each model's predicted score</span></span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>nC <span class="op">=</span> <span class="bu">len</span>(keep)</span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"best cross-validated accuracy </span><span class="sc">{</span>v<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.4f}</span><span class="ss">, 1 SE = </span><span class="sc">{</span>se_cv<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>nC<span class="sc">}</span><span class="ss"> configs tied within 1 SE, all with saved weights"</span>)</span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"ensemble split </span><span class="sc">{</span><span class="bu">len</span>(ye)<span class="sc">}</span><span class="ss"> crops, test split </span><span class="sc">{</span><span class="bu">len</span>(yt)<span class="sc">}</span><span class="ss"> crops"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
 <pre><code>best cross-validated accuracy 0.6457, 1 SE = 0.0100
-22 configs tied within 1 SE, all with saved weights
+17 configs tied within 1 SE, all with saved weights
 ensemble split 455 crops, test split 308 crops</code></pre>
 </div>
 </div>
 </section>
 <section id="check-the-cached-predictions-match-what-the-grid-search-recorded" class="level3">
 <h3 class="anchored" data-anchor-id="check-the-cached-predictions-match-what-the-grid-search-recorded">1.3 Check: the cached predictions match what the grid search recorded</h3>
-<div id="41527dbb" class="cell" data-execution_count="3">
+<div id="be923385" class="cell" data-execution_count="3">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.3</span></span>
@@ -214,13 +222,13 @@ ensemble split 455 crops, test split 308 crops</code></pre>
 <span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"max |here - recorded| over the </span><span class="sc">{</span>nC<span class="sc">}</span><span class="ss"> models = </span><span class="sc">{</span>np<span class="sc">.</span><span class="bu">abs</span>(here <span class="op">-</span> rec)<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.5f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>max |here - recorded| over the 22 models = 0.00000</code></pre>
+<pre><code>max |here - recorded| over the 17 models = 0.00000</code></pre>
 </div>
 </div>
 </section>
 <section id="metrics" class="level3">
 <h3 class="anchored" data-anchor-id="metrics">1.4 Metrics</h3>
-<div id="137542b7" class="cell" data-execution_count="4">
+<div id="440a7cb4" class="cell" data-execution_count="4">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1.4</span></span>
@@ -240,7 +248,7 @@ ensemble split 455 crops, test split 308 crops</code></pre>
 <span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.array([np.bincount(P[:, j], minlength<span class="op">=</span><span class="dv">7</span>).argmax() <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(P.shape[<span class="dv">1</span>])])</span>
 <span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> mean_softmax(Q):</span>
-<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Average the 22 probability vectors, then take the argmax of the average.</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Average the members' probability vectors, then take the argmax of the average.</span></span>
 <span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Q.mean(<span class="dv">0</span>).argmax(<span class="dv">1</span>)</span>
 <span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a><span class="co"># Paired bootstrap: resample the 308 test crops and recompute both accuracies on the same</span></span>
@@ -266,11 +274,11 @@ ensemble split 455 crops, test split 308 crops</code></pre>
 </section>
 <section id="how-much-accuracy-is-actually-available" class="level2">
 <h2 class="anchored" data-anchor-id="how-much-accuracy-is-actually-available">2. How much accuracy is actually available</h2>
-<div id="94857509" class="cell" data-execution_count="5">
+<div id="2ff1c268" class="cell" data-execution_count="5">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2.1</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>n_right_e <span class="op">=</span> (He <span class="op">==</span> ye[<span class="va">None</span>, :]).<span class="bu">sum</span>(<span class="dv">0</span>)          <span class="co"># how many of the 22 get each crop right</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>n_right_e <span class="op">=</span> (He <span class="op">==</span> ye[<span class="va">None</span>, :]).<span class="bu">sum</span>(<span class="dv">0</span>)          <span class="co"># how many members get each crop right</span></span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>oracle <span class="op">=</span> <span class="bu">float</span>((n_right_e <span class="op">&gt;</span> <span class="dv">0</span>).mean())</span>
 <span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>best_i <span class="op">=</span> <span class="bu">int</span>(np.argmax((He <span class="op">==</span> ye[<span class="va">None</span>, :]).mean(<span class="dv">1</span>)))</span>
 <span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"at least one of the </span><span class="sc">{</span>nC<span class="sc">}</span><span class="ss"> correct : </span><span class="sc">{</span>oracle<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
@@ -278,12 +286,12 @@ ensemble split 455 crops, test split 308 crops</code></pre>
 <span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"gap                             : </span><span class="sc">{</span>oracle <span class="op">-</span> (He[best_i] <span class="op">==</span> ye)<span class="sc">.</span>mean()<span class="sc">:.4f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>at least one of the 22 correct : 0.8967
+<pre><code>at least one of the 17 correct : 0.8923
 best single model               : 0.6396
-gap                             : 0.2571</code></pre>
+gap                             : 0.2527</code></pre>
 </div>
 </div>
-<div id="f180b81f" class="cell" data-execution_count="6">
+<div id="8cae2cda" class="cell" data-execution_count="6">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2.2</span></span>
@@ -297,16 +305,16 @@ gap                             : 0.2571</code></pre>
 <span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"2 or more apart </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> (<span class="dv">1</span> <span class="op">-</span> np.mean(nm_p))<span class="sc">:.2f}</span><span class="ss">%"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>pairwise: same score 77.87%, within 1 score 99.73%, 2 or more apart 0.27%</code></pre>
+<pre><code>pairwise: same score 77.49%, within 1 score 99.69%, 2 or more apart 0.31%</code></pre>
 </div>
 </div>
-<div id="43f9d324" class="cell" data-execution_count="7">
+<div id="a31e99c3" class="cell" data-execution_count="7">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2.3</span></span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="co"># A vote returns the most common answer, so it can only win where the correct score IS</span></span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="co"># the most common answer. Splitting the crops by how many members are right separates</span></span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="co"># the part of the 89.67% a vote could reach from the part it cannot.</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="co"># the part of that oracle a vote could reach from the part it cannot.</span></span>
 <span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>v_e <span class="op">=</span> vote(He)</span>
 <span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>win <span class="op">=</span> v_e <span class="op">==</span> ye</span>
 <span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> np.arange(nC <span class="op">+</span> <span class="dv">1</span>)</span>
@@ -324,32 +332,35 @@ gap                             : 0.2571</code></pre>
 <span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>ax.bar(x, c_win, bottom<span class="op">=</span>c_none <span class="op">+</span> c_unreach, color<span class="op">=</span><span class="st">"#4C72B0"</span>, label<span class="op">=</span><span class="st">"The vote is right"</span>)</span>
 <span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="ss">f"Number of the </span><span class="sc">{</span>nC<span class="sc">}</span><span class="ss"> tied CNNs that score the crop correctly"</span>)</span>
 <span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"Crops"</span>)</span>
-<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a>ax.legend(frameon<span class="op">=</span><span class="va">False</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
-<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a>ax.spines[[<span class="st">"top"</span>, <span class="st">"right"</span>]].set_visible(<span class="va">False</span>)</span>
-<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>fig.tight_layout()</span>
-<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a>fig.savefig(THESIS_PLOTS <span class="op">/</span> <span class="st">"vote_22_cnns.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
-<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a>gap <span class="op">=</span> <span class="op">~</span>win <span class="op">&amp;</span> (n_right_e <span class="op">&gt;</span> <span class="dv">0</span>)</span>
-<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"crops the </span><span class="sc">{</span>oracle<span class="sc">:.2%}</span><span class="ss"> counts but no vote can reach: </span><span class="sc">{</span><span class="bu">int</span>(gap.<span class="bu">sum</span>())<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  median models correct on them: </span><span class="sc">{</span>np<span class="sc">.</span>median(n_right_e[gap])<span class="sc">:.1f}</span><span class="ss"> of </span><span class="sc">{</span>nC<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb12-31"><a href="#cb12-31" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  share with fewer than half the models correct: </span><span class="sc">{</span>(n_right_e[gap] <span class="op">&lt;</span> nC <span class="op">/</span> <span class="dv">2</span>)<span class="sc">.</span>mean()<span class="sc">:.3f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a><span class="co"># One tick per bar. The default locator picks 2.5-step ticks, which land between bars and</span></span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a><span class="co"># read as fractions of a model.</span></span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>ax.set_xticks(x)</span>
+<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a>ax.legend(frameon<span class="op">=</span><span class="va">False</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
+<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a>ax.spines[[<span class="st">"top"</span>, <span class="st">"right"</span>]].set_visible(<span class="va">False</span>)</span>
+<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a>fig.tight_layout()</span>
+<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a>fig.savefig(THESIS_PLOTS <span class="op">/</span> <span class="st">"vote_22_cnns.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-31"><a href="#cb12-31" aria-hidden="true" tabindex="-1"></a>gap <span class="op">=</span> <span class="op">~</span>win <span class="op">&amp;</span> (n_right_e <span class="op">&gt;</span> <span class="dv">0</span>)</span>
+<span id="cb12-32"><a href="#cb12-32" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"crops the </span><span class="sc">{</span>oracle<span class="sc">:.2%}</span><span class="ss"> counts but no vote can reach: </span><span class="sc">{</span><span class="bu">int</span>(gap.<span class="bu">sum</span>())<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb12-33"><a href="#cb12-33" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  median models correct on them: </span><span class="sc">{</span>np<span class="sc">.</span>median(n_right_e[gap])<span class="sc">:.1f}</span><span class="ss"> of </span><span class="sc">{</span>nC<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb12-34"><a href="#cb12-34" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  share with fewer than half the models correct: </span><span class="sc">{</span>(n_right_e[gap] <span class="op">&lt;</span> nC <span class="op">/</span> <span class="dv">2</span>)<span class="sc">.</span>mean()<span class="sc">:.3f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
 <p><img src="ensembling_results_files/figure-html/cell-8-output-1.png" width="730" height="395" class="figure-img"></p>
-<figcaption>How many of the 22 tied CNNs score each crop correctly. Blue: the vote gets it right. Red: at least one model is right but the vote is not, the crops the 89.67% counts and no vote can reach. Grey: no model is right.</figcaption>
+<figcaption>How many of the 17 tied CNNs score each crop correctly. Blue: the vote gets it right. Red: at least one model is right but the vote is not, the crops the 89.23% counts and no vote can reach. Grey: no model is right.</figcaption>
 </figure>
 </div>
 </div>
 <div class="cell-output cell-output-stdout">
-<pre><code>crops the 89.67% counts but no vote can reach: 120
-  median models correct on them: 4.5 of 22
-  share with fewer than half the models correct: 0.975</code></pre>
+<pre><code>crops the 89.23% counts but no vote can reach: 124
+  median models correct on them: 4.0 of 17
+  share with fewer than half the models correct: 1.000</code></pre>
 </div>
 </div>
-<div id="fc65a025" class="cell" data-execution_count="8">
+<div id="6d167358" class="cell" data-execution_count="8">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2.4</span></span>
@@ -382,13 +393,13 @@ gap                             : 0.2571</code></pre>
 </details>
 <div class="cell-output cell-output-stdout">
 <pre><code>4 of 308 test crops are placed &gt;=2 scores from their recorded label
-89 more are off by exactly 1 with a &gt;=60% majority, which is adjacent-score ambiguity rather than a label error</code></pre>
+87 more are off by exactly 1 with a &gt;=60% majority, which is adjacent-score ambiguity rather than a label error</code></pre>
 </div>
 <div class="cell-output cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
 <p><img src="ensembling_results_files/figure-html/cell-9-output-2.png" width="780" height="237" class="figure-img"></p>
-<figcaption>Every test crop the 22 tied CNNs place at least two scores from the recorded label, ordered by how many of the 22 agree.</figcaption>
+<figcaption>Every test crop the 17 tied CNNs place at least two scores from the recorded label, ordered by how many of the 17 agree.</figcaption>
 </figure>
 </div>
 </div>
@@ -413,7 +424,7 @@ gap                             : 0.2571</code></pre>
 <td>_DSC1805_3_4_6.tif</td>
 <td>1</td>
 <td>3</td>
-<td>22</td>
+<td>17</td>
 <td>100.0</td>
 </tr>
 <tr class="even">
@@ -421,7 +432,7 @@ gap                             : 0.2571</code></pre>
 <td>DSC_8266_3_1_1.tif</td>
 <td>4</td>
 <td>6</td>
-<td>22</td>
+<td>17</td>
 <td>100.0</td>
 </tr>
 <tr class="odd">
@@ -429,7 +440,7 @@ gap                             : 0.2571</code></pre>
 <td>DSC_9237_3_3_2.tif</td>
 <td>2</td>
 <td>4</td>
-<td>22</td>
+<td>17</td>
 <td>100.0</td>
 </tr>
 <tr class="even">
@@ -437,8 +448,8 @@ gap                             : 0.2571</code></pre>
 <td>_DSC0170_2_1_5.tif</td>
 <td>2</td>
 <td>4</td>
-<td>12</td>
-<td>54.5</td>
+<td>9</td>
+<td>52.9</td>
 </tr>
 </tbody>
 </table>
@@ -446,35 +457,35 @@ gap                             : 0.2571</code></pre>
 </div>
 </div>
 </div>
-<div id="3e74ad68" class="cell" data-execution_count="9">
+<div id="8f3de727" class="cell" data-execution_count="9">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2.5</span></span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="co"># The oracle can only rise as members are added, so before reading anything into 89.67%:</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="co"># The oracle can only rise as members are added, so before reading anything into it:</span></span>
 <span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="co"># how much of it is pool size? Two checks. First, what the oracle would be if the same</span></span>
 <span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="co"># models failed independently of one another. Second, other pools cut to the same n.</span></span>
 <span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">0</span>)</span>
 <span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>orc <span class="op">=</span> <span class="kw">lambda</span> P: <span class="bu">float</span>((P <span class="op">==</span> ye[<span class="va">None</span>, :]).<span class="bu">any</span>(<span class="dv">0</span>).mean())</span>
 <span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>p_i <span class="op">=</span> (He <span class="op">==</span> ye[<span class="va">None</span>, :]).mean(<span class="dv">1</span>)</span>
 <span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"observed oracle </span><span class="sc">{</span>orc(He)<span class="sc">:.4f}</span><span class="ss">; if the </span><span class="sc">{</span>nC<span class="sc">}</span><span class="ss"> failed independently </span><span class="sc">{</span><span class="dv">1</span> <span class="op">-</span> np<span class="sc">.</span>prod(<span class="dv">1</span> <span class="op">-</span> p_i)<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> n <span class="kw">in</span> (<span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">12</span>, <span class="dv">22</span>):</span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> n <span class="kw">in</span> (<span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">12</span>, nC):</span>
 <span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>    obs <span class="op">=</span> np.mean([orc(He[rng.choice(nC, n, replace<span class="op">=</span><span class="va">False</span>)]) <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">200</span>)])</span>
 <span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  n=</span><span class="sc">{</span>n<span class="sc">:2d}</span><span class="ss">: observed </span><span class="sc">{</span>obs<span class="sc">:.4f}</span><span class="ss">   independent </span><span class="sc">{</span><span class="dv">1</span> <span class="op">-</span> (<span class="dv">1</span> <span class="op">-</span> p_i.mean()) <span class="op">**</span> n<span class="sc">:.4f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>observed oracle 0.8967; if the 22 failed independently 1.0000
-  n= 2: observed 0.7175   independent 0.8527
-  n= 3: observed 0.7618   independent 0.9435
-  n= 5: observed 0.8087   independent 0.9917
-  n=12: observed 0.8709   independent 1.0000
-  n=22: observed 0.8967   independent 1.0000</code></pre>
+<pre><code>observed oracle 0.8923; if the 17 failed independently 1.0000
+  n= 2: observed 0.7195   independent 0.8531
+  n= 3: observed 0.7640   independent 0.9437
+  n= 5: observed 0.8128   independent 0.9917
+  n=12: observed 0.8735   independent 1.0000
+  n=17: observed 0.8923   independent 1.0000</code></pre>
 </div>
 </div>
 <hr>
 </section>
 <section id="the-three-rules" class="level2">
 <h2 class="anchored" data-anchor-id="the-three-rules">3. The three rules</h2>
-<div id="255b7d64" class="cell" data-execution_count="10">
+<div id="48d0cdf4" class="cell" data-execution_count="10">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3.1</span></span>
@@ -519,7 +530,7 @@ gap                             : 0.2571</code></pre>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
 <td>Plurality vote</td>
-<td>0.6330</td>
+<td>0.6198</td>
 <td>0.6494</td>
 <td>0.9870</td>
 <td>0.3636</td>
@@ -527,9 +538,9 @@ gap                             : 0.2571</code></pre>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">2</th>
 <td>Mean softmax</td>
-<td>0.6374</td>
-<td>0.6461</td>
-<td>0.9903</td>
+<td>0.6308</td>
+<td>0.6494</td>
+<td>0.9870</td>
 <td>0.3636</td>
 </tr>
 </tbody>
@@ -538,7 +549,7 @@ gap                             : 0.2571</code></pre>
 </div>
 </div>
 </div>
-<div id="baf94329" class="cell" data-execution_count="11">
+<div id="1a11a96d" class="cell" data-execution_count="11">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3.2</span></span>
@@ -549,29 +560,29 @@ gap                             : 0.2571</code></pre>
 <span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>k<span class="sc">:18s}</span><span class="ss"> </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> d<span class="sc">:+6.2f}</span><span class="ss"> pp   95% CI [</span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> lo<span class="sc">:+.2f}</span><span class="ss">, </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> hi<span class="sc">:+.2f}</span><span class="ss">]   p = </span><span class="sc">{</span>p<span class="sc">:.3f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>Plurality vote      +0.32 pp   95% CI [-2.60, +3.25]   p = 0.930
-Mean softmax        +0.00 pp   95% CI [-2.92, +2.92]   p = 1.000</code></pre>
+<pre><code>Plurality vote      +0.32 pp   95% CI [-2.60, +3.25]   p = 0.916
+Mean softmax        +0.32 pp   95% CI [-2.60, +3.25]   p = 0.921</code></pre>
 </div>
 </div>
 <hr>
 </section>
 <section id="across-model-families" class="level2">
 <h2 class="anchored" data-anchor-id="across-model-families">4. Across model families</h2>
-<div id="bad2d727" class="cell" data-execution_count="12">
+<div id="1b7a5c33" class="cell" data-execution_count="12">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.1</span></span>
-<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Four families are available. The 22 CNNs share an architecture AND a training set, so a</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Four families are available. The 17 CNNs share an architecture AND a training set, so a</span></span>
 <span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="co"># shared mistake is expected. The others vary one thing or both:</span></span>
 <span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a><span class="co">#   ViT                 different architecture, same crops</span></span>
 <span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a><span class="co">#   CNN (Geometric Augmentation)     same architecture, different crops (models/07 trains from the</span></span>
-<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a><span class="co">#                       augmented pool; its tie is ranked on avg_vaf_orig, accuracy on the</span></span>
-<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a><span class="co">#                       ORIGINAL crops in the fold, since its plain avg_vaf is measured</span></span>
-<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a><span class="co">#                       over a fold containing augmented copies)</span></span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a><span class="co">#                       augmented pool, and its tie is ranked on avg_vaf like every other</span></span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a><span class="co">#                       grid: the pool is topped up to 1,627 per class, so avg_vaf carries</span></span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a><span class="co">#                       the test split's class balance, while avg_vaf_orig is 42.6% score 0)</span></span>
 <span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a><span class="co">#   Ordinal Regression  neither: 12 hand-built features, one polr fit (analyses/03)</span></span>
 <span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>GRIDS <span class="op">=</span> {<span class="st">"ViT"</span>: (<span class="st">"models/04_Medoid_ViT_RandomSearch/01_Categorical_Loss"</span>, <span class="st">"vit"</span>, <span class="st">"avg_vaf"</span>),</span>
 <span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>         <span class="st">"CNN (Geometric Augmentation)"</span>: (<span class="st">"models/07_Medoid_CNN_GeomAug/01_MatchLargestClass"</span>, <span class="st">"geo"</span>,</span>
-<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>                                          <span class="st">"avg_vaf_orig"</span>),</span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>                                          <span class="st">"avg_vaf"</span>),</span>
 <span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a>         }</span>
 <span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a><span class="co"># The cGAN-augmented grid is deliberately absent. Ranked the way every other family is, on</span></span>
 <span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a><span class="co"># accuracy over the original crops, its best configuration reaches 61.04% on test against</span></span>
@@ -590,35 +601,36 @@ Mean softmax        +0.00 pp   95% CI [-2.92, +2.92]   p = 1.000</code></pre>
 <span id="cb21-28"><a href="#cb21-28" aria-hidden="true" tabindex="-1"></a>    r <span class="op">=</span> pd.concat([pd.read_csv(g <span class="op">/</span> <span class="st">"random_search_results.csv"</span>)]</span>
 <span id="cb21-29"><a href="#cb21-29" aria-hidden="true" tabindex="-1"></a>                  <span class="op">+</span> [pd.read_csv(q) <span class="cf">for</span> q <span class="kw">in</span> (g <span class="op">/</span> <span class="st">"parts"</span>).glob(<span class="st">"*.csv"</span>)],</span>
 <span id="cb21-30"><a href="#cb21-30" aria-hidden="true" tabindex="-1"></a>                  ignore_index<span class="op">=</span><span class="va">True</span>).drop_duplicates(<span class="st">"model_id"</span>).set_index(<span class="st">"model_id"</span>)</span>
-<span id="cb21-31"><a href="#cb21-31" aria-hidden="true" tabindex="-1"></a>    w <span class="op">=</span> r[col].dropna()</span>
-<span id="cb21-32"><a href="#cb21-32" aria-hidden="true" tabindex="-1"></a>    tie <span class="op">=</span> <span class="bu">set</span>(w[w <span class="op">&gt;=</span> w.<span class="bu">max</span>() <span class="op">-</span> <span class="bu">float</span>(np.sqrt(w.<span class="bu">max</span>() <span class="op">*</span> (<span class="dv">1</span> <span class="op">-</span> w.<span class="bu">max</span>()) <span class="op">/</span> <span class="dv">2289</span>))].index)</span>
-<span id="cb21-33"><a href="#cb21-33" aria-hidden="true" tabindex="-1"></a>    idx <span class="op">=</span> [i <span class="cf">for</span> i, m <span class="kw">in</span> <span class="bu">enumerate</span>(Z[<span class="ss">f"</span><span class="sc">{</span>tag<span class="sc">}</span><span class="ss">_ids"</span>]) <span class="cf">if</span> m <span class="kw">in</span> tie]</span>
-<span id="cb21-34"><a href="#cb21-34" aria-hidden="true" tabindex="-1"></a>    FAM[name] <span class="op">=</span> (Z[<span class="ss">f"</span><span class="sc">{</span>tag<span class="sc">}</span><span class="ss">_e"</span>][idx], Z[<span class="ss">f"</span><span class="sc">{</span>tag<span class="sc">}</span><span class="ss">_t"</span>][idx])</span>
-<span id="cb21-35"><a href="#cb21-35" aria-hidden="true" tabindex="-1"></a>    FAM_IDS[name] <span class="op">=</span> Z[<span class="ss">f"</span><span class="sc">{</span>tag<span class="sc">}</span><span class="ss">_ids"</span>][idx]</span>
-<span id="cb21-36"><a href="#cb21-36" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-37"><a href="#cb21-37" aria-hidden="true" tabindex="-1"></a><span class="co"># The ordinal regression's class probabilities, exported by analyses/03 from the same</span></span>
-<span id="cb21-38"><a href="#cb21-38" aria-hidden="true" tabindex="-1"></a><span class="co"># train+val fit for both held-out splits.</span></span>
-<span id="cb21-39"><a href="#cb21-39" aria-hidden="true" tabindex="-1"></a>PC <span class="op">=</span> [<span class="ss">f"p</span><span class="sc">{</span>k<span class="sc">}</span><span class="ss">"</span> <span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>)]</span>
-<span id="cb21-40"><a href="#cb21-40" aria-hidden="true" tabindex="-1"></a>nd <span class="op">=</span> pd.read_csv(ROOT <span class="op">/</span> <span class="st">"analyses/03_feature_classifiers/model_cache/nondl_heldout_predictions.csv"</span>)</span>
-<span id="cb21-41"><a href="#cb21-41" aria-hidden="true" tabindex="-1"></a>fe <span class="op">=</span> [<span class="bu">str</span>(f).replace(<span class="st">".tif"</span>, <span class="st">""</span>) <span class="cf">for</span> f <span class="kw">in</span> Z[<span class="st">"files_e"</span>]]</span>
-<span id="cb21-42"><a href="#cb21-42" aria-hidden="true" tabindex="-1"></a>ft <span class="op">=</span> [<span class="bu">str</span>(f).replace(<span class="st">".tif"</span>, <span class="st">""</span>) <span class="cf">for</span> f <span class="kw">in</span> Z[<span class="st">"files_t"</span>]]</span>
-<span id="cb21-43"><a href="#cb21-43" aria-hidden="true" tabindex="-1"></a>ne <span class="op">=</span> nd[nd.split <span class="op">==</span> <span class="st">"ensemble"</span>].set_index(<span class="st">"image_id"</span>).reindex(fe)</span>
-<span id="cb21-44"><a href="#cb21-44" aria-hidden="true" tabindex="-1"></a>nt <span class="op">=</span> nd[nd.split <span class="op">==</span> <span class="st">"test"</span>].set_index(<span class="st">"image_id"</span>).reindex(ft)</span>
-<span id="cb21-45"><a href="#cb21-45" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> (ne[<span class="st">"true"</span>].to_numpy() <span class="op">==</span> ye).<span class="bu">all</span>() <span class="kw">and</span> (nt[<span class="st">"true"</span>].to_numpy() <span class="op">==</span> yt).<span class="bu">all</span>()</span>
-<span id="cb21-46"><a href="#cb21-46" aria-hidden="true" tabindex="-1"></a>FAM[<span class="st">"Ordinal Regression"</span>] <span class="op">=</span> (ne[PC].to_numpy(<span class="bu">float</span>)[<span class="va">None</span>], nt[PC].to_numpy(<span class="bu">float</span>)[<span class="va">None</span>])</span>
-<span id="cb21-47"><a href="#cb21-47" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-48"><a href="#cb21-48" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> k, (qe, qt) <span class="kw">in</span> FAM.items():</span>
-<span id="cb21-49"><a href="#cb21-49" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>k<span class="sc">:20s}</span><span class="ss"> </span><span class="sc">{</span><span class="bu">len</span>(qe)<span class="sc">:3d}</span><span class="ss"> members   ensemble </span><span class="sc">{</span>(qe.argmax(<span class="dv">2</span>) <span class="op">==</span> ye[<span class="va">None</span>, :])<span class="sc">.</span>mean()<span class="sc">:.4f}</span><span class="ss">   "</span></span>
-<span id="cb21-50"><a href="#cb21-50" aria-hidden="true" tabindex="-1"></a>          <span class="ss">f"test </span><span class="sc">{</span>(qt.argmax(<span class="dv">2</span>) <span class="op">==</span> yt[<span class="va">None</span>, :])<span class="sc">.</span>mean()<span class="sc">:.4f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb21-31"><a href="#cb21-31" aria-hidden="true" tabindex="-1"></a>    r <span class="op">=</span> deduplicate(r.reset_index(), col).set_index(<span class="st">"model_id"</span>)</span>
+<span id="cb21-32"><a href="#cb21-32" aria-hidden="true" tabindex="-1"></a>    w <span class="op">=</span> r[col].dropna()</span>
+<span id="cb21-33"><a href="#cb21-33" aria-hidden="true" tabindex="-1"></a>    tie <span class="op">=</span> <span class="bu">set</span>(w[w <span class="op">&gt;=</span> w.<span class="bu">max</span>() <span class="op">-</span> <span class="bu">float</span>(np.sqrt(w.<span class="bu">max</span>() <span class="op">*</span> (<span class="dv">1</span> <span class="op">-</span> w.<span class="bu">max</span>()) <span class="op">/</span> <span class="dv">2289</span>))].index)</span>
+<span id="cb21-34"><a href="#cb21-34" aria-hidden="true" tabindex="-1"></a>    idx <span class="op">=</span> [i <span class="cf">for</span> i, m <span class="kw">in</span> <span class="bu">enumerate</span>(Z[<span class="ss">f"</span><span class="sc">{</span>tag<span class="sc">}</span><span class="ss">_ids"</span>]) <span class="cf">if</span> m <span class="kw">in</span> tie]</span>
+<span id="cb21-35"><a href="#cb21-35" aria-hidden="true" tabindex="-1"></a>    FAM[name] <span class="op">=</span> (Z[<span class="ss">f"</span><span class="sc">{</span>tag<span class="sc">}</span><span class="ss">_e"</span>][idx], Z[<span class="ss">f"</span><span class="sc">{</span>tag<span class="sc">}</span><span class="ss">_t"</span>][idx])</span>
+<span id="cb21-36"><a href="#cb21-36" aria-hidden="true" tabindex="-1"></a>    FAM_IDS[name] <span class="op">=</span> Z[<span class="ss">f"</span><span class="sc">{</span>tag<span class="sc">}</span><span class="ss">_ids"</span>][idx]</span>
+<span id="cb21-37"><a href="#cb21-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-38"><a href="#cb21-38" aria-hidden="true" tabindex="-1"></a><span class="co"># The ordinal regression's class probabilities, exported by analyses/03 from the same</span></span>
+<span id="cb21-39"><a href="#cb21-39" aria-hidden="true" tabindex="-1"></a><span class="co"># train+val fit for both held-out splits.</span></span>
+<span id="cb21-40"><a href="#cb21-40" aria-hidden="true" tabindex="-1"></a>PC <span class="op">=</span> [<span class="ss">f"p</span><span class="sc">{</span>k<span class="sc">}</span><span class="ss">"</span> <span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>)]</span>
+<span id="cb21-41"><a href="#cb21-41" aria-hidden="true" tabindex="-1"></a>nd <span class="op">=</span> pd.read_csv(ROOT <span class="op">/</span> <span class="st">"analyses/03_feature_classifiers/model_cache/nondl_heldout_predictions.csv"</span>)</span>
+<span id="cb21-42"><a href="#cb21-42" aria-hidden="true" tabindex="-1"></a>fe <span class="op">=</span> [<span class="bu">str</span>(f).replace(<span class="st">".tif"</span>, <span class="st">""</span>) <span class="cf">for</span> f <span class="kw">in</span> Z[<span class="st">"files_e"</span>]]</span>
+<span id="cb21-43"><a href="#cb21-43" aria-hidden="true" tabindex="-1"></a>ft <span class="op">=</span> [<span class="bu">str</span>(f).replace(<span class="st">".tif"</span>, <span class="st">""</span>) <span class="cf">for</span> f <span class="kw">in</span> Z[<span class="st">"files_t"</span>]]</span>
+<span id="cb21-44"><a href="#cb21-44" aria-hidden="true" tabindex="-1"></a>ne <span class="op">=</span> nd[nd.split <span class="op">==</span> <span class="st">"ensemble"</span>].set_index(<span class="st">"image_id"</span>).reindex(fe)</span>
+<span id="cb21-45"><a href="#cb21-45" aria-hidden="true" tabindex="-1"></a>nt <span class="op">=</span> nd[nd.split <span class="op">==</span> <span class="st">"test"</span>].set_index(<span class="st">"image_id"</span>).reindex(ft)</span>
+<span id="cb21-46"><a href="#cb21-46" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> (ne[<span class="st">"true"</span>].to_numpy() <span class="op">==</span> ye).<span class="bu">all</span>() <span class="kw">and</span> (nt[<span class="st">"true"</span>].to_numpy() <span class="op">==</span> yt).<span class="bu">all</span>()</span>
+<span id="cb21-47"><a href="#cb21-47" aria-hidden="true" tabindex="-1"></a>FAM[<span class="st">"Ordinal Regression"</span>] <span class="op">=</span> (ne[PC].to_numpy(<span class="bu">float</span>)[<span class="va">None</span>], nt[PC].to_numpy(<span class="bu">float</span>)[<span class="va">None</span>])</span>
+<span id="cb21-48"><a href="#cb21-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-49"><a href="#cb21-49" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> k, (qe, qt) <span class="kw">in</span> FAM.items():</span>
+<span id="cb21-50"><a href="#cb21-50" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>k<span class="sc">:20s}</span><span class="ss"> </span><span class="sc">{</span><span class="bu">len</span>(qe)<span class="sc">:3d}</span><span class="ss"> members   ensemble </span><span class="sc">{</span>(qe.argmax(<span class="dv">2</span>) <span class="op">==</span> ye[<span class="va">None</span>, :])<span class="sc">.</span>mean()<span class="sc">:.4f}</span><span class="ss">   "</span></span>
+<span id="cb21-51"><a href="#cb21-51" aria-hidden="true" tabindex="-1"></a>          <span class="ss">f"test </span><span class="sc">{</span>(qt.argmax(<span class="dv">2</span>) <span class="op">==</span> yt[<span class="va">None</span>, :])<span class="sc">.</span>mean()<span class="sc">:.4f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>CNN                   22 members   ensemble 0.6162   test 0.6231
+<pre><code>CNN                   17 members   ensemble 0.6167   test 0.6241
 ViT                   51 members   ensemble 0.6168   test 0.6277
-CNN (Geometric Augmentation)  17 members   ensemble 0.6535   test 0.6446
+CNN (Geometric Augmentation)  16 members   ensemble 0.6536   test 0.6459
 Ordinal Regression     1 members   ensemble 0.6242   test 0.6331</code></pre>
 </div>
 </div>
-<div id="667d44cf" class="cell" data-execution_count="13">
+<div id="fc3880c2" class="cell" data-execution_count="13">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.2</span></span>
@@ -677,30 +689,21 @@ Ordinal Regression     1 members   ensemble 0.6242   test 0.6331</code></pre>
 <th data-quarto-table-cell-role="th">3</th>
 <td>CNN + Ordinal Regression</td>
 <td>across</td>
-<td>22</td>
+<td>17</td>
 <td>0.253</td>
-<td>0.771</td>
-<td>1.759</td>
+<td>0.770</td>
+<td>1.758</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
 <td>CNN + ViT</td>
 <td>across</td>
-<td>1122</td>
+<td>867</td>
 <td>0.257</td>
-<td>0.772</td>
-<td>1.754</td>
+<td>0.771</td>
+<td>1.753</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">8</th>
-<td>CNN (Geometric Augmentation) + Ordinal Regression</td>
-<td>across</td>
-<td>17</td>
-<td>0.237</td>
-<td>0.776</td>
-<td>1.820</td>
-</tr>
-<tr class="even">
 <th data-quarto-table-cell-role="th">6</th>
 <td>ViT + Ordinal Regression</td>
 <td>across</td>
@@ -709,25 +712,25 @@ Ordinal Regression     1 members   ensemble 0.6242   test 0.6331</code></pre>
 <td>0.783</td>
 <td>1.779</td>
 </tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">8</th>
+<td>CNN (Geometric Augmentation) + Ordinal Regression</td>
+<td>across</td>
+<td>16</td>
+<td>0.239</td>
+<td>0.786</td>
+<td>1.839</td>
+</tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">5</th>
 <td>ViT + CNN (Geometric Augmentation)</td>
 <td>across</td>
-<td>867</td>
-<td>0.246</td>
-<td>0.801</td>
-<td>1.859</td>
+<td>816</td>
+<td>0.248</td>
+<td>0.809</td>
+<td>1.872</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">2</th>
-<td>CNN + CNN (Geometric Augmentation)</td>
-<td>across</td>
-<td>374</td>
-<td>0.253</td>
-<td>0.826</td>
-<td>1.909</td>
-</tr>
-<tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
 <td>ViT (within)</td>
 <td>within</td>
@@ -736,23 +739,32 @@ Ordinal Regression     1 members   ensemble 0.6242   test 0.6331</code></pre>
 <td>0.831</td>
 <td>1.856</td>
 </tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">2</th>
+<td>CNN + CNN (Geometric Augmentation)</td>
+<td>across</td>
+<td>272</td>
+<td>0.255</td>
+<td>0.835</td>
+<td>1.929</td>
+</tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">0</th>
 <td>CNN (within)</td>
 <td>within</td>
-<td>231</td>
-<td>0.284</td>
-<td>0.867</td>
-<td>1.933</td>
+<td>136</td>
+<td>0.282</td>
+<td>0.861</td>
+<td>1.923</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">7</th>
 <td>CNN (Geometric Augmentation) (within)</td>
 <td>within</td>
-<td>136</td>
-<td>0.260</td>
-<td>0.902</td>
-<td>2.176</td>
+<td>120</td>
+<td>0.267</td>
+<td>0.918</td>
+<td>2.227</td>
 </tr>
 </tbody>
 </table>
@@ -760,7 +772,7 @@ Ordinal Regression     1 members   ensemble 0.6242   test 0.6331</code></pre>
 </div>
 </div>
 </div>
-<div id="b55bb7f5" class="cell" data-execution_count="14">
+<div id="89597bfe" class="cell" data-execution_count="14">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.3</span></span>
@@ -799,36 +811,28 @@ Ordinal Regression     1 members   ensemble 0.6242   test 0.6331</code></pre>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">8</th>
 <td>CNN (Geometric Augmentation) + Ordinal Regression</td>
-<td>0.6813</td>
-<td>0.6916</td>
+<td>0.6747</td>
+<td>0.6883</td>
 <td>0.9838</td>
-<td>0.3247</td>
-</tr>
-<tr class="even">
-<th data-quarto-table-cell-role="th">6</th>
-<td>ViT + CNN (Geometric Augmentation)</td>
-<td>0.6791</td>
-<td>0.6851</td>
-<td>0.9870</td>
 <td>0.3279</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <th data-quarto-table-cell-role="th">5</th>
 <td>CNN + Ordinal Regression</td>
-<td>0.6330</td>
-<td>0.6818</td>
+<td>0.6308</td>
+<td>0.6851</td>
 <td>0.9773</td>
-<td>0.3442</td>
-</tr>
-<tr class="even">
-<th data-quarto-table-cell-role="th">3</th>
-<td>CNN + ViT</td>
-<td>0.6396</td>
-<td>0.6786</td>
-<td>0.9838</td>
-<td>0.3377</td>
+<td>0.3409</td>
 </tr>
 <tr class="odd">
+<th data-quarto-table-cell-role="th">6</th>
+<td>ViT + CNN (Geometric Augmentation)</td>
+<td>0.6703</td>
+<td>0.6786</td>
+<td>0.9870</td>
+<td>0.3344</td>
+</tr>
+<tr class="even">
 <th data-quarto-table-cell-role="th">7</th>
 <td>ViT + Ordinal Regression</td>
 <td>0.6571</td>
@@ -836,31 +840,47 @@ Ordinal Regression     1 members   ensemble 0.6242   test 0.6331</code></pre>
 <td>0.9773</td>
 <td>0.3474</td>
 </tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">3</th>
+<td>CNN + ViT</td>
+<td>0.6374</td>
+<td>0.6753</td>
+<td>0.9838</td>
+<td>0.3409</td>
+</tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">9</th>
 <td>All families</td>
-<td>0.6549</td>
-<td>0.6688</td>
+<td>0.6593</td>
+<td>0.6721</td>
 <td>0.9838</td>
-<td>0.3474</td>
+<td>0.3442</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
 <td>CNN + CNN (Geometric Augmentation)</td>
-<td>0.6637</td>
-<td>0.6526</td>
+<td>0.6549</td>
+<td>0.6591</td>
 <td>0.9903</td>
-<td>0.3571</td>
+<td>0.3506</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
 <td>Plurality vote</td>
-<td>0.6330</td>
+<td>0.6198</td>
 <td>0.6494</td>
 <td>0.9870</td>
 <td>0.3636</td>
 </tr>
 <tr class="odd">
+<th data-quarto-table-cell-role="th">2</th>
+<td>Mean softmax</td>
+<td>0.6308</td>
+<td>0.6494</td>
+<td>0.9870</td>
+<td>0.3636</td>
+</tr>
+<tr class="even">
 <th data-quarto-table-cell-role="th">0</th>
 <td>Best single model</td>
 <td>0.6396</td>
@@ -868,21 +888,13 @@ Ordinal Regression     1 members   ensemble 0.6242   test 0.6331</code></pre>
 <td>0.9773</td>
 <td>0.3766</td>
 </tr>
-<tr class="even">
-<th data-quarto-table-cell-role="th">2</th>
-<td>Mean softmax</td>
-<td>0.6374</td>
-<td>0.6461</td>
-<td>0.9903</td>
-<td>0.3636</td>
-</tr>
 </tbody>
 </table>
 
 </div>
 </div>
 </div>
-<div id="217f1026" class="cell" data-execution_count="15">
+<div id="2b5af70a" class="cell" data-execution_count="15">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.4</span></span>
@@ -957,7 +969,7 @@ Ordinal Regression     1 members   ensemble 0.6242   test 0.6331</code></pre>
 </div>
 </div>
 </div>
-<div id="53afd45a" class="cell" data-execution_count="16">
+<div id="a140538a" class="cell" data-execution_count="16">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.5</span></span>
@@ -995,7 +1007,7 @@ Ordinal Regression     1 members   ensemble 0.6242   test 0.6331</code></pre>
 <span id="cb26-33"><a href="#cb26-33" aria-hidden="true" tabindex="-1"></a>a1.set_xticks(<span class="bu">range</span>(<span class="dv">7</span>))<span class="op">;</span> a1.set_yticks(<span class="bu">range</span>(<span class="dv">7</span>))</span>
 <span id="cb26-34"><a href="#cb26-34" aria-hidden="true" tabindex="-1"></a>a1.set_xlabel(<span class="st">"Predicted score"</span>)<span class="op">;</span> a1.set_ylabel(<span class="st">"True score"</span>)</span>
 <span id="cb26-35"><a href="#cb26-35" aria-hidden="true" tabindex="-1"></a>f1.colorbar(i1, ax<span class="op">=</span>a1, fraction<span class="op">=</span><span class="fl">0.046</span>, label<span class="op">=</span><span class="st">"Test CDAs"</span>)</span>
-<span id="cb26-36"><a href="#cb26-36" aria-hidden="true" tabindex="-1"></a>f1.savefig(THESIS_PLOTS <span class="op">/</span> <span class="st">"ensemble_test_confusion.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb26-36"><a href="#cb26-36" aria-hidden="true" tabindex="-1"></a>f1.savefig(THESIS_PLOTS <span class="op">/</span> <span class="st">"ensemble_test_confusion.png"</span>, dpi<span class="op">=</span><span class="dv">450</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
 <span id="cb26-37"><a href="#cb26-37" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
 <span id="cb26-38"><a href="#cb26-38" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb26-39"><a href="#cb26-39" aria-hidden="true" tabindex="-1"></a><span class="co"># The tautological column is not a predicted score, so it sits in its own axes with a gap</span></span>
@@ -1031,23 +1043,30 @@ Ordinal Regression     1 members   ensemble 0.6242   test 0.6331</code></pre>
 <span id="cb26-69"><a href="#cb26-69" aria-hidden="true" tabindex="-1"></a>        a3.text(<span class="dv">0</span>, i, <span class="ss">f"</span><span class="sc">{</span>dif[i, <span class="dv">7</span>]<span class="sc">:+.2f}</span><span class="ss">"</span>, ha<span class="op">=</span><span class="st">"center"</span>, va<span class="op">=</span><span class="st">"center"</span>, fontsize<span class="op">=</span><span class="dv">7</span>,</span>
 <span id="cb26-70"><a href="#cb26-70" aria-hidden="true" tabindex="-1"></a>                color<span class="op">=</span><span class="st">"white"</span> <span class="cf">if</span> <span class="bu">abs</span>(dif[i, <span class="dv">7</span>]) <span class="op">&gt;</span> <span class="fl">0.6</span> <span class="op">*</span> vv <span class="cf">else</span> <span class="st">"black"</span>)</span>
 <span id="cb26-71"><a href="#cb26-71" aria-hidden="true" tabindex="-1"></a>a3.set_xticks([<span class="dv">0</span>], [<span class="st">"Tautological"</span>], rotation<span class="op">=</span><span class="dv">90</span>, fontsize<span class="op">=</span><span class="dv">8</span>)</span>
-<span id="cb26-72"><a href="#cb26-72" aria-hidden="true" tabindex="-1"></a>a3.set_yticks([])</span>
-<span id="cb26-73"><a href="#cb26-73" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-74"><a href="#cb26-74" aria-hidden="true" tabindex="-1"></a>f2.colorbar(i2, ax<span class="op">=</span>[a2, a3], fraction<span class="op">=</span><span class="fl">0.046</span>, pad<span class="op">=</span><span class="fl">0.04</span>,</span>
-<span id="cb26-75"><a href="#cb26-75" aria-hidden="true" tabindex="-1"></a>            label<span class="op">=</span><span class="st">"Ensemble minus human (row proportion)"</span>)</span>
-<span id="cb26-76"><a href="#cb26-76" aria-hidden="true" tabindex="-1"></a>f2.savefig(THESIS_PLOTS <span class="op">/</span> <span class="st">"ensemble_confusion_vs_human.png"</span>, dpi<span class="op">=</span><span class="dv">300</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
-<span id="cb26-77"><a href="#cb26-77" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb26-78"><a href="#cb26-78" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-79"><a href="#cb26-79" aria-hidden="true" tabindex="-1"></a><span class="co"># Per-score recall against the best single model, which is what the overall 2.28 pp is</span></span>
-<span id="cb26-80"><a href="#cb26-80" aria-hidden="true" tabindex="-1"></a><span class="co"># made of. b_chap indexes the chapter's selected model inside the CNN pool ordering; here</span></span>
-<span id="cb26-81"><a href="#cb26-81" aria-hidden="true" tabindex="-1"></a><span class="co"># it is taken directly from the augmented family.</span></span>
-<span id="cb26-82"><a href="#cb26-82" aria-hidden="true" tabindex="-1"></a>_gk <span class="op">=</span> <span class="st">"CNN (Geometric Augmentation)"</span></span>
-<span id="cb26-83"><a href="#cb26-83" aria-hidden="true" tabindex="-1"></a>best_single <span class="op">=</span> FAM[_gk][<span class="dv">1</span>][<span class="bu">int</span>(np.where(FAM_IDS[_gk] <span class="op">==</span> <span class="dv">6848</span>)[<span class="dv">0</span>][<span class="dv">0</span>])].argmax(<span class="dv">1</span>)</span>
-<span id="cb26-84"><a href="#cb26-84" aria-hidden="true" tabindex="-1"></a>rec <span class="op">=</span> <span class="kw">lambda</span> q: np.array([np.mean(q[yt <span class="op">==</span> k] <span class="op">==</span> k) <span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>)])</span>
-<span id="cb26-85"><a href="#cb26-85" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"per-score recall, score 0 to 6"</span>)</span>
-<span id="cb26-86"><a href="#cb26-86" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  best single 6848:"</span>, rec(best_single).<span class="bu">round</span>(<span class="dv">3</span>).tolist())</span>
-<span id="cb26-87"><a href="#cb26-87" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  best ensemble   :"</span>, rec(ens_t).<span class="bu">round</span>(<span class="dv">3</span>).tolist())</span>
-<span id="cb26-88"><a href="#cb26-88" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  the two differ on </span><span class="sc">{</span><span class="bu">int</span>((ens_t <span class="op">!=</span> best_single).<span class="bu">sum</span>())<span class="sc">}</span><span class="ss"> of </span><span class="sc">{</span><span class="bu">len</span>(yt)<span class="sc">}</span><span class="ss"> crops"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb26-72"><a href="#cb26-72" aria-hidden="true" tabindex="-1"></a><span class="co"># a3 shares y with a2, so set_yticks([]) here would clear the locator on BOTH and</span></span>
+<span id="cb26-73"><a href="#cb26-73" aria-hidden="true" tabindex="-1"></a><span class="co"># strip the score labels off the matrix. Hide a3's labels only.</span></span>
+<span id="cb26-74"><a href="#cb26-74" aria-hidden="true" tabindex="-1"></a>a3.tick_params(labelleft<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb26-75"><a href="#cb26-75" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-76"><a href="#cb26-76" aria-hidden="true" tabindex="-1"></a>f2.colorbar(i2, ax<span class="op">=</span>[a2, a3], fraction<span class="op">=</span><span class="fl">0.046</span>, pad<span class="op">=</span><span class="fl">0.04</span>,</span>
+<span id="cb26-77"><a href="#cb26-77" aria-hidden="true" tabindex="-1"></a>            label<span class="op">=</span><span class="st">"Ensemble minus human (row proportion)"</span>)</span>
+<span id="cb26-78"><a href="#cb26-78" aria-hidden="true" tabindex="-1"></a>f2.savefig(THESIS_PLOTS <span class="op">/</span> <span class="st">"ensemble_confusion_vs_human.png"</span>, dpi<span class="op">=</span><span class="dv">450</span>, bbox_inches<span class="op">=</span><span class="st">"tight"</span>)</span>
+<span id="cb26-79"><a href="#cb26-79" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb26-80"><a href="#cb26-80" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-81"><a href="#cb26-81" aria-hidden="true" tabindex="-1"></a><span class="co"># Per-score recall against the chapter's selected model. That model is resolved from the</span></span>
+<span id="cb26-82"><a href="#cb26-82" aria-hidden="true" tabindex="-1"></a><span class="co"># grid rather than hard-coded, so it follows the ranking metric: rank 1 on avg_vaf, the</span></span>
+<span id="cb26-83"><a href="#cb26-83" aria-hidden="true" tabindex="-1"></a><span class="co"># measure every grid is ranked on.</span></span>
+<span id="cb26-84"><a href="#cb26-84" aria-hidden="true" tabindex="-1"></a>_gk <span class="op">=</span> <span class="st">"CNN (Geometric Augmentation)"</span></span>
+<span id="cb26-85"><a href="#cb26-85" aria-hidden="true" tabindex="-1"></a>_geo_grid <span class="op">=</span> pd.concat(</span>
+<span id="cb26-86"><a href="#cb26-86" aria-hidden="true" tabindex="-1"></a>    [pd.read_csv(ROOT <span class="op">/</span> GRIDS[_gk][<span class="dv">0</span>] <span class="op">/</span> <span class="st">"random_search_results.csv"</span>)]</span>
+<span id="cb26-87"><a href="#cb26-87" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> [pd.read_csv(q) <span class="cf">for</span> q <span class="kw">in</span> (ROOT <span class="op">/</span> GRIDS[_gk][<span class="dv">0</span>] <span class="op">/</span> <span class="st">"parts"</span>).glob(<span class="st">"*.csv"</span>)],</span>
+<span id="cb26-88"><a href="#cb26-88" aria-hidden="true" tabindex="-1"></a>    ignore_index<span class="op">=</span><span class="va">True</span>).drop_duplicates(<span class="st">"model_id"</span>)</span>
+<span id="cb26-89"><a href="#cb26-89" aria-hidden="true" tabindex="-1"></a>SELECTED <span class="op">=</span> <span class="bu">int</span>(deduplicate(_geo_grid).sort_values(<span class="st">"avg_vaf"</span>, ascending<span class="op">=</span><span class="va">False</span>).iloc[<span class="dv">0</span>].model_id)</span>
+<span id="cb26-90"><a href="#cb26-90" aria-hidden="true" tabindex="-1"></a>best_single <span class="op">=</span> FAM[_gk][<span class="dv">1</span>][<span class="bu">int</span>(np.where(FAM_IDS[_gk] <span class="op">==</span> SELECTED)[<span class="dv">0</span>][<span class="dv">0</span>])].argmax(<span class="dv">1</span>)</span>
+<span id="cb26-91"><a href="#cb26-91" aria-hidden="true" tabindex="-1"></a>rec <span class="op">=</span> <span class="kw">lambda</span> q: np.array([np.mean(q[yt <span class="op">==</span> k] <span class="op">==</span> k) <span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>)])</span>
+<span id="cb26-92"><a href="#cb26-92" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"per-score recall, score 0 to 6"</span>)</span>
+<span id="cb26-93"><a href="#cb26-93" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  best single </span><span class="sc">{</span>SELECTED<span class="sc">}</span><span class="ss">:"</span>, rec(best_single).<span class="bu">round</span>(<span class="dv">3</span>).tolist())</span>
+<span id="cb26-94"><a href="#cb26-94" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  best ensemble   :"</span>, rec(ens_t).<span class="bu">round</span>(<span class="dv">3</span>).tolist())</span>
+<span id="cb26-95"><a href="#cb26-95" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  the two differ on </span><span class="sc">{</span><span class="bu">int</span>((ens_t <span class="op">!=</span> best_single).<span class="bu">sum</span>())<span class="sc">}</span><span class="ss"> of </span><span class="sc">{</span><span class="bu">len</span>(yt)<span class="sc">}</span><span class="ss"> crops"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-display">
 <div class="quarto-figure quarto-figure-center">
@@ -1060,18 +1079,18 @@ Ordinal Regression     1 members   ensemble 0.6242   test 0.6331</code></pre>
 <div class="cell-output cell-output-display">
 <div>
 <figure class="figure">
-<p><img src="ensembling_results_files/figure-html/cell-17-output-2.png" width="759" height="598" class="figure-img"></p>
+<p><img src="ensembling_results_files/figure-html/cell-17-output-2.png" width="781" height="598" class="figure-img"></p>
 </figure>
 </div>
 </div>
 <div class="cell-output cell-output-stdout">
 <pre><code>per-score recall, score 0 to 6
-  best single 6848: [0.909, 0.568, 0.591, 0.659, 0.659, 0.364, 0.932]
-  best ensemble   : [0.841, 0.591, 0.636, 0.705, 0.727, 0.545, 0.795]
-  the two differ on 42 of 308 crops</code></pre>
+  best single 7927: [0.886, 0.477, 0.523, 0.591, 0.614, 0.386, 0.886]
+  best ensemble   : [0.864, 0.591, 0.659, 0.705, 0.682, 0.523, 0.795]
+  the two differ on 53 of 308 crops</code></pre>
 </div>
 </div>
-<div id="aa660f57" class="cell" data-execution_count="17">
+<div id="f6e6e976" class="cell" data-execution_count="17">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.7</span></span>
@@ -1083,28 +1102,27 @@ Ordinal Regression     1 members   ensemble 0.6242   test 0.6331</code></pre>
 <span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>pool_e <span class="op">=</span> (POOL_E.argmax(<span class="dv">2</span>) <span class="op">==</span> ye[<span class="va">None</span>, :]).mean(<span class="dv">1</span>)</span>
 <span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>pool_t <span class="op">=</span> (POOL_T.argmax(<span class="dv">2</span>) <span class="op">==</span> yt[<span class="va">None</span>, :]).mean(<span class="dv">1</span>)</span>
 <span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>b_ens <span class="op">=</span> <span class="bu">int</span>(np.argmax(pool_e))</span>
-<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>chap <span class="op">=</span> FAM[<span class="st">"CNN (Geometric Augmentation)"</span>][<span class="dv">1</span>][</span>
-<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>    <span class="bu">int</span>(np.where(FAM_IDS[<span class="st">"CNN (Geometric Augmentation)"</span>] <span class="op">==</span> <span class="dv">6848</span>)[<span class="dv">0</span>][<span class="dv">0</span>])].argmax(<span class="dv">1</span>)</span>
-<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="bu">len</span>(pool_t)<span class="sc">}</span><span class="ss"> tied members across the four families"</span>)</span>
-<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  single models on test span </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> pool_t<span class="sc">.</span><span class="bu">min</span>()<span class="sc">:.2f}</span><span class="ss">% to </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> pool_t<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.2f}</span><span class="ss">%"</span>)</span>
-<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  best on the ensemble split: </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> pool_e[b_ens]<span class="sc">:.2f}</span><span class="ss">% there, "</span></span>
-<span id="cb28-15"><a href="#cb28-15" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> exact(POOL_T.argmax(<span class="dv">2</span>)[b_ens], yt)<span class="sc">:.2f}</span><span class="ss">% on test"</span>)</span>
-<span id="cb28-16"><a href="#cb28-16" aria-hidden="true" tabindex="-1"></a>d, lo, hi, pv <span class="op">=</span> paired(POOL_T.argmax(<span class="dv">2</span>)[b_ens], chap)</span>
-<span id="cb28-17"><a href="#cb28-17" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  against the chapter's selected model (6848, </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> exact(chap, yt)<span class="sc">:.2f}</span><span class="ss">% test): "</span></span>
-<span id="cb28-18"><a href="#cb28-18" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> d<span class="sc">:+.2f}</span><span class="ss"> pp  95% CI [</span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> lo<span class="sc">:+.2f}</span><span class="ss">, </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> hi<span class="sc">:+.2f}</span><span class="ss">]  p = </span><span class="sc">{</span>pv<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
-<span id="cb28-19"><a href="#cb28-19" aria-hidden="true" tabindex="-1"></a>rules_only <span class="op">=</span> tab2.loc[tab2.rule <span class="op">!=</span> <span class="st">"Best single model"</span>, <span class="st">"test exact"</span>]</span>
-<span id="cb28-20"><a href="#cb28-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  every combining rule lands between </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> rules_only<span class="sc">.</span><span class="bu">min</span>()<span class="sc">:.2f}</span><span class="ss">% and "</span></span>
-<span id="cb28-21"><a href="#cb28-21" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> rules_only<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.2f}</span><span class="ss">%"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>chap <span class="op">=</span> best_single</span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="bu">len</span>(pool_t)<span class="sc">}</span><span class="ss"> tied members across the four families"</span>)</span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  single models on test span </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> pool_t<span class="sc">.</span><span class="bu">min</span>()<span class="sc">:.2f}</span><span class="ss">% to </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> pool_t<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.2f}</span><span class="ss">%"</span>)</span>
+<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  best on the ensemble split: </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> pool_e[b_ens]<span class="sc">:.2f}</span><span class="ss">% there, "</span></span>
+<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> exact(POOL_T.argmax(<span class="dv">2</span>)[b_ens], yt)<span class="sc">:.2f}</span><span class="ss">% on test"</span>)</span>
+<span id="cb28-15"><a href="#cb28-15" aria-hidden="true" tabindex="-1"></a>d, lo, hi, pv <span class="op">=</span> paired(POOL_T.argmax(<span class="dv">2</span>)[b_ens], chap)</span>
+<span id="cb28-16"><a href="#cb28-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  against the chapter's selected model (</span><span class="sc">{</span>SELECTED<span class="sc">}</span><span class="ss">, </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> exact(chap, yt)<span class="sc">:.2f}</span><span class="ss">% test): "</span></span>
+<span id="cb28-17"><a href="#cb28-17" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> d<span class="sc">:+.2f}</span><span class="ss"> pp  95% CI [</span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> lo<span class="sc">:+.2f}</span><span class="ss">, </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> hi<span class="sc">:+.2f}</span><span class="ss">]  p = </span><span class="sc">{</span>pv<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb28-18"><a href="#cb28-18" aria-hidden="true" tabindex="-1"></a>rules_only <span class="op">=</span> tab2.loc[tab2.rule <span class="op">!=</span> <span class="st">"Best single model"</span>, <span class="st">"test exact"</span>]</span>
+<span id="cb28-19"><a href="#cb28-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  every combining rule lands between </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> rules_only<span class="sc">.</span><span class="bu">min</span>()<span class="sc">:.2f}</span><span class="ss">% and "</span></span>
+<span id="cb28-20"><a href="#cb28-20" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> rules_only<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.2f}</span><span class="ss">%"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>91 tied members across the four families
+<pre><code>85 tied members across the four families
   single models on test span 56.82% to 67.53%
-  best on the ensemble split: 70.33% there, 62.34% on test
-  against the chapter's selected model (6848, 66.88% test): -4.55 pp  95% CI [-8.77, -0.32]  p = 0.040
-  every combining rule lands between 64.61% and 69.16%</code></pre>
+  best on the ensemble split: 68.13% there, 66.88% on test
+  against the chapter's selected model (7927, 62.34% test): +4.55 pp  95% CI [+0.32, +8.77]  p = 0.041
+  every combining rule lands between 64.94% and 68.83%</code></pre>
 </div>
 </div>
-<div id="00017796" class="cell" data-execution_count="18">
+<div id="503e14d0" class="cell" data-execution_count="18">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4.6</span></span>
@@ -1116,15 +1134,15 @@ Ordinal Regression     1 members   ensemble 0.6242   test 0.6331</code></pre>
 <span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>k<span class="sc">:34s}</span><span class="ss"> </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> d<span class="sc">:+6.2f}</span><span class="ss"> pp   [</span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> lo<span class="sc">:+6.2f}</span><span class="ss">, </span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> hi<span class="sc">:+6.2f}</span><span class="ss">]   p = </span><span class="sc">{</span>pv<span class="sc">:.3f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>Plurality vote                      +0.32 pp   [ -2.60,  +3.25]   p = 0.930
-Mean softmax                        +0.00 pp   [ -2.92,  +2.92]   p = 1.000
-CNN + ViT                           +3.25 pp   [ -0.65,  +7.14]   p = 0.136
-CNN + CNN (Geometric Augmentation)  +0.65 pp   [ -3.25,  +4.55]   p = 0.813
-CNN + Ordinal Regression            +3.57 pp   [ -0.65,  +7.79]   p = 0.125
-ViT + CNN (Geometric Augmentation)  +3.90 pp   [ -0.32,  +8.12]   p = 0.084
+<pre><code>Plurality vote                      +0.32 pp   [ -2.60,  +3.25]   p = 0.916
+Mean softmax                        +0.32 pp   [ -2.60,  +3.25]   p = 0.921
+CNN + ViT                           +2.92 pp   [ -0.97,  +6.82]   p = 0.186
+CNN + CNN (Geometric Augmentation)  +1.30 pp   [ -2.28,  +5.19]   p = 0.561
+CNN + Ordinal Regression            +3.90 pp   [ -0.32,  +8.12]   p = 0.093
+ViT + CNN (Geometric Augmentation)  +3.25 pp   [ -0.97,  +7.47]   p = 0.161
 ViT + Ordinal Regression            +3.25 pp   [ -1.95,  +8.44]   p = 0.228
-CNN (Geometric Augmentation) + Ordinal Regression  +4.55 pp   [ +0.00,  +9.09]   p = 0.063
-All families                        +2.27 pp   [ -1.62,  +6.17]   p = 0.287</code></pre>
+CNN (Geometric Augmentation) + Ordinal Regression  +4.22 pp   [ -0.32,  +8.77]   p = 0.090
+All families                        +2.60 pp   [ -1.30,  +6.49]   p = 0.224</code></pre>
 </div>
 </div>
 <hr>
@@ -1135,7 +1153,7 @@ All families                        +2.27 pp   [ -1.62,  +6.17]   p = 0.287</cod
 <summary>Code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 5.1  Pulled from the tables above so the text cannot drift from the results.</span></span>
 <span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>mv <span class="op">=</span> tab.set_index(<span class="st">"rule"</span>)</span>
-<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"- **The 89.67% is not spare accuracy.** </span><span class="sc">{</span><span class="bu">int</span>(gap.<span class="bu">sum</span>())<span class="sc">}</span><span class="ss"> crops sit between it and the "</span></span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"- **The </span><span class="sc">{</span>oracle<span class="sc">:.2%}</span><span class="ss"> is not spare accuracy.** </span><span class="sc">{</span><span class="bu">int</span>(gap.<span class="bu">sum</span>())<span class="sc">}</span><span class="ss"> crops sit between it and the "</span></span>
 <span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"vote, and on </span><span class="sc">{</span>(n_right_e[gap] <span class="op">&lt;</span> nC <span class="op">/</span> <span class="dv">2</span>)<span class="sc">.</span>mean()<span class="sc">:.1%}</span><span class="ss"> of them fewer than half the members "</span></span>
 <span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"are right, a median of </span><span class="sc">{</span>np<span class="sc">.</span>median(n_right_e[gap])<span class="sc">:.1f}</span><span class="ss"> of </span><span class="sc">{</span>nC<span class="sc">}</span><span class="ss">. A vote returns the "</span></span>
 <span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"majority answer, so the correct score being a minority opinion puts those crops out "</span></span>
@@ -1153,9 +1171,9 @@ All families                        +2.27 pp   [ -1.62,  +6.17]   p = 0.287</cod
 <span id="cb32-18"><a href="#cb32-18" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"are 2 or more scores out; it does not turn a near miss into a hit.</span><span class="ch">\n</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <ul>
-<li><p><strong>The 89.67% is not spare accuracy.</strong> 120 crops sit between it and the vote, and on 97.5% of them fewer than half the members are right, a median of 4.5 of 22. A vote returns the majority answer, so the correct score being a minority opinion puts those crops out of reach of any unweighted rule.</p></li>
-<li><p><strong>Neither rule raises exact accuracy.</strong> Vote 0.6494 and mean softmax 0.6461 against 0.6461 for the best single model. Both bootstrap intervals span zero.</p></li>
-<li><p><strong>Both rules cut the large errors.</strong> Near-miss rises from 0.9773 to 0.9903 and mean error falls from 0.377 to 0.364. Averaging removes some of the errors that are 2 or more scores out; it does not turn a near miss into a hit.</p></li>
+<li><p><strong>The 89.23% is not spare accuracy.</strong> 124 crops sit between it and the vote, and on 100.0% of them fewer than half the members are right, a median of 4.0 of 17. A vote returns the majority answer, so the correct score being a minority opinion puts those crops out of reach of any unweighted rule.</p></li>
+<li><p><strong>Neither rule raises exact accuracy.</strong> Vote 0.6494 and mean softmax 0.6494 against 0.6461 for the best single model. Both bootstrap intervals span zero.</p></li>
+<li><p><strong>Both rules cut the large errors.</strong> Near-miss rises from 0.9773 to 0.9870 and mean error falls from 0.377 to 0.364. Averaging removes some of the errors that are 2 or more scores out; it does not turn a near miss into a hit.</p></li>
 <li><p><strong>Within one family, the reason it fails is that the members shift together.</strong> They disagree by one score and almost never by more, so when they are wrong they have all moved the same way. Averaging errors scattered around the truth recovers the middle; averaging errors that have all moved in one direction returns the shift.</p></li>
 </ul>
 <details class="code-fold">
@@ -1199,10 +1217,10 @@ All families                        +2.27 pp   [ -1.62,  +6.17]   p = 0.287</cod
 <span id="cb33-37"><a href="#cb33-37" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"strong, weakly correlated ones.</span><span class="ch">\n</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <ul>
-<li><p><strong>Errors are less related across families than within one.</strong> Yule’s Q runs 0.771-0.826 across families and 0.831-0.902 within. The one exception is CNN + CNN (Geometric Augmentation) at 0.826, which sits with the within-family group: a different training set does not decorrelate a shared architecture the way a different architecture does.</p></li>
-<li><p><strong>Less-related errors go with a better ensemble, loosely.</strong> Over the 6 pairs the rank correlation between Yule’s Q and test accuracy is -0.32. The lowest-Q pair, CNN + Ordinal Regression at 0.771, reaches 68.18%, and the highest, CNN + CNN (Geometric Augmentation) at 0.826, only 65.26%. The strongest on test is CNN (Geometric Augmentation) + Ordinal Regression at 69.16%, second-lowest on Q at 0.776, so Q orders the pairs without picking the winner outright.</p></li>
-<li><p><strong>It is still not separable on 308 crops.</strong> CNN (Geometric Augmentation) + Ordinal Regression is +4.55 pp against the best single model, 95% CI +0.00 to +9.09, p = 0.063. It does top the ensemble split as well (68.13%), so it is not a test-set pick, and it clears the human raters’ 68.92%.</p></li>
-<li><p><strong>More families is not better.</strong> All 4 together give 66.88%, below 5 of the 6 pairs. Averaging weak or highly correlated families in dilutes the strong, weakly correlated ones.</p></li>
+<li><p><strong>Errors are less related across families than within one.</strong> Yule’s Q runs 0.770-0.835 across families and 0.831-0.918 within. The one exception is CNN + CNN (Geometric Augmentation) at 0.835, which sits with the within-family group: a different training set does not decorrelate a shared architecture the way a different architecture does.</p></li>
+<li><p><strong>Less-related errors go with a better ensemble, loosely.</strong> Over the 6 pairs the rank correlation between Yule’s Q and test accuracy is -0.38. The lowest-Q pair, CNN + Ordinal Regression at 0.770, reaches 68.51%, and the highest, CNN + CNN (Geometric Augmentation) at 0.835, only 65.91%. The strongest on test is CNN (Geometric Augmentation) + Ordinal Regression at 68.83%, second-lowest on Q at 0.786, so Q orders the pairs without picking the winner outright.</p></li>
+<li><p><strong>It is still not separable on 308 crops.</strong> CNN (Geometric Augmentation) + Ordinal Regression is +4.22 pp against the best single model, 95% CI -0.32 to +8.77, p = 0.090. It does top the ensemble split as well (67.47%), so it is not a test-set pick, and it clears the human raters’ 68.92%.</p></li>
+<li><p><strong>More families is not better.</strong> All 4 together give 67.21%, below 5 of the 6 pairs. Averaging weak or highly correlated families in dilutes the strong, weakly correlated ones.</p></li>
 </ul>
 <section id="caveats" class="level3">
 <h3 class="anchored" data-anchor-id="caveats">Caveats</h3>
