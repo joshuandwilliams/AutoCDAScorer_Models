@@ -18,15 +18,15 @@ of them.
 
 **Hypothesis:**
 
-It will not. The 22 tied CNNs are trained on the same 1,834 crops and give the same score
-as each other on 77.9% of held-out crops, so most of what one gets wrong the others get
+It will not. The 17 tied CNNs are trained on the same 1,834 crops and give the same score
+as each other on 77.5% of held-out crops, so most of what one gets wrong the others get
 wrong too. Averaging cannot fix a shared mistake.
 
 **Rationale:**
 
-At least one of the 22 is right on 89.67% of crops while the best single one reaches
-63.96%. That gap is worth testing even if the models are correlated. The 22 agree exactly
-on 77.9% of crops and to within one score on 99.7%, so where they disagree it is the same
+At least one of the 17 is right on 89.23% of crops while the best single one reaches
+63.96%. That gap is worth testing even if the models are correlated. The 17 agree exactly
+on 77.5% of crops and to within one score on 99.7%, so where they disagree it is the same
 adjacent-score confusion the human raters show against each other.
 
 Members, rule and any choice are made on the `ensemble` split (455 crops, held out of all
@@ -40,6 +40,7 @@ training). `test` (308 crops) is scored once. Both are reported.
 
 ```{python}
 # 1.1
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -51,18 +52,24 @@ THESIS_PLOTS = Path("thesis_plots")
 THESIS_PLOTS.mkdir(exist_ok=True)
 ```
 
-### 1.2 The 22 tied CNNs
+### 1.2 The 17 tied CNNs
 
 ```{python}
 # 1.2
 # A grid's single best config is not reproducibly the best: on 2,289 cross-validation
-# crops the standard error near 0.65 is about 1.0 pp, and 22 of the 8,640 configs sit
-# inside that of the winner. The tie is defined on cross-validation only, so it never
-# touches `ensemble` or `test`.
+# crops the standard error near 0.65 is about 1.0 pp, and 17 of the grid's 6,720 distinct
+# settings sit inside that of the winner. The tie is defined on cross-validation only, so
+# it never touches `ensemble` or `test`.
+#
+# The grid trains reg=None once per reg_strength, so 1,920 of its 8,640 runs repeat a
+# setting. grid_results.deduplicate keeps each setting's best run before the band is taken;
+# otherwise one setting can hold three of the tie's places and cast three votes.
 #
 # Predictions come from pred_cache/probs.npz, built by build_cache.py in this folder:
 # every saved model scored over both held-out splits, full softmax rather than argmax.
 ROOT = Path.cwd().parents[1]
+sys.path.append(str(ROOT / "src"))
+from grid_results import deduplicate  # noqa: E402
 Z = np.load("pred_cache/probs.npz", allow_pickle=True)
 ye, yt = Z["ye"].astype(int), Z["yt"].astype(int)
 
@@ -72,6 +79,7 @@ res = pd.concat(
     + [pd.read_csv(p) for p in (GRID / "parts").glob("*.csv")],
     ignore_index=True).drop_duplicates("model_id").set_index("model_id")
 
+res = deduplicate(res.reset_index()).set_index("model_id")
 v = res["avg_vaf"]
 se_cv = float(np.sqrt(v.max() * (1 - v.max()) / 2289))
 tied = set(v[v >= v.max() - se_cv].index)
@@ -117,7 +125,7 @@ def vote(P):
     return np.array([np.bincount(P[:, j], minlength=7).argmax() for j in range(P.shape[1])])
 
 def mean_softmax(Q):
-    # Average the 22 probability vectors, then take the argmax of the average.
+    # Average the members' probability vectors, then take the argmax of the average.
     return Q.mean(0).argmax(1)
 
 # Paired bootstrap: resample the 308 test crops and recompute both accuracies on the same
@@ -140,7 +148,7 @@ print(f"1 SE on 308 test crops     = {100 * np.sqrt(.65 * .35 / len(yt)):.2f} pp
 
 ```{python}
 # 2.1
-n_right_e = (He == ye[None, :]).sum(0)          # how many of the 22 get each crop right
+n_right_e = (He == ye[None, :]).sum(0)          # how many members get each crop right
 oracle = float((n_right_e > 0).mean())
 best_i = int(np.argmax((He == ye[None, :]).mean(1)))
 print(f"at least one of the {nC} correct : {oracle:.4f}")
@@ -161,11 +169,11 @@ print(f"pairwise: same score {100 * np.mean(ex_p):.2f}%, within 1 score {100 * n
 ```
 
 ```{python}
-#| fig-cap: "How many of the 22 tied CNNs score each crop correctly. Blue: the vote gets it right. Red: at least one model is right but the vote is not, the crops the 89.67% counts and no vote can reach. Grey: no model is right."
+#| fig-cap: "How many of the 17 tied CNNs score each crop correctly. Blue: the vote gets it right. Red: at least one model is right but the vote is not, the crops the 89.23% counts and no vote can reach. Grey: no model is right."
 # 2.3
 # A vote returns the most common answer, so it can only win where the correct score IS
 # the most common answer. Splitting the crops by how many members are right separates
-# the part of the 89.67% a vote could reach from the part it cannot.
+# the part of that oracle a vote could reach from the part it cannot.
 v_e = vote(He)
 win = v_e == ye
 x = np.arange(nC + 1)
@@ -183,6 +191,9 @@ ax.bar(x, c_unreach, bottom=c_none, color="#C44E52",
 ax.bar(x, c_win, bottom=c_none + c_unreach, color="#4C72B0", label="The vote is right")
 ax.set_xlabel(f"Number of the {nC} tied CNNs that score the crop correctly")
 ax.set_ylabel("Crops")
+# One tick per bar. The default locator picks 2.5-step ticks, which land between bars and
+# read as fractions of a model.
+ax.set_xticks(x)
 ax.legend(frameon=False, fontsize=9)
 ax.spines[["top", "right"]].set_visible(False)
 fig.tight_layout()
@@ -196,7 +207,7 @@ print(f"  share with fewer than half the models correct: {(n_right_e[gap] < nC /
 ```
 
 ```{python}
-#| fig-cap: "Every test crop the 22 tied CNNs place at least two scores from the recorded label, ordered by how many of the 22 agree."
+#| fig-cap: "Every test crop the 17 tied CNNs place at least two scores from the recorded label, ordered by how many of the 17 agree."
 # 2.4
 # A crop the whole committee places two or more scores from its recorded label is either
 # mislabelled or intrinsically hard. Off-by-one is adjacent-score ambiguity and is counted
@@ -228,14 +239,14 @@ cle.assign(pct=(100 * cle.agree / nC).round(1))
 
 ```{python}
 # 2.5
-# The oracle can only rise as members are added, so before reading anything into 89.67%:
+# The oracle can only rise as members are added, so before reading anything into it:
 # how much of it is pool size? Two checks. First, what the oracle would be if the same
 # models failed independently of one another. Second, other pools cut to the same n.
 rng = np.random.default_rng(0)
 orc = lambda P: float((P == ye[None, :]).any(0).mean())
 p_i = (He == ye[None, :]).mean(1)
 print(f"observed oracle {orc(He):.4f}; if the {nC} failed independently {1 - np.prod(1 - p_i):.4f}")
-for n in (2, 3, 5, 12, 22):
+for n in (2, 3, 5, 12, nC):
     obs = np.mean([orc(He[rng.choice(nC, n, replace=False)]) for _ in range(200)])
     print(f"  n={n:2d}: observed {obs:.4f}   independent {1 - (1 - p_i.mean()) ** n:.4f}")
 ```
@@ -276,17 +287,17 @@ for k, (_, pt) in list(RULES.items())[1:]:
 
 ```{python}
 # 4.1
-# Four families are available. The 22 CNNs share an architecture AND a training set, so a
+# Four families are available. The 17 CNNs share an architecture AND a training set, so a
 # shared mistake is expected. The others vary one thing or both:
 #   ViT                 different architecture, same crops
 #   CNN (Geometric Augmentation)     same architecture, different crops (models/07 trains from the
-#                       augmented pool; its tie is ranked on avg_vaf_orig, accuracy on the
-#                       ORIGINAL crops in the fold, since its plain avg_vaf is measured
-#                       over a fold containing augmented copies)
+#                       augmented pool, and its tie is ranked on avg_vaf like every other
+#                       grid: the pool is topped up to 1,627 per class, so avg_vaf carries
+#                       the test split's class balance, while avg_vaf_orig is 42.6% score 0)
 #   Ordinal Regression  neither: 12 hand-built features, one polr fit (analyses/03)
 GRIDS = {"ViT": ("models/04_Medoid_ViT_RandomSearch/01_Categorical_Loss", "vit", "avg_vaf"),
          "CNN (Geometric Augmentation)": ("models/07_Medoid_CNN_GeomAug/01_MatchLargestClass", "geo",
-                                          "avg_vaf_orig"),
+                                          "avg_vaf"),
          }
 # The cGAN-augmented grid is deliberately absent. Ranked the way every other family is, on
 # accuracy over the original crops, its best configuration reaches 61.04% on test against
@@ -305,6 +316,7 @@ for name, (base_dir, tag, col) in GRIDS.items():
     r = pd.concat([pd.read_csv(g / "random_search_results.csv")]
                   + [pd.read_csv(q) for q in (g / "parts").glob("*.csv")],
                   ignore_index=True).drop_duplicates("model_id").set_index("model_id")
+    r = deduplicate(r.reset_index(), col).set_index("model_id")
     w = r[col].dropna()
     tie = set(w[w >= w.max() - float(np.sqrt(w.max() * (1 - w.max()) / 2289))].index)
     idx = [i for i, m in enumerate(Z[f"{tag}_ids"]) if m in tie]
@@ -486,7 +498,7 @@ for i in range(7):
 a1.set_xticks(range(7)); a1.set_yticks(range(7))
 a1.set_xlabel("Predicted score"); a1.set_ylabel("True score")
 f1.colorbar(i1, ax=a1, fraction=0.046, label="Test CDAs")
-f1.savefig(THESIS_PLOTS / "ensemble_test_confusion.png", dpi=300, bbox_inches="tight")
+f1.savefig(THESIS_PLOTS / "ensemble_test_confusion.png", dpi=450, bbox_inches="tight")
 plt.show()
 
 # The tautological column is not a predicted score, so it sits in its own axes with a gap
@@ -522,21 +534,28 @@ for i in range(7):
         a3.text(0, i, f"{dif[i, 7]:+.2f}", ha="center", va="center", fontsize=7,
                 color="white" if abs(dif[i, 7]) > 0.6 * vv else "black")
 a3.set_xticks([0], ["Tautological"], rotation=90, fontsize=8)
-a3.set_yticks([])
+# a3 shares y with a2, so set_yticks([]) here would clear the locator on BOTH and
+# strip the score labels off the matrix. Hide a3's labels only.
+a3.tick_params(labelleft=False)
 
 f2.colorbar(i2, ax=[a2, a3], fraction=0.046, pad=0.04,
             label="Ensemble minus human (row proportion)")
-f2.savefig(THESIS_PLOTS / "ensemble_confusion_vs_human.png", dpi=300, bbox_inches="tight")
+f2.savefig(THESIS_PLOTS / "ensemble_confusion_vs_human.png", dpi=450, bbox_inches="tight")
 plt.show()
 
-# Per-score recall against the best single model, which is what the overall 2.28 pp is
-# made of. b_chap indexes the chapter's selected model inside the CNN pool ordering; here
-# it is taken directly from the augmented family.
+# Per-score recall against the chapter's selected model. That model is resolved from the
+# grid rather than hard-coded, so it follows the ranking metric: rank 1 on avg_vaf, the
+# measure every grid is ranked on.
 _gk = "CNN (Geometric Augmentation)"
-best_single = FAM[_gk][1][int(np.where(FAM_IDS[_gk] == 6848)[0][0])].argmax(1)
+_geo_grid = pd.concat(
+    [pd.read_csv(ROOT / GRIDS[_gk][0] / "random_search_results.csv")]
+    + [pd.read_csv(q) for q in (ROOT / GRIDS[_gk][0] / "parts").glob("*.csv")],
+    ignore_index=True).drop_duplicates("model_id")
+SELECTED = int(deduplicate(_geo_grid).sort_values("avg_vaf", ascending=False).iloc[0].model_id)
+best_single = FAM[_gk][1][int(np.where(FAM_IDS[_gk] == SELECTED)[0][0])].argmax(1)
 rec = lambda q: np.array([np.mean(q[yt == k] == k) for k in range(7)])
 print("per-score recall, score 0 to 6")
-print("  best single 6848:", rec(best_single).round(3).tolist())
+print(f"  best single {SELECTED}:", rec(best_single).round(3).tolist())
 print("  best ensemble   :", rec(ens_t).round(3).tolist())
 print(f"  the two differ on {int((ens_t != best_single).sum())} of {len(yt)} crops")
 ```
@@ -551,14 +570,13 @@ POOL_E = np.concatenate([FAM[n][0] for n in names])
 pool_e = (POOL_E.argmax(2) == ye[None, :]).mean(1)
 pool_t = (POOL_T.argmax(2) == yt[None, :]).mean(1)
 b_ens = int(np.argmax(pool_e))
-chap = FAM["CNN (Geometric Augmentation)"][1][
-    int(np.where(FAM_IDS["CNN (Geometric Augmentation)"] == 6848)[0][0])].argmax(1)
+chap = best_single
 print(f"{len(pool_t)} tied members across the four families")
 print(f"  single models on test span {100 * pool_t.min():.2f}% to {100 * pool_t.max():.2f}%")
 print(f"  best on the ensemble split: {100 * pool_e[b_ens]:.2f}% there, "
       f"{100 * exact(POOL_T.argmax(2)[b_ens], yt):.2f}% on test")
 d, lo, hi, pv = paired(POOL_T.argmax(2)[b_ens], chap)
-print(f"  against the chapter's selected model (6848, {100 * exact(chap, yt):.2f}% test): "
+print(f"  against the chapter's selected model ({SELECTED}, {100 * exact(chap, yt):.2f}% test): "
       f"{100 * d:+.2f} pp  95% CI [{100 * lo:+.2f}, {100 * hi:+.2f}]  p = {pv:.3f}")
 rules_only = tab2.loc[tab2.rule != "Best single model", "test exact"]
 print(f"  every combining rule lands between {100 * rules_only.min():.2f}% and "
@@ -583,7 +601,7 @@ for k, (_, pt) in RULES.items():
 #| output: asis
 # 5.1  Pulled from the tables above so the text cannot drift from the results.
 mv = tab.set_index("rule")
-print(f"- **The 89.67% is not spare accuracy.** {int(gap.sum())} crops sit between it and the "
+print(f"- **The {oracle:.2%} is not spare accuracy.** {int(gap.sum())} crops sit between it and the "
       f"vote, and on {(n_right_e[gap] < nC / 2).mean():.1%} of them fewer than half the members "
       f"are right, a median of {np.median(n_right_e[gap]):.1f} of {nC}. A vote returns the "
       f"majority answer, so the correct score being a minority opinion puts those crops out "

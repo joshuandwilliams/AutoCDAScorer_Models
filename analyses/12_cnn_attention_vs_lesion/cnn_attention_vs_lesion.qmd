@@ -13,7 +13,7 @@ Date: 09/09/2026
 
 **Goal:**
 
-Take the single best CNN from the Medoid-CNN grid search (the top model by `avg_vaf`) and ask *where in the image it is looking* when it assigns a severity
+Take the chapter's selected best CNN from the geometric-augmentation grid search (the top model by `avg_vaf_orig`) and ask *where in the image it is looking* when it assigns a severity
 score. Produce two independent attribution maps — **Grad-CAM** and **SHAP** — and
 measure how much of each falls inside the **Otsu-segmented cell death area**, using the
 segmentation from the sibling dataset repo. Show examples where attention lands on the
@@ -40,8 +40,8 @@ methods disagree.
 
 **Rationale:**
 
-`analyses/03` established that the top ~210 configs are statistically tied, so *which*
-model is "best" is arbitrary. That makes the question "is this model right for the right
+`analyses/08` established that 17 settings are tied within one standard error of the best,
+and 88 are not significantly worse than it at 5%, so *which* model is "best" is arbitrary. That makes the question "is this model right for the right
 reasons?" more useful than "which model wins". A model that scores lesion severity by
 looking at the lesion is one you can defend; one that scores well while looking at the
 background is exploiting something about the crop, not the biology.
@@ -117,21 +117,24 @@ def to_rgb(img):
 
 ### 1.2 The model under study
 
-The top model by `avg_vaf` in the Medoid-CNN grid. `analyses/03` showed the ranking within
+The top model by `avg_vaf_orig` in the geometric-augmentation grid. `analyses/08` showed the ranking within
 the top cluster is noise, so this is "a representative best model", not "the best model".
 
 ```{python}
 # 1.2
 # The chapter's selected best model, from the geometric-augmentation run rather than the
-# unaugmented grid. Ranked on avg_vaf_orig, validation accuracy over ORIGINAL crops: the
-# plain avg_vaf of an augmented run is measured over a fold containing augmented copies and
-# is not comparable with the unaugmented grids. The same model tops the ensemble split.
+# unaugmented grid. The two configurations at the top of that grid are separated by
+# 0.2458 pp of avg_vaf, which is 28 crops of the 11,389-crop augmented pool, so
+# cross-validation does not rank them. The chapter breaks the tie on the held-out
+# ensemble split, where 6848 reaches 68.13% against 7927's 65.71%, and 6848 is rank 1 on
+# avg_vaf_orig. Ranking here on avg_vaf_orig therefore resolves to the model the chapter
+# selects.
 SEARCH = repo_root / "models" / "07_Medoid_CNN_GeomAug" / "01_MatchLargestClass"
 
 # Resolve the top model from the results CSV rather than hard-coding a directory name,
 # so this cannot silently point at a stale model if the grid is ever re-run.
 _res = pd.read_csv(SEARCH / "random_search_results.csv").drop_duplicates("model_id")
-_rank_col = "avg_vaf_orig" if "avg_vaf_orig" in _res.columns else "avg_vaf"
+_rank_col = "avg_vaf_orig"
 BEST_ID = int(_res.dropna(subset=[_rank_col]).sort_values(_rank_col, ascending=False).iloc[0].model_id)
 MODEL_DIR = next((SEARCH / "results").glob(f"*_{BEST_ID}"))
 
@@ -251,7 +254,9 @@ explained.
 ```{python}
 # 2.2
 N_BACKGROUND = 100
-CACHE_FILE = CACHE / "attributions.npz"
+# Keyed by model id, so changing the ranking metric misses the cache instead of silently
+# reusing the previous model's maps, and each model's cache is kept alongside the others.
+CACHE_FILE = CACHE / f"attributions_{BEST_ID}.npz"
 
 if CACHE_FILE.exists():
     z = np.load(CACHE_FILE)
@@ -490,7 +495,7 @@ metrics["shap_iou"], metrics["shap_dice"] = matched_area_iou_dice(shap_n[sel], m
 metrics["cam_lift"] = metrics.cam_ebpg - metrics.lesion_fraction
 metrics["shap_lift"] = metrics.shap_ebpg - metrics.lesion_fraction
 
-metrics.to_csv(CACHE / "overlap_metrics.csv", index=False)
+metrics.to_csv(CACHE / f"overlap_metrics_{BEST_ID}.csv", index=False)
 print(f"metrics for {len(metrics)} images")
 ```
 
@@ -915,9 +920,9 @@ for name, col in [("Grad-CAM", "cam_lift"), ("SHAP", "shap_lift")]:
   runs that check on every render and fails the build if any other orientation separates
   greenness better.
 
-- **Scope.** This is one model. `analyses/03` showed roughly 210 configs are statistically
-  tied at the top, so this model is a representative member of that cluster rather than a
-  uniquely best model, and nothing here establishes that the other 209 attend the same
+- **Scope.** This is one model. `analyses/08` showed 17 settings tied within one standard
+  error of the best, so this model is a representative member of that cluster rather than a
+  uniquely best model, and nothing here establishes that the other 16 attend the same
   way. Extending sections 4.4 and 4.5 across the kept top-100 would say whether
   centre-bias is a property of this network or of the task as posed.
 
@@ -927,42 +932,229 @@ for name, col in [("Grad-CAM", "cam_lift"), ("SHAP", "shap_lift")]:
   the own-versus-shuffled gap should widen sharply; if it stays at the frame centre, the
   model is using position rather than appearance.
 
-## Thesis figure
+## Thesis figure: example attributions
 
-Three columns rather than the four in section 5.2: the Otsu outline is drawn on the crop
-itself instead of taking a column of its own, so the same rows fit the page.
+SHAP only. Grad-CAM is excluded from the thesis figure because this network's last
+convolution is 4x4, so its map holds 16 values over a 64x64 CDA image and section 4.4
+shows the same computation at 12x12 recovers most of the overlap: the panel would report
+the feature-map size, not the model.
+
+Four columns, and each CDA image sits directly above its own attribution map. The top two
+rows are the four highest inside/outside ratios in the test split, left to right, and the
+bottom two rows the four lowest. Ranking on that ratio picks the examples by the measure
+the panels below use rather than by eye.
 
 ```{python}
-#| fig-cap: "Best CNN attributions on four test crops: the crop with its Otsu lesion outline, SHAP, and Grad-CAM."
+#| fig-cap: "SHAP attribution for the selected CNN on four test CDA images, each shown as the image with its Otsu lesion outline in cyan and then with SHAP overlaid. The top row is the highest inside/outside ratio in the test split and the bottom row the lowest."
 # T1
 from pathlib import Path as _P
 _tp = _P("thesis_plots"); _tp.mkdir(exist_ok=True)
 
-# Two rows where the attribution sits on the lesion and two where it does not, picked by
-# SHAP lift so the pair is chosen by a measurement rather than by eye.
-_ranked = metrics.sort_values("shap_lift", ascending=False)
-_pick = list(_ranked.head(2).index) + list(_ranked.tail(2).index)
-_rows = [metrics.index.get_loc(i) for i in _pick]
+_ms2, _sh2 = masks[sel], shap_n[sel]
+
+
+def _inout(maps, ks):
+    """Mean attribution per lesion pixel / mean per non-lesion pixel, one value per image.
+
+    Dividing by the pixel count in each region removes the lesion's size from the
+    comparison, and the ratio moves very little when the Otsu boundary is slightly wrong,
+    unlike an overlap measure that scores the boundary itself.
+    """
+    out = []
+    for _m3, _k3 in zip(maps, ks):
+        _w = _m3 / _m3.sum() if _m3.sum() > 0 else _m3
+        _o = _w[~_k3].mean() if (~_k3).any() else 0.0
+        out.append(_w[_k3].mean() / _o if (_k3.any() and _o > 0) else np.nan)
+    return np.array(out)
+
+
+_ratio = _inout(_sh2, _ms2)
+_order = np.argsort(-np.nan_to_num(_ratio, nan=-np.inf))
+_top, _bot = list(_order[:4]), list(_order[-4:][::-1])
 _sel_idx = np.where(sel)[0]
 
-_fig, _ax = plt.subplots(len(_rows), 3, figsize=(6.4, 2.25 * len(_rows)))
-for _r, _mi in enumerate(_rows):
-    _gi = _sel_idx[_mi]
-    # to_rgb for DISPLAY only: the arrays are BGR from cv.imread and imshow assumes RGB.
-    _img, _mk, _m = to_rgb(X_test[_gi]), masks[_gi], metrics.iloc[_mi]
-    for _c, (_data, _ttl) in enumerate([
-            (None, f"Score {_m.score}, predicted {_m.pred}"),
-            (shap_n[_gi], f"SHAP  EBPG {_m.shap_ebpg:.2f}"),
-            (cam_n[_gi], f"Grad-CAM  EBPG {_m.cam_ebpg:.2f}")]):
-        _a = _ax[_r, _c]
-        _a.imshow(_img)
-        if _data is not None:
-            _a.imshow(_data, cmap="inferno", alpha=0.65)
-        _a.contour(_mk, levels=[0.5], colors="cyan", linewidths=1.0)
-        _a.set_title(_ttl, fontsize=7.5)
-        _a.axis("off")
+# Four rows, not two columns of pairs: the CDA image sits directly above its own
+# attribution, so a reader compares down the column instead of across a gap. Left to right
+# is best-to-fourth-best in the top pair and worst-to-fourth-worst in the bottom pair.
+_fig, _ax = plt.subplots(4, 4, figsize=(7.4, 7.8))
+for _band, _idx in enumerate((_top, _bot)):
+    for _c, _mi in enumerate(_idx):
+        _gi = _sel_idx[_mi]
+        # to_rgb for DISPLAY only: the arrays are BGR from cv.imread, imshow assumes RGB.
+        _img, _mk, _m = to_rgb(X_test[_gi]), masks[_gi], metrics.iloc[_mi]
+        for _k, (_data, _ttl) in enumerate([
+                (None, f"Score {_m.score}, predicted {_m.pred}"),
+                (shap_n[_gi], f"{_ratio[_mi]:.1f}x inside")]):
+            _a = _ax[_band * 2 + _k, _c]
+            # The attribution row drops the CDA image underneath it. Overlaying SHAP on the
+            # leaf mixes two colour scales in one panel, and the leaf's own red-green
+            # variation is easy to read as attribution when it is not.
+            _a.imshow(_img if _data is None else _data,
+                      cmap=None if _data is None else "inferno")
+            _a.contour(_mk, levels=[0.5], colors="cyan", linewidths=1.0)
+            _a.set_title(_ttl, fontsize=7.5)
+            _a.axis("off")
 _fig.tight_layout()
 _fig.savefig(_tp / "best_model_attributions.png", dpi=300, bbox_inches="tight")
 plt.show()
-print("rows by SHAP lift: " + ", ".join(f"{metrics.iloc[r].shap_lift:+.2f}" for r in _rows))
+print("top row ratios:    " + ", ".join(f"{_ratio[r]:.1f}x" for r in _top))
+print("bottom row ratios: " + ", ".join(f"{_ratio[r]:.1f}x" for r in _bot))
+```
+
+## Thesis figure 2: inside the lesion, but not the shape of it
+
+Two panels, each one measure split by whether the model scored the CDA image correctly,
+and each written out on its own so the thesis assembler can place them.
+
+**A, matched-area IoU.** Threshold the map to the lesion's own pixel count, then overlap.
+This scores outline and placement together and leaves no free threshold. The centred disc
+is the reference: matched-area binarisation of any radially decreasing map selects the same
+n most-central pixels, so every Gaussian width collapses to one disc and the bar carries no
+free parameter.
+
+**B, inside/outside ratio.** Mean attribution on a lesion pixel divided by the mean on a
+pixel outside. Dividing by the pixel count in each region removes the lesion's size, and
+the ratio barely moves when the Otsu boundary is slightly wrong. No disc here: without
+binarisation its ratio runs from 44.5x at sigma=8 to 1.7x at sigma=24, so any bar drawn
+would be a choice of sigma rather than a null.
+
+```{python}
+#| fig-cap: "SHAP attribution against the Otsu lesion for the selected CNN on the 264 test CDA images with a lesion. (A) matched-area IoU, with a centred disc of the same area for reference. (B) attribution per lesion pixel relative to per pixel outside, where 1 means no concentration."
+# T2
+from scipy.stats import mannwhitneyu as _mwu  # noqa: E402
+
+_cor = metrics.correct.to_numpy()
+
+
+def _matched_iou(maps, ks):
+    """IoU after thresholding each map to its own lesion's pixel count."""
+    out = []
+    for _mp, _k in zip(maps, ks):
+        _n = int(_k.sum())
+        if _n == 0:
+            out.append(np.nan)
+            continue
+        _pr = np.zeros(_mp.size, bool)
+        _pr[np.argpartition(-_mp.ravel(), _n - 1)[:_n]] = True
+        out.append(np.logical_and(_pr, _k.ravel()).sum() / np.logical_or(_pr, _k.ravel()).sum())
+    return np.array(out)
+
+
+_yy2, _xx2 = np.mgrid[0:64, 0:64]
+_disc_iou = _matched_iou(
+    np.repeat(np.exp(-(((_yy2 - 31.5) ** 2 + (_xx2 - 31.5) ** 2) / (2 * 12.0 ** 2)))[None],
+              len(_ms2), axis=0), _ms2)
+_iou = metrics.shap_iou.to_numpy()   # _ratio comes from the cell above
+
+# Ratio first: it carries the positive finding (the prediction is built from lesion
+# pixels), and the IoU panel then qualifies it (but not the whole lesion, and not its
+# shape). The panel letters follow this order into the thesis figure.
+PANELS = [
+    dict(tag="a", v=_ratio, extra=None, log=True, ref=1.0,
+         lab="SHAP per lesion pixel\n/ per pixel outside",
+         ttl="concentrates inside the lesion"),
+    dict(tag="b", v=_iou, extra=("Centred disc,\nsame area", _disc_iou), log=False, ref=None,
+         lab="SHAP IoU with the lesion\n(matched area)",
+         ttl="does not trace the lesion's shape"),
+]
+
+for _P in PANELS:
+    _v, _ok = _P["v"], ~np.isnan(_P["v"])
+    _f, _a = plt.subplots(figsize=(4.6, 4.4))
+    _g = [_v[_cor & _ok], _v[~_cor & _ok]]
+    _names = [f"Correct\n(n={len(_g[0])})", f"Wrong\n(n={len(_g[1])})"]
+    _cols = ["#DD8452", "#C44E52"]
+    if _P["extra"]:
+        _g.append(_P["extra"][1][~np.isnan(_P["extra"][1])])
+        _names.append(_P["extra"][0])
+        _cols.append("#8C8C8C")
+    _bp = _a.boxplot(_g, positions=range(len(_g)), widths=0.6, patch_artist=True,
+                     showfliers=False, medianprops=dict(color="black"))
+    for _p, _c in zip(_bp["boxes"], _cols):
+        _p.set_facecolor(_c)
+    if _P["ref"] is not None:
+        _a.axhline(_P["ref"], color="black", ls="--", lw=1.0)
+    # The ratio spans 0.25x to 302x, so a linear axis puts every box in the bottom tenth of
+    # the panel. IoU is bounded in [0, 1] and stays linear.
+    if _P["log"]:
+        _a.set_yscale("log")
+    _pcw = _mwu(_g[0], _g[1], alternative="two-sided").pvalue
+    _a.set_xticks(range(len(_g)), _names, fontsize=9)
+    _a.set_ylabel(_P["lab"])
+    _a.spines[["top", "right"]].set_visible(False)
+    _f.tight_layout()
+    _f.savefig(_tp / f"attribution_diagnostics_{_P['tag']}.png", dpi=300, bbox_inches="tight")
+    plt.show()
+    print(f"{_P['tag']}: {_P['ttl']} | correct {np.median(_g[0]):.3f}, wrong "
+          f"{np.median(_g[1]):.3f}, p = {_pcw:.3f}"
+          + (f", disc {np.median(_g[2]):.3f}" if _P["extra"] else ""))
+
+# Why the IoU panel falls short of the disc: SHAP attributes per input pixel, so the
+# top-n set is scattered rather than a region. Counted as 4-connected components of the
+# thresholded map, against the mask's own count.
+from scipy import ndimage as _ndi2  # noqa: E402
+
+_frag = []
+for _m4, _k4 in zip(_sh2, _ms2):
+    _n4 = int(_k4.sum())
+    _pr4 = np.zeros(_m4.size, bool)
+    _pr4[np.argpartition(-_m4.ravel(), _n4 - 1)[:_n4]] = True
+    _frag.append(_ndi2.label(_pr4.reshape(64, 64))[1])
+print(f"connected components in the top-n region: SHAP median {np.median(_frag):.0f}, "
+      f"Otsu mask median {np.median([_ndi2.label(_k4)[1] for _k4 in _ms2]):.0f}")
+```
+
+## Is the low tail a bad Otsu mask?
+
+The inside/outside ratio has a low tail, and a mask that is not the lesion would produce
+exactly that: attribution on the real lesion would be counted as "outside". Circularity,
+`4*pi*area / perimeter^2`, is 1 for a disc and falls as the boundary becomes ragged, so a
+speckled or multi-part Otsu mask scores low on it. If the low-ratio images are segmentation
+failures they should sit at low circularity.
+
+```{python}
+#| fig-cap: "Otsu mask circularity against SHAP attribution inside the lesion relative to outside, one point per test CDA image. Circularity is 1 for a disc; the dashed line is no concentration."
+# T3
+from scipy import ndimage as _ndi3  # noqa: E402
+from scipy.stats import spearmanr  # noqa: E402
+
+_circ, _ncomp = [], []
+for _k in _ms2:
+    # 4-connectivity boundary length: every edge where a lesion pixel meets a non-lesion
+    # one. Measured on the 64x64 mask the network sees, not the native-resolution one.
+    _per = (np.abs(np.diff(_k.astype(int), axis=0)).sum()
+            + np.abs(np.diff(_k.astype(int), axis=1)).sum())
+    _circ.append(4 * np.pi * _k.sum() / _per ** 2 if _per else np.nan)
+    _ncomp.append(_ndi3.label(_k)[1])
+_circ, _ncomp = np.array(_circ), np.array(_ncomp)
+_rat = _ratio   # the inside/outside ratio from the panel above
+_okc = ~np.isnan(_circ) & ~np.isnan(_rat)
+
+_f3, _a3 = plt.subplots(figsize=(6.2, 4.8))
+_sc3 = _a3.scatter(_circ[_okc], _rat[_okc], c=metrics.score.to_numpy()[_okc],
+                   cmap=plt.matplotlib.colors.ListedColormap(
+                       ["#2c7bb6", "#66c2a5", "#abdda4", "#ffcc66", "#fdae61", "#f46d43", "#d7191c"]), vmin=-0.5, vmax=6.5,
+                   s=26, edgecolor="white", linewidth=0.4)
+_a3.axhline(1.0, color="black", ls="--", lw=1.0)
+_a3.set_yscale("log")
+_rho3, _p3 = spearmanr(_circ[_okc], _rat[_okc])
+_a3.set_xlabel("Otsu mask circularity  ($4\\pi A / P^2$)")
+_a3.set_ylabel("SHAP per lesion pixel / per pixel outside")
+_a3.set_title(f"Spearman {_rho3:+.3f}, p = {_p3:.2g}", fontsize=9, loc="left")
+_a3.spines[["top", "right"]].set_visible(False)
+_cb3 = _f3.colorbar(_sc3, ax=_a3, ticks=range(7), fraction=0.046, pad=0.03)
+_cb3.set_label("Severity score", fontsize=8)
+_f3.tight_layout()
+_f3.savefig(_tp / "circularity_vs_ratio.png", dpi=300, bbox_inches="tight")
+plt.show()
+
+_lo = _rat < np.nanquantile(_rat, 0.10)
+print(f"lowest-decile ratio (n={int(_lo.sum())}): circularity {np.nanmedian(_circ[_lo]):.3f}, "
+      f"components {np.median(_ncomp[_lo]):.0f}, lesion fraction "
+      f"{metrics.lesion_fraction.to_numpy()[_lo].mean():.3f}")
+print(f"the rest (n={int((~_lo).sum())}):            circularity {np.nanmedian(_circ[~_lo]):.3f}, "
+      f"components {np.median(_ncomp[~_lo]):.0f}, lesion fraction "
+      f"{metrics.lesion_fraction.to_numpy()[~_lo].mean():.3f}")
+print(f"Mann-Whitney on circularity, low decile vs rest: "
+      f"p = {_mwu(_circ[_lo & _okc], _circ[~_lo & _okc], alternative='two-sided').pvalue:.3f}")
 ```
