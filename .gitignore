@@ -46,3 +46,8 @@ analyses/10_gan_diversity/c2_features.npz
 # absent and regenerated on re-render. The small derived cache beside it
 # (ordinal_forest_outputs.rds) is what the document reads first, and is tracked.
 analyses/*/model_cache/ordinal_forests.rds
+
+# Quarto renders and their supporting files. Regenerate with `quarto render`.
+analyses/**/*.html
+analyses/**/*_files/
+analyses/**/render.log
