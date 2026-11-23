@@ -42,8 +42,9 @@ GRIDS = {
 def model_dirs(results: Path) -> list[Path]:
     if not results.exists():
         return []
-    return sorted((p for p in results.iterdir() if (p / "model.keras").exists()),
-                  key=lambda p: p.name)
+    return sorted(
+        (p for p in results.iterdir() if (p / "model.keras").exists()), key=lambda p: p.name
+    )
 
 
 def fingerprint(dirs: list[Path]) -> str:
