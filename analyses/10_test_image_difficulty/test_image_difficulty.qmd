@@ -419,9 +419,10 @@ and is *not* treated as a label error.
 
 The committee is every configuration that is statistically indistinguishable from the best
 in its own grid -- within one standard error of that grid's best validation accuracy -- and
-it spans model families rather than being 100 CNNs from one grid. The augmented runs are
-ranked on validation accuracy over ORIGINAL crops, because their plain `avg_vaf` is measured
-over a fold containing augmented copies and is not the same quantity.
+it spans model families rather than being 100 CNNs from one grid. Each tied set counts
+distinct settings: the CNN grids train every `reg = None` setting three times, and
+`src/grid_results.py` keeps the best run of each before taking the band, so one setting
+cannot fill three places. Both CNN grids are ranked on `avg_vaf`, as in Chapter 3.
 
 ```{python}
 #| output: false
@@ -430,8 +431,10 @@ import glob as _glob
 _SE = lambda p: np.sqrt(p * (1 - p) / 2289)
 _parts, _labels = [], []
 
-_v = np.asarray(avg_vaf)
-_parts.append(Pt[_v >= _v.max() - _SE(_v.max())]); _labels.append("CNN")
+sys.path.append(str(ROOT / "src"))
+import grid_results as _gr
+_cnn_tied = set(_gr.tie_band(_gr.deduplicate(_gr.load_grid(RESULTS.parent))).model_id.astype(str))
+_parts.append(Pt[[i for i, m in enumerate(model_ids) if str(m) in _cnn_tied]]); _labels.append("CNN")
 
 _pz = np.load(ROOT / "analyses/11_ordinal_decision_boundaries/prob_cache/probs.npz",
               allow_pickle=True)
@@ -442,17 +445,15 @@ _vr = pd.concat([pd.read_csv(ROOT / "models/04_Medoid_ViT_RandomSearch/01_Catego
 _vv = _vr.loc[[int(m) for m in _pz["vit_ids"]], "avg_vaf"].to_numpy()
 _parts.append(_pz["vit"].argmax(2)[_vv >= _vv.max() - _SE(_vv.max())]); _labels.append("ViT")
 
-# Geometric augmentation: only the tied models that were saved can be scored. The grid keeps
-# the top 100 by avg_vaf, so a model tied on avg_vaf_orig but outside that 100 has no
-# weights on disk; the count actually used is printed rather than assumed.
+# Geometric augmentation: the tied settings by avg_vaf, deduplicated as for the CNN grid. The
+# grid saves its top 100 by avg_vaf, so every tied model has weights on disk; the count
+# used is printed rather than assumed.
 _GC = CACHE / "geo_tied_predictions.npz"
 if _GC.exists():
     _geo = np.load(_GC)["P"]
 else:
-    _g = pd.read_csv(ROOT / "models/07_Medoid_CNN_GeomAug/01_MatchLargestClass/random_search_results.csv"
-                     ).drop_duplicates("model_id").dropna(subset=["avg_vaf_orig"])
-    _gb = _g.avg_vaf_orig.max()
-    _gids = set(_g[_g.avg_vaf_orig >= _gb - _SE(_gb)].model_id.astype(int))
+    _gids = set(_gr.tie_band(_gr.deduplicate(_gr.load_grid(
+        ROOT / "models/07_Medoid_CNN_GeomAug/01_MatchLargestClass"))).model_id.astype(int))
     import tensorflow as _tf3
     if "_Xt" not in dir():
         sys.path.append(str(ROOT / "src"))
@@ -724,8 +725,8 @@ cross-family comparison.
 # scope on a cache hit; import it here rather than depend on that branch having run.
 import glob as _glob
 _se_v = np.sqrt(0.65 * 0.35 / 2289)
-_vafs = np.asarray(avg_vaf)
-_tied_idx = np.where(_vafs >= _vafs.max() - _se_v)[0]
+# The same deduplicated tied set as the committee in section 4.0.
+_tied_idx = np.array([i for i, m in enumerate(model_ids) if str(m) in _cnn_tied])
 _Ptied = Pt[_tied_idx]
 _off = np.array([[np.mean(_Ptied[i] == _Ptied[j]) for j in range(len(_tied_idx))]
                  for i in range(len(_tied_idx))])[np.triu_indices(len(_tied_idx), 1)]
