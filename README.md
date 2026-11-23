@@ -53,6 +53,10 @@ code expects them, run this from the root of your clone:
 hf download joshuandwilliams/AutoCDAScorer_Models --local-dir .
 ```
 
+The models have the DOI
+[10.57967/hf/11814](https://doi.org/10.57967/hf/11814), which refers to
+revision `9e66230`. To download exactly that revision, add `--revision 9e66230`.
+
 The 16 CNNs that AutoCDAScorer uses are also in
 [joshuandwilliams/AutoCDAScorer](https://huggingface.co/joshuandwilliams/AutoCDAScorer).
 
