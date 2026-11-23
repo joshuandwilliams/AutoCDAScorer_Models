@@ -43,12 +43,18 @@ between them is not a measure of the effect of augmentation alone.
 
 ## Trained models
 
-Each CNN and ViT hyperparameter search keeps only its 100 best models. These
-are not stored in this repository because there are 600 of them. The 16 CNNs that
-AutoCDAScorer uses are on Hugging Face at
+The trained models are on Hugging Face at
+[joshuandwilliams/AutoCDAScorer_Models](https://huggingface.co/joshuandwilliams/AutoCDAScorer_Models).
+Its folders mirror this repository. There are the 100 best models from each of
+the six CNN and ViT searches, and all 64 cGAN generators. To put them where the
+code expects them, run this from the root of your clone:
+
+```bash
+hf download joshuandwilliams/AutoCDAScorer_Models --local-dir .
+```
+
+The 16 CNNs that AutoCDAScorer uses are also in
 [joshuandwilliams/AutoCDAScorer](https://huggingface.co/joshuandwilliams/AutoCDAScorer).
-Eight cGAN generators are in `models/06_Medoid_CGAN/01_Conditional/`. One of
-them generates the images for the cGAN-augmented grid.
 
 ## Environment
 
