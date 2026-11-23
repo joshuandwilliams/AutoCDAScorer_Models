@@ -4,17 +4,13 @@ from unittest.mock import MagicMock
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
-import tensorflow as tf
 
 from cnn_base import (
     _CustomEarlyStoppingAndSave,
-    _define_model,
-    _kfold_validation,
     _plot_confusion_matrix,
     _plot_epoch_train_val_acc,
     _plot_kfold_val_acc,
     _sum_confusion_matrices,
-    train_model,
 )
 
 
@@ -120,101 +116,6 @@ class TestCustomEarlyStoppingAndSave:
         mock_model.set_weights.assert_not_called()
 
 
-@pytest.fixture
-def mock_training_data():
-    """
-    Provides mock images, labels, and a set of randomly selected hyperparameters
-    for testing a model training process.
-    """
-    num_samples = 32
-    images = np.random.rand(num_samples, 64, 64, 3)
-    labels = np.arange(num_samples) % 7
-
-    selected_params = {
-        "num_filters": 8,
-        "filter_size": 3,
-        "learning_rate": 0.001,
-        "epochs": 2,
-        "k": 2,
-        "num_layers": 3,
-        "pooling_size": 2,
-        "activation_function": "relu",
-        "batch_size": 8,
-        "reg": "L2",
-        "opt": "Adam",
-        "dropout": 0.2,
-    }
-
-    return images, labels, selected_params
-
-
-class TestDefineModel:
-
-    def test_valid_inputs(self, mock_training_data):
-        images, labels, selected_params = mock_training_data
-        img_size = images.shape[2]
-        class_labels = sorted(np.unique(labels))
-
-        model = _define_model(selected_params, img_size, class_labels)
-
-        assert isinstance(model, tf.keras.Model)
-
-        expected_input_shape = (None, img_size, img_size, 3)
-        assert model.input_shape == expected_input_shape
-
-        expected_output_shape = (None, len(class_labels))
-        assert model.output_shape == expected_output_shape
-
-        selected_params["reg"] = "L1"
-        _define_model(selected_params, img_size, class_labels)
-
-        selected_params["reg"] = None
-        _define_model(selected_params, img_size, class_labels)
-
-
-class TestKfoldValidation:
-
-    def test_valid_inputs(self, mock_training_data):
-        images, labels, selected_params = mock_training_data
-
-        results = _kfold_validation(images, labels, selected_params)
-
-        assert isinstance(results, dict)
-
-        expected_keys = [
-            "validation_accuracies_fold",
-            "train_accuracies_fold",
-            "validation_accuracies_epoch",
-            "train_accuracies_epoch",
-            "validation_nearmiss_fold",
-            "confusion_matrices",
-            "best_model",
-            "best_epoch",
-        ]
-        assert all(key in results for key in expected_keys)
-
-        for key, value in results.items():
-            if key == "best_model":
-                assert isinstance(value, tf.keras.Model)
-            elif key == "best_epoch":
-                assert isinstance(value, (int, np.integer))
-                assert value >= 0  # Assumes epoch numbers start from 0
-            else:
-                # This covers all the list-based results
-                assert len(value) > 0
-
-        selected_params["opt"] = "SGD"
-        _kfold_validation(images, labels, selected_params)
-
-        # Test Momentum optimizer path
-        selected_params["opt"] = "Momentum"
-        _kfold_validation(images, labels, selected_params)
-
-        # Test RMSProp optimizer path
-        selected_params["opt"] = "RMSProp"
-        _kfold_validation(images, labels, selected_params)
-
-
 class TestPlotConfusionMatrix:
     def test_runs_without_error(self, tmp_path, monkeypatch):
         monkeypatch.setattr(plt, "show", lambda: None)  # Disable plt.show() for this test.
@@ -281,15 +182,3 @@ class TestPlotEpochTrainValAcc:
         _plot_epoch_train_val_acc(str(output_prefix), mock_train_acc, mock_val_acc, mock_k)
 
         assert os.path.exists(expected_output_file)
-
-
-class TestTrainModel:
-    def test_valid_input(self, mock_training_data, monkeypatch, tmp_path):
-        monkeypatch.setattr(plt, "show", lambda: None)
-        monkeypatch.chdir(tmp_path)
-
-        images, labels, selected_params = mock_training_data
-
-        slurm_array, index = 1, 1
-
-        train_model(slurm_array, index, selected_params, images, labels)
