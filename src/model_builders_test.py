@@ -1,7 +1,14 @@
 import pytest
 import tensorflow as tf
 
-from model_builders import CNNModelBuilder, ViTModelBuilder, _make_optimizer
+from model_builders import (
+    ClassToken,
+    CNNModelBuilder,
+    ExtractClassToken,
+    ModelBuilder,
+    ViTModelBuilder,
+    _make_optimizer,
+)
 
 
 def _params(**overrides):
@@ -131,3 +138,40 @@ class TestMakeOptimizer:
     def test_unknown_optimizer_raises(self):
         with pytest.raises(ValueError):
             _make_optimizer("NotAnOptimizer", 0.001)
+
+
+class TestModelBuilderBase:
+    class _Builder(ModelBuilder):
+        def build(self, params, input_shape, num_classes):
+            return super().build(params, input_shape, num_classes)
+
+    def test_build_is_abstract(self):
+        with pytest.raises(NotImplementedError):
+            self._Builder().build({}, (64, 64, 3), 7)
+
+    def test_every_config_is_valid_by_default(self):
+        assert self._Builder().is_valid({}, (64, 64, 3)) is True
+
+
+def test_cnn_pooling_below_one_pixel_is_invalid():
+    # The 1x1 conv keeps the 2x2 map, then a 4x4 pool would shrink it to nothing
+    params = _params(filter_size=1, pooling_size=4, num_layers=1)
+    assert CNNModelBuilder().is_valid(params, (2, 2, 3)) is False
+
+
+def test_vit_image_with_no_patches_is_invalid():
+    assert ViTModelBuilder().is_valid(_vit_params(), (0, 64, 3)) is False
+
+
+class TestTokenLayers:
+    def test_class_token_is_prepended(self):
+        x = tf.ones((2, 3, 4))
+        out = ClassToken()(x)
+        assert out.shape == (2, 4, 4)
+        assert float(tf.reduce_sum(out[:, 0])) == 0.0  # zero-initialised token
+
+    def test_extract_class_token_takes_position_zero(self):
+        x = tf.reshape(tf.range(24, dtype=tf.float32), (2, 3, 4))
+        out = ExtractClassToken()(x)
+        assert out.shape == (2, 4)
+        assert out.numpy().tolist() == x[:, 0].numpy().tolist()

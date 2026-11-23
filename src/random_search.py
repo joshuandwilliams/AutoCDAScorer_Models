@@ -553,9 +553,9 @@ class RandomSearch:
                 )
                 break
 
+        # The part file is only written once a row exists, so with no rows there is
+        # nothing to merge or remove (e.g. the grid was exhausted before this task).
         if rows:
             self._merge_part(global_dir, parts_dir, part_csv, rows)
-        elif os.path.exists(part_csv):
-            os.remove(part_csv)  # this worker started after the grid was already exhausted
         print(f"Task {self.run_id}: trained {len(rows)} configs")
         return pd.DataFrame(rows)

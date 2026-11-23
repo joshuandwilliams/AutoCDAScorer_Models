@@ -23,7 +23,7 @@ jobs:
           pip install -e .[test]
 
       - name: Run tests with coverage
-        run: pytest --cov=src --cov-report=term-missing --cov-report=xml --cov-fail-under=90
+        run: pytest --cov=src --cov-report=term-missing --cov-report=xml --cov-fail-under=100
 
       # Skipped until the CODECOV_TOKEN secret is added to the repository
       - name: Upload coverage to Codecov
