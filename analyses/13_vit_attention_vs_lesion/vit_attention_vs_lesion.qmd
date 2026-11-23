@@ -579,8 +579,14 @@ for k, v in agree.items():
 
 ```{python}
 # 7.2
+# analyses/12 names its metrics file after the CNN it explains: the top model by
+# avg_vaf_orig in the geometric-augmentation grid. Resolve it the same way.
+_geo = pd.read_csv(repo_root / "models" / "07_Medoid_CNN_GeomAug" / "01_MatchLargestClass" /
+                   "random_search_results.csv").drop_duplicates("model_id")
+CNN_ID = int(_geo.dropna(subset=["avg_vaf_orig"])
+             .sort_values("avg_vaf_orig", ascending=False).iloc[0].model_id)
 cnn_metrics_path = (repo_root / "analyses" / "12_cnn_attention_vs_lesion" /
-                    "attr_cache" / "overlap_metrics.csv")
+                    "attr_cache" / f"overlap_metrics_{CNN_ID}.csv")
 cnn_m = pd.read_csv(cnn_metrics_path)
 merged = cnn_m.merge(metrics, on="image_id", suffixes=("_cnn", "_vit"))
 print(f"images shared with analyses/06: {len(merged)}")
