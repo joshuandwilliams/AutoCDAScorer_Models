@@ -57,3 +57,10 @@ analyses/**/render.log
 logs/
 slurm.*.out
 slurm.*.err
+
+# Trained cGAN generators. They are on Hugging Face with the other models:
+# https://huggingface.co/joshuandwilliams/AutoCDAScorer_Models
+models/06_Medoid_CGAN/01_Conditional/array_task*/models/
+
+# Parked exploratory analyses, kept locally only.
+analyses/tmp/
