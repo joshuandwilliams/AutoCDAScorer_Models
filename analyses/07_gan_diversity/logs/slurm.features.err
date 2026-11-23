@@ -1,6 +1,0 @@
-WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
-I0000 00:00:1789040260.489436 2238335 cpu_feature_guard.cc:227] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
-To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
-E0000 00:00:1789040268.921791 2238335 cuda_platform.cc:52] failed call to cuInit: INTERNAL: CUDA error: Failed call to cuInit: UNKNOWN ERROR (303)
-/usr/local/lib/python3.12/site-packages/keras/src/saving/saving_lib.py:843: UserWarning: Skipping variable loading for optimizer 'adam', because it has 22 variables whereas the saved optimizer has 2 variables. 
-  saveable.load_own_variables(weights_store.get(inner_path))

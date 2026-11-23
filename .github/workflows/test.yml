@@ -7,6 +7,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     steps:
       - uses: actions/checkout@v7
 
@@ -21,4 +23,12 @@ jobs:
           pip install -e .[test]
 
       - name: Run tests with coverage
-        run: pytest --cov=src --cov-report=term-missing
+        run: pytest --cov=src --cov-report=term-missing --cov-report=xml --cov-fail-under=90
+
+      # Skipped until the CODECOV_TOKEN secret is added to the repository
+      - name: Upload coverage to Codecov
+        if: env.CODECOV_TOKEN != ''
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ env.CODECOV_TOKEN }}
+          files: coverage.xml

@@ -12,6 +12,7 @@ dependencies = [
     "opencv-python",
     "matplotlib",
     "scikit-learn",
+    "scipy",
     # Linux (HPC container + CI) uses the version pinned in
     # containers/TensorFlowGPU_2_21_0.def. macOS wheels only go up to 2.16.2;
     # both are Keras 3, so the code runs on either.
@@ -29,7 +30,7 @@ test = [
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-py-modules = ["base_dataset", "cnn_base", "post_training"]
+py-modules = ["base_dataset", "cnn_base"]
 
 [tool.ruff]
 line-length = 100
