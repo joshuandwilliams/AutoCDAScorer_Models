@@ -5,7 +5,6 @@
 [![Codecov test coverage](https://codecov.io/gh/joshuandwilliams/AutoCDAScorer_Models/graph/badge.svg)](https://app.codecov.io/gh/joshuandwilliams/AutoCDAScorer_Models)
 ![python](https://img.shields.io/badge/python-3.12-1e90ff?logo=python)
 ![tensorflow](https://img.shields.io/badge/tensorflow-2.21.0-orange)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 This repository trains and compares models that score cell death areas (CDAs)
 in UV agroinfiltration images of *Nicotiana benthamiana* leaves. Each model
