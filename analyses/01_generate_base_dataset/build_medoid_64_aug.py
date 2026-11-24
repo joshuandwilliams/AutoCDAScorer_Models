@@ -10,12 +10,20 @@ in how much augmentation they use.
 
 Which crops go in
 -----------------
-The FULL train split, not the class-balanced one. `medoid_64.npy` downsamples every class
-to 262 because that is the size of the smallest, which discards 1,627 of the 2,711 score-0
-crops. Topping up by augmentation instead of throwing real crops away is the whole point of
-this run, so the split is recomputed here with the same `split_dataset(seed=42)` call the
-original dataset used, and the downsampling step is skipped. Val, ensemble and test are
-untouched and unaugmented.
+The FULL train and validation splits, not the class-balanced ones. `medoid_64.npy`
+downsamples every class to 262 because that is the size of the smallest, which discards
+1,627 of the 2,711 score-0 crops. Topping up by augmentation instead of throwing real crops
+away is the whole point of this run, so the split is recomputed here with the same
+`split_dataset(seed=42)` call the original dataset used, and the downsampling step is
+skipped.
+
+Train and validation are pooled, matching `base_dataset.combine_train_val`, which is what
+models/03, 04 and 05 cross-validate over. The first build used the train partition alone.
+That left the 455 validation crops unused and meant the augmented grids folded over a
+different set of real crops from the unaugmented ones (3,818 against 2,289), so the gain
+attributed to augmentation also contained 1,984 extra real crops and 455 missing ones.
+`--train-only` rebuilds that original pool. Ensemble and test are untouched and
+unaugmented.
 
 Fold safety
 -----------
@@ -82,6 +90,11 @@ def main():
     p = argparse.ArgumentParser(description="Build the augmented medoid training pool")
     p.add_argument("--target", type=int, default=5000, help="crops per class in the pool")
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument(
+        "--train-only",
+        action="store_true",
+        help="build from the train partition alone, reproducing the original pool",
+    )
     args = p.parse_args()
 
     images, labels, filepaths = base_dataset.load_images_and_labels(CROPS, image_size=64)
@@ -94,6 +107,25 @@ def main():
         ensemble_ratio=0.15,
         seed=42,
     )
+    # Pool train+val, as models/03, 04 and 05 do via base_dataset.combine_train_val. The
+    # first build of this pool used the train partition alone, which left the 455
+    # validation crops unused and made the augmented runs incomparable with the
+    # unaugmented grids: they folded over different sets of real crops. --train-only
+    # reproduces that original pool.
+    if args.train_only:
+        split_images = split["train_images"]
+        split_labels = split["train_labels"]
+        split_filepaths = split["train_filepaths"]
+    else:
+        split_images = np.concatenate((split["train_images"], split["val_images"]), axis=0)
+        split_labels = np.concatenate((split["train_labels"], split["val_labels"]), axis=0)
+        split_filepaths = np.concatenate((split["train_filepaths"], split["val_filepaths"]), axis=0)
+    split = {
+        **split,
+        "train_images": split_images,
+        "train_labels": split_labels,
+        "train_filepaths": split_filepaths,
+    }
     y = np.asarray(split["train_labels"]).astype(int)
     names = np.array([Path(str(f)).name for f in split["train_filepaths"]])
     print(f"full train split: {len(y)} crops, per class {np.bincount(y).tolist()}")
