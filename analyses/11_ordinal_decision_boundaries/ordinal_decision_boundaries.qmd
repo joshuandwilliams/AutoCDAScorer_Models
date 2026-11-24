@@ -26,13 +26,13 @@ ranking in different places?
    score at six cut-points. Categorical cross-entropy does not enforce this — nothing in
    the loss knows the classes are ordered — so it is an empirical claim, not a given.
 2. Models will agree on the *ordering* of images far more than they agree on the
-   *labels*. `analyses/05` found mean pairwise prediction agreement of 0.779 with 237 of
+   *labels*. `analyses/10` found mean pairwise prediction agreement of 0.779 with 237 of
    308 images split; if the ordering is shared, most of that disagreement is cut-point
    placement rather than perception.
-3. Cut-point spread will be widest in the middle of the scale. `analyses/03` and
-   `analyses/05` both located the errors at the middle scores, with near-miss saturating
+3. Cut-point spread will be widest in the middle of the scale. `analyses/08` and
+   `analyses/10` both located the errors at the middle scores, with near-miss saturating
    near 0.98, which is what boundary jitter between adjacent classes looks like.
-4. CNNs and ViTs will differ more in cut-points than in ordering. `analyses/07` found
+4. CNNs and ViTs will differ more in cut-points than in ordering. `analyses/04` found
    cross-architecture prediction agreement of 0.710 against 0.779 within CNNs, yet
    identical accuracy — a pattern that a shared ordering with different cuts would
    produce.
@@ -45,7 +45,7 @@ ensemble that averages labels is discarding information that averaging the laten
 would keep. Disagreement from **different orderings** is a perception problem and cannot
 be fixed that way.
 
-`analyses/05` showed a majority vote matches the best single model but does not beat it,
+`analyses/10` showed a majority vote matches the best single model but does not beat it,
 and that a learned stack over one-hot predictions adds nothing. Both results are what you
 would expect if the models share an ordering and differ mainly in where they cut it,
 because voting on labels throws away the continuous quantity the models actually agree on.
@@ -59,7 +59,7 @@ because voting on labels throws away the continuous quantity the models actually
 3. Extract the cut-points and show their spread, by boundary and by architecture.
 4. Decompose pairwise disagreement into an ordering component and a cut-point component.
 5. Locate the images that sit on a boundary, and relate them to the per-image difficulty
-   from `analyses/05`.
+   from `analyses/10`.
 
 ---
 
@@ -485,7 +485,7 @@ print(f"label agreement between these two models: "
 ## 5. Which images sit on a boundary?
 
 An image whose latent score falls close to a cut-point is one the models will split on,
-regardless of how good they are. This is the mechanism `analyses/05` saw as "237 of 308
+regardless of how good they are. This is the mechanism `analyses/10` saw as "237 of 308
 images are split decisions".
 
 ```{python}
@@ -732,7 +732,7 @@ plt.show()
   modal-label consensus of **0.625** against **0.876** for the rest, and are correctly
   scored by 93 of 200 models against 135. The eight closest sit within 0.02 of a cut-point
   and split the committee almost exactly in half. This is the mechanism behind
-  `analyses/05`'s "237 of 308 images are split decisions": those are not hard images in
+  `analyses/10`'s "237 of 308 images are split decisions": those are not hard images in
   any deep sense, they are images sitting on a boundary.
 
 - **Re-thresholding does not help, and note what it was fitted against.** The cut-points
@@ -747,7 +747,7 @@ plt.show()
 - **Nor does ensembling the latent score beat voting on labels.** Averaging the latent
   score across all 200 models and cutting once gives 0.6656 exact and 0.9838 near-miss,
   against 0.6688 and 0.9838 for a plain majority vote. Identical near-miss, and the
-  difference in exact accuracy is a tenth of an SE. `analyses/05` found a learned stack
+  difference in exact accuracy is a tenth of an SE. `analyses/10` found a learned stack
   added nothing over a vote; this shows the same is true of the continuous quantity the
   stack was throwing away, which closes off that explanation.
 
