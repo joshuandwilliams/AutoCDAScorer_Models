@@ -69,6 +69,11 @@ def main():
         help="which models/06 array task's generator to sample from",
     )
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument(
+        "--train-only",
+        action="store_true",
+        help="build from the train partition alone, reproducing the original pool",
+    )
     args = p.parse_args()
 
     res = pd.read_csv(CGAN_RUN / "cgan_results.csv")
@@ -91,6 +96,25 @@ def main():
         ensemble_ratio=0.15,
         seed=42,
     )
+    # Pool train+val, as models/03, 04 and 05 do via base_dataset.combine_train_val. The
+    # first build of this pool used the train partition alone, which left the 455
+    # validation crops unused and made the augmented runs incomparable with the
+    # unaugmented grids: they folded over different sets of real crops. --train-only
+    # reproduces that original pool.
+    if args.train_only:
+        split_images = split["train_images"]
+        split_labels = split["train_labels"]
+        split_filepaths = split["train_filepaths"]
+    else:
+        split_images = np.concatenate((split["train_images"], split["val_images"]), axis=0)
+        split_labels = np.concatenate((split["train_labels"], split["val_labels"]), axis=0)
+        split_filepaths = np.concatenate((split["train_filepaths"], split["val_filepaths"]), axis=0)
+    split = {
+        **split,
+        "train_images": split_images,
+        "train_labels": split_labels,
+        "train_filepaths": split_filepaths,
+    }
     y = np.asarray(split["train_labels"]).astype(int)
     names = np.array([Path(str(f)).name for f in split["train_filepaths"]])
     print(f"full train split: {len(y)} crops, per class {np.bincount(y).tolist()}")

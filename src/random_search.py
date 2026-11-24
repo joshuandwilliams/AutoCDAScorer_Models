@@ -147,6 +147,13 @@ class RandomSearch:
         # the augmentation rather than about severity, which the pooled number would hide.
         val_acc_orig_fold, val_acc_aug_fold = [], []
         train_acc_orig_fold, train_acc_aug_fold = [], []
+        # Class-normalised accuracy over the REAL crops of the validation fold: the mean of
+        # the seven per-class accuracies rather than the pooled one. The real crops carry
+        # the training partition's own imbalance (42.6% score 0 in the class-0-matched
+        # pool), so the pooled avg_vaf_orig rewards being good at the class the balanced
+        # test split barely contains. Macro-averaging removes that without discarding the
+        # copies from the pooled avg_vaf the run is ranked on.
+        val_acc_orig_macro_fold, val_acc_aug_macro_fold, val_acc_macro_fold = [], [], []
         val_nearmiss_fold, val_qwk_fold = [], []
         val_acc_epoch, train_acc_epoch = [], []
         confusion_matrices = []
@@ -198,6 +205,27 @@ class RandomSearch:
                 train_acc_orig_fold.append(_split(train_preds == y_train, ~ta))
                 train_acc_aug_fold.append(_split(train_preds == y_train, ta))
 
+                def _macro(mask, val_preds=val_preds, y_val=y_val):
+                    """Mean of the per-class accuracies over a subset of the fold.
+
+                    The pooled accuracy over the same subset is dominated by whichever
+                    class is largest in it: the real crops of the class-0-matched pool are
+                    42.6% score 0, and the augmented crops of that pool contain no score 0
+                    at all. Averaging the seven class accuracies puts both on the balanced
+                    test split's class mix, so the real and augmented halves can be read
+                    against each other and against test accuracy.
+                    """
+                    per_class = [
+                        _split(val_preds == y_val, mask & (y_val == c))
+                        for c in class_labels
+                        if (mask & (y_val == c)).any()
+                    ]
+                    return float(np.mean(per_class)) if per_class else float("nan")
+
+                val_acc_orig_macro_fold.append(_macro(~va))
+                val_acc_aug_macro_fold.append(_macro(va))
+                val_acc_macro_fold.append(_macro(np.ones_like(va, dtype=bool)))
+
             val_acc_fold.append(acc)
             train_acc_fold.append(tacc)
             val_nearmiss_fold.append(near_miss_accuracy(y_val, val_preds))
@@ -229,6 +257,9 @@ class RandomSearch:
             "val_acc_fold": val_acc_fold,
             "train_acc_fold": train_acc_fold,
             "val_acc_orig_fold": val_acc_orig_fold,
+            "val_acc_orig_macro_fold": val_acc_orig_macro_fold,
+            "val_acc_aug_macro_fold": val_acc_aug_macro_fold,
+            "val_acc_macro_fold": val_acc_macro_fold,
             "val_acc_aug_fold": val_acc_aug_fold,
             "train_acc_orig_fold": train_acc_orig_fold,
             "train_acc_aug_fold": train_acc_aug_fold,
@@ -374,6 +405,9 @@ class RandomSearch:
                 **(
                     {
                         "avg_vaf_orig": float(np.nanmean(cv["val_acc_orig_fold"])),
+                        "avg_vaf_orig_macro": float(np.nanmean(cv["val_acc_orig_macro_fold"])),
+                        "avg_vaf_aug_macro": float(np.nanmean(cv["val_acc_aug_macro_fold"])),
+                        "avg_vaf_macro": float(np.nanmean(cv["val_acc_macro_fold"])),
                         "avg_vaf_aug": float(np.nanmean(cv["val_acc_aug_fold"])),
                         "avg_taf_orig": float(np.nanmean(cv["train_acc_orig_fold"])),
                         "avg_taf_aug": float(np.nanmean(cv["train_acc_aug_fold"])),
