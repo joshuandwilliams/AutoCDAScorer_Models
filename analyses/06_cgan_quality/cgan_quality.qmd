@@ -14,8 +14,9 @@ Date: 10/09/2026
 `models/06_Medoid_CGAN` trained 64 conditional GANs and recorded one number for each, the
 best Fréchet CDA distance. That number alone cannot show whether a generator is good. There
 is nothing to compare it with, and it is the **minimum of 100 noisy evaluations**, not a
-typical value. This document adds what is missing: the training curves the run did not
-plot, a reference distance for real data, and generated crops next to real ones.
+typical value. This document adds three things the run did not produce. These are the
+training curves, a reference distance for real data, and generated crops next to real
+ones.
 
 ```{python}
 # 1
@@ -152,6 +153,25 @@ print(f"\nreal-data reference: {np.median(real_ref):.3f} "
       f"({real_ref.min():.3f}-{real_ref.max():.3f})")
 ```
 
+```{python}
+# 4b
+# The best config's trend from later and later starting epochs, and the mean best Frechet
+# distance at each level of every searched hyperparameter.
+for start in (1000, 1500, 2000, 2500, 3000):
+    _g = fcd_pts[fcd_pts.epoch > start]
+    print(f"config {BEST} from epoch {start}: trend "
+          f"{np.polyfit(_g.epoch, _g.fcd, 1)[0] * 1000:+.2f} per 1000 epochs, sd {_g.fcd.std():.2f}")
+_g = fcd_pts[fcd_pts.epoch > 2000]
+print(f"fitted decline from epoch 2000 over the remaining 3000 epochs: "
+      f"{-np.polyfit(_g.epoch, _g.fcd, 1)[0] * 3000:.2f}")
+print()
+for c in ["lr_ratio_d", "learning_rate", "beta_1", "generator_filters", "disc_dropout",
+          "label_smoothing"]:
+    print(f"{c:18s}", res.groupby(c).best_fcd.mean().round(2).to_dict())
+print("lr_ratio_d among the ten best configs:",
+      res.nsmallest(10, "best_fcd").lr_ratio_d.value_counts().to_dict())
+```
+
 ## 4. The crops themselves
 
 ```{python}
@@ -242,7 +262,7 @@ plt.show()
 ## 6. Testing four specific complaints about the samples
 
 Four things in the grid above look wrong. Each can be measured, and two of them turn out
-not to be what is really happening.
+not to be what is happening.
 
 ```{python}
 # 7
@@ -345,12 +365,33 @@ because of the uniform background, not because of the lesion.
 **The vein-like marks are real texture in the wrong arrangement.** Edge energy is, if
 anything, slightly higher in generated crops (0.120 against 0.110), so detail is not
 missing. What differs is how the marks connect. The largest connected ridge holds 11.1% of
-ridge pixels in real crops and 8.0% in generated ones. Its elongation is 2.49 against 2.09,
-and the marks break into 144 pieces against 121. The generator makes contrast like veins,
-but not the long runs that veins form.
+ridge pixels in real crops and 8.0% in generated ones. Its elongation is 2.48 against
+2.09. The marks break into 121 pieces in real crops and 144 in generated ones. The
+generator makes contrast like veins, but not the long runs that veins form.
+
+```{python}
+# 7b
+# Circles found by a Hough transform, at four detector settings, on the same crops.
+def _circles(X, **kw):
+    n = []
+    for x in X:
+        g = (np.clip(x.mean(2), 0, 1) * 255).astype(np.uint8)
+        c = cv.HoughCircles(cv.medianBlur(g, 3), cv.HOUGH_GRADIENT, **kw)
+        n.append(0 if c is None else c.shape[1])
+    return np.mean(n)
+
+
+for _kw in [dict(dp=1, minDist=16, param1=100, param2=20, minRadius=8, maxRadius=30),
+            dict(dp=1, minDist=20, param1=50, param2=30, minRadius=5, maxRadius=32),
+            dict(dp=1, minDist=16, param1=60, param2=18, minRadius=10, maxRadius=32),
+            dict(dp=1.2, minDist=20, param1=100, param2=20, minRadius=8, maxRadius=32)]:
+    print(f"circles per crop, real {_circles(R, **_kw):.2f}, generated "
+          f"{_circles(Gn, **_kw):.2f}   ({_kw})")
+```
 
 **Ring damage from the pipette cannot be measured here.** A Hough circle transform finds
-0.42 circles per real crop and 0.65 per generated crop, which is the wrong direction. The
+more circles in generated crops than in real ones at all four detector settings, 0.53
+against 0.77 at the first. That is the wrong direction. The
 likely reason is that a roughly round lesion outline is itself a circle, and the generated
 lesions are rounder. Telling ring damage from a lesion outline needs annotation this
 dataset does not have. So nothing here supports or rules out the observation.
@@ -506,7 +547,7 @@ latent draws, the saved checkpoint scores 3.727 to 4.142. A real held-out sample
 size scores 2.705 to 3.597. The two ranges do not overlap, so the gap is real and not
 sampling noise. But it is small, about a quarter of the way from real data to nothing.
 
-**The saved checkpoint really is better than a typical epoch, not a lucky evaluation.**
+**The saved checkpoint is better than a typical epoch, not a lucky evaluation.**
 This mattered because `best_fcd` is the minimum of 100 noisy evaluations. After epoch 3000
 the plateau has a standard deviation of 1.21, so the minimum of 100 draws would fall well
 below the mean by chance alone. The new evaluation above checks this. If the recorded 3.659
@@ -516,9 +557,9 @@ rule for choosing the epoch found a real improvement.
 **The limit on epochs did not hold training back. Config 48 is flat from about epoch
 2,000.** Measured from later and later starting points, the trend is -0.61, -0.57, -0.33,
 -0.06 and -0.18 per 1,000 epochs, starting at epochs 1,000, 1,500, 2,000, 2,500 and 3,000.
-The standard deviation between consecutive points is 1.1 to 1.6 throughout. From epoch
+The standard deviation of the evaluations after each start is 1.1 to 1.6. From epoch
 2,000, the fitted decline over the remaining 3,000 epochs is about 1.0. That is smaller than
-the noise between consecutive evaluations, so it cannot be told from flat. Of the top six
+the evaluation noise, so it cannot be told from flat (section 3). Of the top six
 configs, only 42 has a trend clearly larger than its own noise. Training for longer would
 not help.
 
@@ -539,7 +580,9 @@ lesion running off the edge of a leaf, or a long thin one.
 
 **One hyperparameter clearly mattered.** All ten best configs used `lr_ratio_d = 4.0`,
 with the discriminator learning four times faster than the generator. The mean Fréchet
-distance is 4.71 at that setting, against 13.27 at 1.0. Nothing else separates as cleanly,
-including beta_1, dropout, label smoothing and generator width. This is worth reporting,
-because the original grid fixed this axis at 1.0 and so could not have found it.
+distance is 4.71 at that setting, against 13.27 at 1.0. This is the largest gap of any
+searched hyperparameter. The next largest are learning rate (6.26 at 1e-4 against 11.72 at
+1e-5), beta_1 (6.93 at 0.5 against 11.04 at 0.9) and generator width (6.97 against 11.00),
+all in section 3. The grid includes this axis to test the two time-scale update rule of
+Heusel et al. 2017 (arXiv:1706.08500).
 

@@ -14,63 +14,63 @@ Date: 09/09/2026
 **Goal:**
 
 Repeat `analyses/12` for the Vision Transformer. Take the top ViT from the Medoid-ViT
-grid, produce three attribution maps — **Chefer relevance**, **attention rollout** and
-**SHAP** — and measure how much of each falls inside the Otsu-segmented cell death area,
-using the identical masks, metrics and null models as the CNN analysis so the two are
-directly comparable.
+grid and produce three attribution maps. These are **Chefer relevance**, **attention
+rollout** and **SHAP**. Measure how much of each map falls inside the Otsu-segmented cell
+death area. Use the same masks, metrics and null models as the CNN analysis, so the two
+can be compared directly.
 
 **Hypotheses:**
 
-1. Attention will sit on the lesion more than the uniform baseline, but not more than a
-   centred Gaussian, exactly as for the CNN. The crop geometry that produced that result
-   is a property of the data, not of the architecture.
-2. The shuffled-mask permutation gap — the part that genuinely tracks *this* lesion —
-   will be comparable to the CNN's +0.0218, because both models reach the same accuracy
-   (`analyses/04`: 0.6466 vs 0.6457 `avg_vaf`, difference 0.06 SE).
-3. Chefer relevance will localise better than plain attention rollout. Rollout is
-   class-agnostic — it produces the same map whatever class you ask about — so it cannot
-   be measuring evidence for the predicted score.
-4. The ViT will not suffer the CNN's resolution problem. `analyses/12` found Grad-CAM's
-   pointing game *below* chance because the last conv layer is 4x4, giving a 16-value
-   map. The ViT's attention is over a 16x16 patch grid, 16x more spatial detail.
+1. Attention will sit on the lesion more than the uniform baseline but not more than a
+   centred Gaussian, as for the CNN. The crop geometry behind that result belongs to the
+   data, not to the architecture.
+2. The shuffled-mask permutation gap will be close to the CNN's +0.0143. This gap is the
+   part of the map that follows *this* lesion. The ViT and CNN grids reach the same
+   accuracy. `analyses/04` gives 0.6466 `avg_vaf` for the best ViT and 0.6457 for the
+   best unaugmented CNN, a difference of 0.06 SE.
+3. Chefer relevance will localise better than plain attention rollout. Rollout ignores
+   the class. It produces the same map whichever class is asked about, so it cannot
+   measure evidence for the predicted score.
+4. The ViT will not have the CNN's resolution problem. `analyses/12` found Grad-CAM's
+   pointing game *below* chance, because the last conv layer is 4x4 and gives a map of 16
+   values. The ViT's attention covers a 16x16 patch grid, with 16x more spatial detail.
 
 **Rationale:**
 
-`analyses/04` showed the two architectures are indistinguishable on accuracy but agree
-with each other much less than they agree internally (0.710 cross-class pairwise
-agreement against 0.779 within CNNs), and that 9 test images are solved by some ViT that
-no CNN gets right. Equal accuracy with different errors means they are using the image
-differently, and attribution is the direct way to see how.
+`analyses/04` showed that the two architectures have the same accuracy. `analyses/11`
+(section 4.4) showed that they agree with each other much less than within each
+architecture. Pairwise agreement is 0.710 across architectures against 0.779 within
+CNNs. Some ViT scores 9 test images correctly that no CNN gets right. Equal accuracy with different errors means the two use the image
+differently. Attribution shows how.
 
-Holding the masks, metrics and nulls fixed from `analyses/12` is what makes the
-comparison meaningful. Any difference is then attributable to the model, not to the
-evaluation.
+The masks, metrics and nulls are kept the same as in `analyses/12`. Any difference then
+comes from the model, not from the evaluation.
 
-**Method choice, stated plainly.** The method here is the **ICCV 2021** rule of Chefer,
-Gur & Wolf (*Generic Attention-model Explainability for Interpreting Bi-Modal and
-Encoder-Decoder Transformers*, arXiv:2103.15679), **not** the CVPR 2021 paper
-(*Transformer Interpretability Beyond Attention Visualization*, arXiv:2012.09838). The
-CVPR method's Eq 13 is
+**Which method.** The method here is the **ICCV 2021** rule of Chefer, Gur & Wolf
+(*Generic Attention-model Explainability for Interpreting Bi-Modal and Encoder-Decoder
+Transformers*, arXiv:2103.15679). It is **not** the CVPR 2021 paper (*Transformer
+Interpretability Beyond Attention Visualization*, arXiv:2012.09838). The CVPR method's
+Eq 13 is
 
 $$\bar{A}^{(b)} = I + \mathbb{E}_h\left(\nabla A^{(b)} \odot R^{(n_b)}\right)^+$$
 
-where $R^{(n_b)}$ is a **layer-wise relevance propagation** score obtained by deep Taylor
-decomposition. Their reference implementation obtains it by calling `model.relprop(...)`,
-which requires a ViT in which every layer implements its own `relprop` — they ship one
-(`ViT_LRP.py`). Our model is stock Keras layers with no such method, so the CVPR rule is
-not available without reimplementing LRP for `Conv2D`, `Dense`, `LayerNormalization`,
+where $R^{(n_b)}$ is a **layer-wise relevance propagation** score from deep Taylor
+decomposition. Their reference implementation gets it by calling `model.relprop(...)`.
+That needs a ViT in which every layer implements its own `relprop`, and they ship one
+(`ViT_LRP.py`). Our model uses stock Keras layers, which have no such method. The CVPR
+rule would need LRP to be reimplemented for `Conv2D`, `Dense`, `LayerNormalization`,
 `Add` and the attention softmax.
 
-The ICCV rule replaces $R^{(n_b)}$ with the attention matrix itself. From the authors'
-own implementation (`Transformer-MM-Explainability`, `DETR/modules/ExplanationGenerator.py`),
-"rule 5" is `cam = (grad * cam).clamp(min=0).mean(dim=0)`, and rules 6+7 accumulate
+The ICCV rule replaces $R^{(n_b)}$ with the attention matrix itself. In the authors' own
+implementation (`Transformer-MM-Explainability`, `DETR/modules/ExplanationGenerator.py`),
+"rule 5" is `cam = (grad * cam).clamp(min=0).mean(dim=0)`. Rules 6+7 accumulate
 `R = R + cam @ R`. That is what is implemented below, and it is cited as the ICCV paper
 throughout.
 
 **Experimental plan:**
 
-1. Load the top ViT, verify it reproduces its recorded test accuracy, and verify the
-   attention-tapping forward pass reproduces the saved model's predictions.
+1. Load the top ViT and check that it reproduces its recorded test accuracy. Check that
+   the forward pass that reads out attention reproduces the saved model's predictions.
 2. Compute Chefer relevance, attention rollout and SHAP for every test crop with score >= 1.
 3. Score all three against the same Otsu masks used in `analyses/12`.
 4. Apply the same two nulls: a centred Gaussian, and the shuffled-mask permutation.
@@ -109,7 +109,7 @@ import model_builders  # noqa: E402,F401  (registers ClassToken etc. for load_mo
 HERE = repo_root / "analyses" / "13_vit_attention_vs_lesion"
 CACHE = HERE / "attr_cache"
 CACHE.mkdir(exist_ok=True)
-# The masks are shared with analyses/06: same medoid crops, same test split, same
+# The masks are shared with analyses/12: same medoid crops, same test split, same
 # segmentation. Regenerating them here would risk the two analyses diverging.
 MASK_DIR = repo_root / "analyses" / "12_cnn_attention_vs_lesion" / "mask_cache" / "masks"
 
@@ -168,12 +168,12 @@ assert abs(acc - row.test_acc) < 1e-6, "loaded model does not reproduce its reco
 ## 2. Extracting attention
 
 Keras 3 does not expose `MultiHeadAttention`'s attention scores as a node in a functional
-graph — building a `keras.Model` with them as an output raises *"Output with path `1` is
+graph. Building a `keras.Model` with them as an output raises *"Output with path `1` is
 not connected to `inputs`"*. The forward pass is therefore re-run **eagerly** from the
-saved model's own layer objects, which carry the trained weights. `training=False` makes
-the Dropout layers no-ops, matching inference.
+saved model's own layer objects, which carry the trained weights. `training=False` turns
+off the Dropout layers, as at inference.
 
-This is only trustworthy if it computes the same function as the saved model, so that is
+This can only be trusted if it computes the same function as the saved model. That is
 asserted before anything is derived from it.
 
 ```{python}
@@ -226,10 +226,10 @@ assert np.allclose(_out.numpy(), _ref, atol=1e-5)
 ### 3.1 Chefer relevance (ICCV 2021)
 
 Rule 5 weights each block's attention by the gradient of the target logit with respect to
-it, keeps the positive part, and averages over heads. Rules 6+7 accumulate the result
-across blocks starting from the identity, which is what carries the residual connections.
-The explanation for an image is the CLS token's row of the final relevance matrix,
-restricted to the patch tokens.
+it. It keeps the positive part and averages over heads. Rules 6+7 accumulate the result
+across blocks, starting from the identity. The identity carries the residual
+connections. The explanation for an image is the CLS token's row of the final relevance
+matrix, restricted to the patch tokens.
 
 ```{python}
 # 3.1
@@ -261,10 +261,10 @@ def chefer_relevance(images, class_idx, batch=16):
 
 ### 3.2 Attention rollout (Abnar & Zuidema 2020)
 
-The class-agnostic baseline the Chefer paper compares against, its Eq 16:
-$\hat{A}^{(b)} = I + \mathbb{E}_h A^{(b)}$, row-normalised and multiplied across blocks.
-It uses no gradient and no class, so it produces one map per image regardless of which
-score is being explained.
+This is the baseline the Chefer paper compares against. It ignores the class. Its Eq 16
+is $\hat{A}^{(b)} = I + \mathbb{E}_h A^{(b)}$, normalised by row and multiplied across
+blocks. It uses no gradient and no class. It produces one map per image, whichever score
+is being explained.
 
 ```{python}
 # 3.2
@@ -285,15 +285,16 @@ def attention_rollout(images, batch=16):
 
 ### 3.3 SHAP
 
-`shap.DeepExplainer` **cannot** be used here: it implements DeepLIFT by overriding
-TensorFlow op gradients with `shap_`-prefixed handlers, and it has no handler for the
-`Neg` op the ViT's LayerNormalization introduces, failing with
+`shap.DeepExplainer` **cannot** be used here. It implements DeepLIFT by overriding
+TensorFlow op gradients with handlers prefixed `shap_`. It has no handler for the `Neg`
+op that the ViT's LayerNormalization introduces. It fails with
 `LookupError: gradient registry has no entry for: shap_Neg`. `GradientExplainer`
 (expected gradients) needs only gradients and works on both architectures. `analyses/12`
-used `DeepExplainer` for the CNN, so for the cross-architecture comparison in section 7
-the CNN's SHAP is **recomputed here with `GradientExplainer`**, on the same background
-draw, rather than reusing that cache. Comparing a DeepLIFT map against an
-expected-gradients map would confound the architecture with the explainer.
+used `DeepExplainer` for its CNN, model 6848. So for the comparison between
+architectures in section 7, that same model's SHAP is **recomputed here with
+`GradientExplainer`** on the same background draw. The cache from `analyses/12` is not
+reused. Comparing a DeepLIFT map with an expected-gradients map
+would mix up the effect of the architecture with the effect of the explainer.
 
 ```{python}
 # 3.3
@@ -330,9 +331,9 @@ print("Chefer:", chefer_all.shape, " rollout:", rollout_all.shape, " SHAP:", sha
 
 ### 3.4 Bringing all three to 64x64
 
-Chefer and rollout live on the 16x16 patch grid and are upsampled to the input
-resolution. SHAP is already per pixel, and is summed over colour channels with the
-positive part kept, exactly as in `analyses/12`.
+Chefer and rollout are on the 16x16 patch grid and are upsampled to the input
+resolution. SHAP is already per pixel. It is summed over colour channels and its positive
+part kept, as in `analyses/12`.
 
 ```{python}
 # 3.4
@@ -361,8 +362,8 @@ for k, v in MAPS.items():
 
 ## 4. Masks and overlap metrics
 
-Identical to `analyses/12`: the same mask files, the same three metrics, the same
-matched-area binarisation.
+These are the same as in `analyses/12`. The mask files, the three metrics and the
+matched-area binarisation are all unchanged.
 
 ```{python}
 # 4.1
@@ -379,7 +380,7 @@ area = masks.reshape(len(masks), -1).mean(axis=1)
 print(f"analysis set: {sel.sum()} test crops with score >= 1 and a mask")
 print(f"lesion area fraction: mean {area[sel].mean():.4f}")
 
-# Orientation check, as in analyses/06 section 3.2. Greenness is G - R; the crops are
+# Orientation check, as in analyses/12 section 3.2. Greenness is G - R; the crops are
 # BGR, so that is channel 1 minus channel 2.
 green = X_test[..., 1] - X_test[..., 2]
 seps = {}
@@ -579,22 +580,23 @@ for k, v in agree.items():
 
 ```{python}
 # 7.2
-# analyses/12 names its metrics file after the CNN it explains: the top model by
-# avg_vaf_orig in the geometric-augmentation grid. Resolve it the same way.
-_geo = pd.read_csv(repo_root / "models" / "07_Medoid_CNN_GeomAug" / "01_MatchLargestClass" /
-                   "random_search_results.csv").drop_duplicates("model_id")
+# analyses/12 explains one CNN, the top model by avg_vaf_orig in the geometric-augmentation
+# grid, and names its cache files after it. Resolve it the same way. Every CNN number below
+# comes from this one model, so the comparison with the ViT changes only the architecture.
+CNN_SEARCH = repo_root / "models" / "07_Medoid_CNN_GeomAug" / "01_MatchLargestClass"
+_geo = pd.read_csv(CNN_SEARCH / "random_search_results.csv").drop_duplicates("model_id")
 CNN_ID = int(_geo.dropna(subset=["avg_vaf_orig"])
              .sort_values("avg_vaf_orig", ascending=False).iloc[0].model_id)
 cnn_metrics_path = (repo_root / "analyses" / "12_cnn_attention_vs_lesion" /
                     "attr_cache" / f"overlap_metrics_{CNN_ID}.csv")
 cnn_m = pd.read_csv(cnn_metrics_path)
 merged = cnn_m.merge(metrics, on="image_id", suffixes=("_cnn", "_vit"))
-print(f"images shared with analyses/06: {len(merged)}")
+print(f"CNN model_id {CNN_ID}, images shared with analyses/12: {len(merged)}")
 
 comp = pd.DataFrame({
     "CNN Grad-CAM": [cnn_m.cam_ebpg.mean(), (cnn_m.cam_ebpg - cnn_m.lesion_fraction).mean(),
                      cnn_m.cam_point.mean()],
-    "CNN SHAP": [cnn_m.shap_ebpg.mean(), (cnn_m.shap_ebpg - cnn_m.lesion_fraction).mean(),
+    "CNN SHAP (Deep)": [cnn_m.shap_ebpg.mean(), (cnn_m.shap_ebpg - cnn_m.lesion_fraction).mean(),
                  cnn_m.shap_point.mean()],
     "ViT Chefer": [metrics.Chefer_ebpg.mean(), metrics.Chefer_lift.mean(),
                    metrics.Chefer_point.mean()],
@@ -605,18 +607,21 @@ comp = pd.DataFrame({
 }, index=["EBPG", "EBPG lift", "pointing game"]).round(4)
 print("\n" + comp.to_string())
 
-# Do the two architectures attend to the same pixels on the same image? The CNN's SHAP is
-# recomputed with GradientExplainer so both sides use the same explainer.
-CNN_SHAP_CACHE = CACHE / "cnn_gradientexplainer_shap.npz"
-CNN_SEARCH = repo_root / "models" / "03_Medoid_CNN_RandomSearch" / "01_Categorical_Loss"
+# Do the two architectures attend to the same pixels on the same image? The same CNN's
+# SHAP is recomputed with GradientExplainer, on the background draw of analyses/12 and
+# section 3.3, so both sides use the same explainer.
+CNN_SHAP_CACHE = CACHE / f"cnn_gradientexplainer_shap_{CNN_ID}.npz"
+cnn_preds = np.load(repo_root / "analyses" / "12_cnn_attention_vs_lesion" / "attr_cache" /
+                    f"attributions_{CNN_ID}.npz")["preds"]
 if CNN_SHAP_CACHE.exists():
-    cnn_shap_raw = np.load(CNN_SHAP_CACHE)["shap"]
+    _z = np.load(CNN_SHAP_CACHE)
+    cnn_shap_raw = _z["shap"]
+    assert np.array_equal(_z["preds"], cnn_preds), "cache is stale: predictions changed"
 else:
-    _cres = pd.read_csv(CNN_SEARCH / "random_search_results.csv")
-    _cid = int(_cres.sort_values("avg_vaf", ascending=False).iloc[0].model_id)
     cnn_model = keras.models.load_model(
-        next((CNN_SEARCH / "results").glob(f"*_{_cid}")) / "model.keras")
-    cnn_preds = np.argmax(cnn_model.predict(X_test, verbose=0), axis=1)
+        next((CNN_SEARCH / "results").glob(f"*_{CNN_ID}")) / "model.keras")
+    assert np.array_equal(np.argmax(cnn_model.predict(X_test, verbose=0), axis=1),
+                          cnn_preds), "CNN does not reproduce the predictions of analyses/12"
     rng2 = np.random.default_rng(42)
     bg2 = X_train[rng2.choice(len(X_train), N_BACKGROUND, replace=False)]
     sv2, idx2 = shap.GradientExplainer(cnn_model, bg2).shap_values(
@@ -624,7 +629,7 @@ else:
     sv2 = np.asarray(sv2)
     assert np.array_equal(np.asarray(idx2).ravel(), cnn_preds)
     cnn_shap_raw = sv2[..., 0] if sv2.ndim == 5 else sv2
-    np.savez_compressed(CNN_SHAP_CACHE, shap=cnn_shap_raw)
+    np.savez_compressed(CNN_SHAP_CACHE, shap=cnn_shap_raw, preds=cnn_preds)
 
 cnn_shap = normalise(np.maximum(cnn_shap_raw.sum(axis=-1), 0))
 xs = []
@@ -635,69 +640,86 @@ for gi in si:
 xs = np.array(xs)
 print(f"\nCNN SHAP vs ViT SHAP (both GradientExplainer), same image, pixelwise "
       f"correlation:\n  median {np.median(xs):+.3f}, negative in {int((xs<0).sum())}/{len(xs)}")
-print(f"  CNN GradientExplainer EBPG: {np.nanmean(ebpg(cnn_shap[sel], masks[sel])):.4f}"
-      f"  (analyses/06 DeepExplainer gave {cnn_m.shap_ebpg.mean():.4f})")
+cnn_ge_ebpg = ebpg(cnn_shap[sel], masks[sel])
+print(f"  CNN GradientExplainer EBPG: {np.nanmean(cnn_ge_ebpg):.4f}"
+      f"  (DeepExplainer on the same model in analyses/12 gave {cnn_m.shap_ebpg.mean():.4f})")
+
+# The shuffled-mask null of section 5.2, applied to the CNN's GradientExplainer map, so the
+# lesion-specific gap is measured with the same explainer for both architectures.
+rng_cnn = np.random.default_rng(0)
+_draws = []
+for _ in range(20):
+    p = rng_cnn.permutation(n_sel)
+    sp = p == np.arange(n_sel)
+    p[sp] = (p[sp] + 1) % n_sel
+    _draws.append(ebpg(cnn_shap[sel], msel[p]))
+_d = cnn_ge_ebpg - np.nanmean(_draws, axis=0)
+_d = _d[~np.isnan(_d)]
+vit_gap = perm_df.set_index("method").loc["SHAP", "difference"]
+print(f"\nshuffled-mask gap, GradientExplainer for both: ViT {vit_gap:+.4f}, "
+      f"CNN {_d.mean():+.4f} (own > shuffled {int((_d > 0).sum())}/{len(_d)}, "
+      f"Wilcoxon p = {wilcoxon(_d, alternative='greater').pvalue:.2g})")
 ```
 
 ---
 
 ## 8. Interpretation and Discussion
 
-- **The ViT's attention tracks the specific lesion about four times more strongly than
-  the CNN's.** This is the headline, and it comes from the only test that controls for
-  the crop geometry. Scoring each map against a *different* crop's lesion holds size and
-  centrality fixed, so the own-minus-shuffled gap is the part that responds to the lesion
-  actually present. ViT SHAP gains **+0.097 EBPG** over that null (p = 6e-22, better on
-  212 of 264 crops) against the CNN's **+0.0218** in `analyses/12`. Same explainer, same
-  masks, same metric, same crops -- so this is an architecture difference, not a
-  measurement one.
+- **The ViT's attention follows the specific lesion about three times more strongly than
+  the CNN's.** This is the main result. It comes from the only test that controls for the
+  crop geometry. Scoring each map against a *different* crop's lesion keeps size and
+  position fixed. The gap between own and shuffled is therefore the part that responds
+  to the lesion actually present. ViT SHAP gains **+0.098 EBPG** over that null
+  (p = 5e-22, better on 216 of 264 crops). The CNN from `analyses/12`, explained with
+  the same `GradientExplainer`, gains **+0.030** (p = 9e-8, better on 182 of 264). Same
+  explainer, same masks, same metric, same crops. So this is a difference between
+  architectures, not between measurements. With `DeepExplainer`, `analyses/12` found a
+  gap of +0.0143 for the same CNN.
 
-- **The raw overlap numbers still say nothing on their own.** ViT SHAP puts 73.2% of its
-  attention inside the lesion against a 45.2% uniform baseline, which looks decisive until
-  a centred Gaussian at sigma = 12 px -- a fixed blob that never sees the image -- scores
-  **0.821**, beating all three ViT methods. The crop is the scorer's box drawn around the
-  lesion, so centre-bias alone buys most of the apparent agreement, exactly as for the CNN.
-  Hypothesis 1 holds.
+- **The raw overlap numbers mean nothing on their own.** ViT SHAP puts 73.1% of its
+  attention inside the lesion, against a uniform baseline of 45.2%. That looks decisive.
+  But a centred Gaussian at sigma = 12 px scores **0.821** and beats all three ViT
+  methods. The Gaussian is a fixed blob that never sees the image. The crop is the
+  scorer's box drawn around the lesion. A bias towards the centre therefore explains most
+  of the apparent agreement, as it did for the CNN. Hypothesis 1 holds.
 
-- **Chefer relevance is beaten by plain attention rollout on every measure, which
-  falsifies hypothesis 3.** Rollout reaches EBPG 0.556 against Chefer's 0.475, lift +0.104
-  against +0.023, pointing game 0.924 against 0.591, and matched-area IoU 0.516 against
-  0.287. The prediction was that rollout, being class-agnostic, could not be measuring
-  evidence for the predicted score and so should localise worse. It localises better.
+- **Plain attention rollout beats Chefer relevance on every measure. This falsifies
+  hypothesis 3.** Rollout reaches EBPG 0.556 against Chefer's 0.475, and lift +0.104
+  against +0.023. Its pointing game is 0.924 against 0.591, and its matched-area IoU
+  0.516 against 0.287. The prediction was that rollout ignores the class, so it cannot
+  measure evidence for the predicted score and should localise worse. It localises
+  better.
 
-  The mechanism I can name is that the ICCV rule multiplies attention by its gradient and
-  keeps the positive part. On a model whose predictions are already close to saturated,
-  those gradients are small and noisy, so the product amplifies gradient noise while
-  rollout uses the attention weights directly. What I cannot say from this analysis is
-  whether the full CVPR method -- which uses an LRP relevance in place of the attention
-  matrix, and which is not implementable on stock Keras layers -- would behave the same
-  way. That is a real limitation of substituting the ICCV variant.
+  The ICCV rule multiplies attention by its gradient and keeps the positive part. When a
+  model's predictions are close to saturated, those gradients are small and noisy. The
+  product then amplifies gradient noise. Rollout uses the attention weights directly.
+  This analysis cannot say whether the full CVPR method would behave the same way. That
+  method uses an LRP relevance in place of the attention matrix and cannot be built from
+  stock Keras layers. This is a real limit of using the ICCV variant instead.
 
-- **The ViT does not have the CNN's resolution failure, confirming hypothesis 4.**
-  `analyses/12` found Grad-CAM's pointing game at **0.341**, below the 0.452 area
-  baseline, because the last conv layer is 4x4 and its argmax can only sit at one of 16
-  lattice points. The ViT's attention is over a 16x16 patch grid, and both attention
-  methods clear the baseline comfortably (rollout 0.924, Chefer 0.591). Any Grad-CAM
-  result on a network with a tiny final feature map should be read with that in mind.
+- **The ViT does not have the CNN's resolution failure. This confirms hypothesis 4.**
+  `analyses/12` found Grad-CAM's pointing game at **0.250**, below the area baseline of
+  0.452. The last conv layer is 4x4, so its argmax can only sit at one of 16 grid points.
+  The ViT's attention covers a 16x16 patch grid. Both attention methods clear the
+  baseline easily (rollout 0.924, Chefer 0.591). Any Grad-CAM result on a network with a
+  tiny final feature map has this limit.
 
-- **The CNN result is robust to the explainer, which matters because the two analyses had
-  to use different ones.** `shap.DeepExplainer` cannot run on the ViT at all -- it fails
-  with `LookupError: gradient registry has no entry for: shap_Neg`, because DeepLIFT needs
-  a per-op handler and the ViT's LayerNormalization introduces `Neg`. Recomputing the CNN
-  with `GradientExplainer` gives EBPG **0.816** against DeepExplainer's 0.790, so the
-  choice moves the number by 2.6 pp and changes no conclusion.
+- **The CNN result holds under either explainer. This matters because the two analyses
+  had to use different ones.** `shap.DeepExplainer` cannot run on the ViT at all. It
+  fails with `LookupError: gradient registry has no entry for: shap_Neg`. DeepLIFT needs
+  a handler for each op, and the ViT's LayerNormalization introduces `Neg`. Recomputing
+  the same CNN with `GradientExplainer` gives EBPG **0.809**, against DeepExplainer's
+  0.792. The choice moves the number by 1.7 pp and changes no conclusion.
 
-- **The two architectures look at different pixels while both looking at the lesion.**
-  With the explainer held identical, CNN SHAP and ViT SHAP correlate at a median of only
-  **+0.115** per image. Both put most of their attention inside the mask, but not on the
-  same parts of it. That is a mechanism for the finding in `analyses/04` that the two
-  classes agree with each other less (0.710) than either agrees with itself (0.779 CNN,
-  0.753 ViT) while reaching identical accuracy, and it is the reason a mixed committee is
-  worth testing.
+- **The two architectures look at different pixels, though both look at the lesion.**
+  With the same explainer for both, CNN SHAP and ViT SHAP correlate at a median of only
+  **+0.160** per image. Both put most of their attention inside the mask, but on
+  different parts of it. This explains the finding in `analyses/11`. The two kinds of
+  model agree with each other less (0.710) than within each kind (0.779 CNN, 0.753 ViT),
+  with identical accuracy. It is also why a mixed committee is worth testing.
 
-- **Scope.** One ViT and one CNN, each the top of its grid. `analyses/08` showed the top
-  cluster is a noise plateau, so these are representative members rather than uniquely
-  best models, and nothing here establishes that the other 99 of each attend the same way.
-  Extending the permutation test across both kept top-100s would say whether the
-  four-fold difference in lesion specificity is an architecture property or a property of
-  these two models.
+- **Scope.** This covers one ViT and one CNN, each the top of its grid. `analyses/08`
+  showed that the top cluster is a noise plateau. These are typical members, not uniquely
+  best models. Nothing here shows that the other 99 of each attend the same way. Running
+  the permutation test across both kept top-100s would show whether the three-fold
+  difference in lesion specificity belongs to the architecture or to these two models.

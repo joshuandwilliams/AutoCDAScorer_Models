@@ -363,7 +363,7 @@ print(t.round(3).sort_values("brightness1.2", ascending=False).to_string())
 
 ### 6.2 A model built only on the gain-invariant features
 
-If the four features above really are unaffected by exposure, a model using only them
+If the four features above are unaffected by exposure, a model using only them
 should keep its accuracy when the gain changes. It should also not drift towards higher
 scores. Both can be tested directly.
 
@@ -441,7 +441,7 @@ flips and right-angle rotations cannot mislabel anything, because the label is p
 still correct. It also removes a kind of error that costs the model up to a fifth of its
 answers. These are the cheapest gain available here.
 
-### 7.3 Small geometry earns its place; large-angle rotation does not
+### 7.3 Small geometry earns its place, and large-angle rotation does not
 
 Rotation by 15 degrees, shear of 0.3 and a 20-pixel shift move the crop by 0.14 to 0.19
 of the spread within a class. They keep the label on 83 to 92 percent of crops. These are
@@ -463,7 +463,7 @@ Section 3 shows where it goes. It moves `frac_g_gt_r` by **1.12 standard deviati
 largest change in a single feature in the whole table. That feature is the segmented
 lesion area divided by the leaf area. Enlarging the sampled window adds healthy leaf
 around the lesion. So this augmentation changes the thing being measured, not irrelevant
-detail. Raters' bounding boxes really do disagree, so some zoom is justified. But it
+detail. Raters' bounding boxes do disagree, so some zoom is justified. But it
 should be a fraction of the size tested, 10 percent rather than 20.
 
 ### 7.5 Brightness must not be a fixed-label augmentation, and the reason is a confound
@@ -476,13 +476,53 @@ zero.
 
 The cause is a confound in the data. Three of the twelve features are absolute
 intensities: `leaf_bright`, `mean_green` and `cda_bright`. All three correlate with
-severity (rho 0.454, 0.682 and 0.702), because dying tissue really is brighter than
+severity (rho 0.454, 0.682 and 0.702), because dying tissue is brighter than
 healthy leaf. A global gain moves those three by 0.76 to 0.95 standard deviations. So
 brightening a crop moves it in the same direction as more severity. Telling the model
 the label has not changed tells it something false. That is why brightness 1.0 beat both
 0.8 and 1.2 in the earlier sensitivity run.
 
 ### 7.6 What to do about exposure shift instead
+
+```{python}
+# 7.6
+# The exposure test. A global gain on the training crops, scored by the top Base-CNN. Then
+# each gained crop is rescaled so its mean leaf brightness equals the training median.
+import keras  # noqa: E402
+
+CNN_DIR = repo_root / "models/03_Medoid_CNN_RandomSearch/01_Categorical_Loss"
+_res = pd.read_csv(CNN_DIR / "random_search_results.csv")
+_best = int(_res.sort_values("avg_vaf", ascending=False).iloc[0].model_id)
+_cnn = keras.models.load_model(next((CNN_DIR / "results").glob(f"*_{_best}")) / "model.keras")
+_ds = base_dataset.load_dataset(repo_root / "data/datasets/medoid_64/medoid_64.npy")
+_X = np.asarray(_ds["train_images"], dtype="float32")
+_y = np.asarray(_ds["train_labels"]).astype(int)
+_TOP = 255 / 256  # the largest value base_dataset's division by 256 can produce
+
+
+def _score(x):
+    p = _cnn.predict(x, batch_size=256, verbose=0).argmax(1)
+    return p.mean(), (p == _y).mean()
+
+
+def _leaf_brightness(x):
+    leaf = x.mean(-1) >= 0.15  # chapter2_features.leaf_mask
+    b = x.mean(-1)
+    return np.array([b[i][leaf[i]].mean() for i in range(len(x))])
+
+
+_target = np.median(_leaf_brightness(_X))
+_rows = [(f"gain {g}", *_score(np.clip(_X * g, 0, _TOP))) for g in (1.0, 1.2, 0.8)]
+for _clip in (True, False):
+    _xg = np.clip(_X * 1.2, 0, _TOP) if _clip else _X * 1.2
+    _xr = _xg * (_target / _leaf_brightness(_xg))[:, None, None, None]
+    _xr = np.clip(_xr, 0, _TOP) if _clip else _xr
+    _rows.append((f"gain 1.2, rescaled{'' if _clip else ', no clipping'}", *_score(_xr)))
+print(f"model {_best}, {len(_y)} training crops")
+print(pd.DataFrame(_rows, columns=["crops", "mean predicted score", "accuracy"])
+      .round(3).to_string(index=False))
+print(f"channel values saturated at a gain of 1.2: {100 * (_X * 1.2 > _TOP).mean():.1f}%")
+```
 
 The problem brightness augmentation was meant to prevent is real and reproducible. A
 gain of 1.2 on the training crops moves the top CNN's mean predicted score from 3.035 to
@@ -491,21 +531,23 @@ This matches what was reported for an external test set that the model scored al
 entirely as 6.
 
 **Rescaling each image to a fixed leaf brightness removes the bias but not the damage.**
-After rescaling, the mean predicted score returns to 2.94, so the consistent inflation is
-gone. But accuracy only recovers from 0.529 to 0.548, against 0.715 on unaltered crops.
-Clipping does not explain this. Only 2.6 percent of pixels saturate at a gain of 1.2, and
-repeating the test without clipping gives 0.549. The reason is the confound again. Forcing
+Each crop is rescaled to the median leaf brightness of the training crops. The mean
+predicted score then returns to 2.938, so the consistent inflation is gone. But accuracy
+only recovers from 0.529 to 0.546, against 0.715 on unaltered crops. Clipping does not
+explain this. Only 2.7 percent of channel values saturate at a gain of 1.2, and repeating
+the test without clipping gives 0.547. The reason is the confound again. Forcing
 every crop to the same leaf brightness also removes the part of brightness that is real
 severity.
 
 **Limiting the model to features unaffected by gain does work.** Four of the twelve
-survive a global gain by design, and the measurements confirm it: `sep` (0.055 and
-0.058), `log_gr` (0.055 and 0.040), `frac_g_gt_r` (0.055 and 0.105) and `cda_green`
-(0.190 and 0.181). A probe on those four alone scores 0.455 on unaltered crops, against
-0.606 for all twelve. But at a gain of 1.2 it scores 0.463 against 0.473, and at 0.8 it
-scores 0.459 against 0.406. Its mean predicted score moves from 3.087 to 3.047, while the
-full set drifts from 3.032 to 3.517. It gives up 15 points of accuracy on unaltered crops
-and becomes completely unaffected by exposure.
+survive a global gain by design, and the measurements confirm it. Their mean shifts at
+gains of 1.2 and 0.8 are 0.055 and 0.058 standard deviations for `sep`, 0.055 and 0.040
+for `log_gr`, 0.055 and 0.105 for `frac_g_gt_r`, and 0.190 and 0.181 for `cda_green`. A
+probe on those four alone scores 0.455 on unaltered crops, against 0.606 for all twelve.
+But at a gain of 1.2 it scores 0.463 against 0.473, and at 0.8 it scores 0.459 against
+0.406. Its mean predicted score moves from 3.087 to 3.047, while the full set drifts from
+3.032 to 3.517. It gives up 15 points of accuracy on unaltered crops and becomes
+completely unaffected by exposure.
 
 This works because, here, a feature can carry severity and still be unaffected by gain.
 `log_gr` and `sep` carry the second and fourth most information about severity in the
@@ -515,10 +557,35 @@ brightness cannot tell an overexposed leaf from a dying one. These two can.
 **In practice this becomes a simple check.** For a new batch of images, compare
 `leaf_bright`, `sep` and `log_gr` with their training distributions. If `leaf_bright` is
 far off but `sep` and `log_gr` are not, the exposure has shifted, and the scores should not
-be trusted. If all three move together, the leaves really are more affected. The check is
+be trusted. If all three move together, the leaves are more affected. The check is
 one pass of fixed arithmetic and needs no model.
 
 ### 7.7 Recommended augmentation set
+
+The shift and zoom rows below use how much the three raters' boxes disagree.
+
+```{python}
+# 7.7
+# Rater box geometry, from the three raters' boxes for every CDA in the dataset repository.
+_boxes = pd.read_csv(
+    repo_root.parent / "uv-agroinfiltration-dataset" / "analyses" / "01_generate_raw_data"
+    / "04_representative_bounding_box_and_score" / "combined_cda_data_medoid.csv")
+_cols = [f"{a}_{i}" for i in (1, 2, 3) for a in ("X1", "X2", "Y1", "Y2")]
+_boxes = _boxes.dropna(subset=_cols)
+_w = np.stack([_boxes[f"X2_{i}"] - _boxes[f"X1_{i}"] for i in (1, 2, 3)], 1)
+_h = np.stack([_boxes[f"Y2_{i}"] - _boxes[f"Y1_{i}"] for i in (1, 2, 3)], 1)
+_cx = np.stack([(_boxes[f"X1_{i}"] + _boxes[f"X2_{i}"]) / 2 for i in (1, 2, 3)], 1)
+_cy = np.stack([(_boxes[f"Y1_{i}"] + _boxes[f"Y2_{i}"]) / 2 for i in (1, 2, 3)], 1)
+_side = np.sqrt(_w * _h)
+_mean_side = _side.mean(1, keepdims=True)
+_size = (_side / _mean_side).ravel()
+_offset = np.hypot(_cx - _cx.mean(1, keepdims=True), _cy - _cy.mean(1, keepdims=True)) / _mean_side
+print(f"{len(_boxes)} CDAs with three boxes")
+print(f"box side over the 3-rater mean, 5th to 95th percentile: "
+      f"{np.percentile(_size, 5):.3f} to {np.percentile(_size, 95):.3f}")
+print(f"box centre offset from the 3-rater mean centre, median: "
+      f"{100 * np.median(_offset):.1f}% of the box side")
+```
 
 | | apply | why |
 |---|---|---|
@@ -526,9 +593,9 @@ one pass of fixed arithmetic and needs no model.
 | vertical flip | yes | same |
 | rotation by 90, 180, 270 | yes | exact, no interpolation, zero displacement |
 | rotation, small angle (up to 15 deg) | yes | 0.136 displacement at 0.919 label preservation, the best ratio in the table |
-| shift, up to 10% of the box side | yes | 0.16 displacement at 0.83, and rater box centres differ from their 3-rater mean by a median 5.0% of the box side |
+| shift, up to 10% of the box side | yes | 0.16 displacement at 0.83, and rater box centres differ from their 3-rater mean by a median 4.8% of the box side |
 | shear, up to 0.3 | no | measured harmless (0.15 displacement at 0.90), but every leaf here was photographed flat, so there is no oblique viewing for it to model |
-| zoom, 0.8 to 1.2 | yes | rater box sizes span 0.814 to 1.201 of their 3-rater mean, so this range is the raters' own disagreement rather than a guess |
+| zoom, 0.8 to 1.2 | yes | the 5th to 95th percentiles of rater box size are 0.814 and 1.201 of their 3-rater mean, so this range is the raters' own disagreement rather than a guess |
 | rotation at 150 or 300 deg | no | same displacement as 15 deg at 9 points worse label preservation, and 180 deg is free |
 | brightness | no | confounded with severity. Handle it by choosing features, not by augmentation |
 

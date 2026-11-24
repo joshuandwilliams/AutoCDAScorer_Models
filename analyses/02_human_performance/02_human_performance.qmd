@@ -42,7 +42,7 @@ so the test-set value is computed in exactly the same way.
 Two reference distributions are shown:
 
 1. **Full-dataset distribution** (436 CDAs per class). This is the cached
-   distribution. It is very narrow, because each draw uses about ten times more
+   distribution. It is narrow, because each draw uses about ten times more
    data than the test set, and the draws overlap heavily.
 2. **Test-sized distribution** (44 CDAs per class). This is generated here, with
    the same undersampling at the test set's size. Its spread is the real sampling

@@ -361,7 +361,7 @@ print(C.groupby("score")["cda_green"].mean().round(3).to_string())
 
 ### 6.2 Diversity and separability, recomputed
 
-The features have very different scales. `sep` is a ratio from 0 to 1, and `mean_green`
+The features have different scales. `sep` is a ratio from 0 to 1, and `mean_green`
 goes up to 255. So they are standardised before computing distances. The scaler is fitted
 on the **real** crops only, then applied to both. This exactly matches using the feature
 space of a CNN trained on real crops. The real data sets the units, and generated crops
@@ -481,7 +481,7 @@ The argument rests on one comparison.
 
 | | real -> real | generated -> generated |
 |---|---|---|
-| linear probe, CNN features | 0.639 | 0.763 |
+| linear probe, CNN features | 0.638 | 0.762 |
 | linear probe, Chapter 2 features | 0.606 | 0.602 |
 | **CNN trained from scratch** | **0.646** | **0.9986** |
 
@@ -490,7 +490,7 @@ numbers, a linear read-out of a CNN's second-last layer, and a grid of 6,720 CNN
 all land in the same place. So the information about severity in real crops is almost all
 visible, and there is nothing extra hidden.
 
-For **generated** crops, the same three rows read 0.602, 0.763 and 0.9986. About **40
+For **generated** crops, the same three rows read 0.602, 0.762 and 0.9986. About **40
 points of accuracy** are open to a classifier that can invent its own features. They are
 missing from both fixed representations, including one with nothing learned in it at all.
 The Chapter 2 row is the strongest form of the claim. "The model was fitted to real crops"
@@ -507,9 +507,9 @@ generated crops, and **none changes sign**. The correlations weaken slightly and
 Lesion greenness falls from rho 0.83 to 0.72, the spread of brightness within the lesion
 from 0.79 to 0.63, and greenness bimodality from 0.76 to 0.66. So the generator draws the
 right features slightly less sharply. It has not replaced them. In line with this, a probe
-fitted on generated crops scores 0.575 on real ones, against 0.639 for a probe fitted on
-real crops. In the Chapter 2 space it is 0.506 against 0.606. So **85 to 90% of the
-information readable in real data survives the transfer** (0.900 and 0.835 of the
+fitted on generated crops scores 0.575 on real ones, against 0.638 for a probe fitted on
+real crops. In the Chapter 2 space it is 0.506 against 0.606. So **83 to 90% of the
+information readable in real data survives the transfer** (0.901 and 0.834 of the
 corresponding real-to-real figures).
 
 So the generated crops are not useless. They carry real information about severity *and*
@@ -517,12 +517,12 @@ a shortcut that dominates whenever a classifier can use it. That is why augmenta
 worth trying. Mixing real and generated crops gives the classifier a reason not to take the
 shortcut, which training on generated data alone never did.
 
-**One specific defect: the top of the severity scale is shifted.** The generated class
-centres for scores 0 to 3 and 6 are nearest their own real classes. But **score 4's centre
-is nearest real score 5, and score 5's is nearest real score 6**. The shifts, 3.7 to 6.8,
-are similar to the whole real spread within a class, 7.93. The generator consistently
-draws high scores as more severe than the real scale does. If generated crops are used for
-augmentation, the top scores need watching.
+**One specific defect is that the top of the severity scale is shifted.** The generated
+class centres for scores 0 to 3 and 6 are nearest their own real classes. But **score 4's
+centre is nearest real score 5, and score 5's is nearest real score 6**. The shifts, 3.7
+to 6.8, are similar to the whole real spread within a class, 7.93. The generator
+consistently draws high scores as more severe than the real scale does. If generated crops
+are used for augmentation, the top scores need watching.
 
 **What this means for the 512-config run.** None of the metrics recorded now would detect
 any of this. The Fréchet distance cannot see memorisation and says nothing about structure
@@ -530,7 +530,7 @@ within classes. It also cannot tell a generator that shows severity the way real
 from one that invents a marker. So selecting on it selects for the wrong thing. The test
 for a useful generator should instead be the transfer probe. **Fit a logistic regression on
 generated crops, score it on real ones, and require it to come close to the real-to-real
-figure (0.639 in CNN features, 0.606 in Chapter 2 features).** That is one cheap number per
+figure (0.638 in CNN features, 0.606 in Chapter 2 features).** That is one cheap number per
 generator. It measures what matters, which is whether the generated crops show severity
 the way real crops do.
 

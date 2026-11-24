@@ -25,11 +25,11 @@ model. There are four questions:
 
 **Hypotheses:**
 
-1. The ViT grid will show the same plateau of noise as the CNN grid. In the CNN grid,
-   88 of its 6,720 settings are not significantly worse than the best at 5%. Its
-   correlation between CV and test accuracy collapses from 0.89 to 0.04 within the top
-   100. Changing the architecture should not change the measurement noise, which depends
-   on the size of the evaluation set.
+1. The ViT grid will show the same plateau of noise as the CNN grid. In the CNN grid, 88
+   of its 6,720 settings are not significantly worse than the best at 5%. Its correlation
+   between CV and test accuracy collapses from 0.895 to 0.108 within the top 100
+   (`analyses/08`). Changing the architecture should not change the measurement noise,
+   which depends on the size of the evaluation set.
 2. Learning rate will dominate, as it did for the CNNs. In `analyses/09`, the mean |SHAP|
    of learning rate was about 33 times that of dropout.
 3. The two capacity axes added to this grid, `projection_dim` 256 and `mlp_ratio` 4, will
@@ -303,7 +303,7 @@ print("\n" + corr_tab.to_string(index=False))
 
 Over `M` noisy configs, the largest observed value exceeds the true mean by about
 `sigma * sqrt(2 ln M)` from selection alone. If the winner's margin is smaller than
-that, noise could produce it without any config being really better.
+that, noise alone could produce it, with no config truly better than the rest.
 
 ```{python}
 # 3.3
@@ -711,9 +711,10 @@ print(f"\nnote: the model rows are the MAXIMUM over {len(cnn)} and {len(vit)} co
 - **Within the plateau, the surrogate explains nothing.** The out-of-bag R² falls from
   0.963 to 0.279 in the top 500, and to **−0.032** in the top 250. A negative
   out-of-bag R² means the forest predicts worse than the mean, which is what no
-  remaining information looks like. This collapse is sharper than the CNN grid's, from
-  0.933 to 0.337. It matches `analyses/09`. Hyperparameters decide whether a model
-  reaches the plateau, and nothing decides where on it the model lands.
+  remaining information looks like. This collapse is sharper than the CNN grid's in
+  `analyses/09`, which falls from 0.940 to 0.480 in the top 500 and 0.379 in the top
+  250. Hyperparameters decide whether a model reaches the plateau, and nothing decides
+       where on it the model lands.
 
 - **Two of the three design decisions were not worth their cost, and both came from
   one pilot run.** `projection_dim` was extended to 256 because one pilot config at 128

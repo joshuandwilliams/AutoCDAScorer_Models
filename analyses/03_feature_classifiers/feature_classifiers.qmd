@@ -698,7 +698,7 @@ Four candidate figures for the chapter, all read directly from the fitted `polr`
 model shows its coefficients and cut-points directly.
 
 ```{r}
-# 10.1  Refit on train+val and pull out the pieces the plots need.
+# 9.1  Refit on train+val and pull out the pieces the plots need.
 p_tv  <- zfit(Xtv)
 Ztv   <- data.frame(zap(Xtv, p_tv), y = factor(ytv, levels = 0:6, ordered = TRUE))
 ord_fit <- suppressWarnings(MASS::polr(y ~ ., data = Ztv, Hess = TRUE))
@@ -715,14 +715,14 @@ cat("cut-points:\n"); print(round(zeta, 3))
 cat("spacing:\n"); print(round(diff(zeta), 3))
 ```
 
-### 10.1 Coefficients
+### 9.1 Coefficients
 
 The ordinal model's counterpart to the random forest's Gini panel. It shows direction
 and significance, which Gini does not. Each bar is the effect of one standard deviation
 of a standardised feature, in log-odds.
 
 ```{r fig.width=7, fig.height=5}
-# 10.2
+# 9.2
 p_coef <- betas %>%
   mutate(feature = reorder(pretty_feature(feature), value)) %>%
   ggplot(aes(value, feature)) +
@@ -737,14 +737,14 @@ p_coef
 save_plot(p_coef, "ordinal_coefficients.png", width = 7, height = 5)
 ```
 
-### 10.2 Cut-points on the latent scale
+### 9.2 Cut-points on the latent scale
 
 The six thresholds the model sets on its single hidden severity score, with each crop's
 hidden score shown underneath. This shows the boundaries between consecutive scores
 directly, rather than inferring them.
 
 ```{r fig.width=9, fig.height=4.5}
-# 10.3
+# 9.3
 lat <- data.frame(lp = lp_tv, score = factor(ytv, levels = 0:6))
 # Label the band each cut-point pair encloses, not the boundaries themselves: the score a
 # crop is given is decided by which band its latent score falls in. The outer two bands are
@@ -767,14 +767,14 @@ p_cut
 save_plot(p_cut, "ordinal_cutpoints.png", width = 9, height = 4.5)
 ```
 
-### 10.3 Class-probability curves
+### 9.3 Class-probability curves
 
 How the predicted probability of each score changes along the hidden scale. Under
 proportional odds, the seven curves are shifted copies of one shape. This plot shows it
 rather than assuming it.
 
 ```{r fig.width=9, fig.height=4.5}
-# 10.4
+# 9.4
 grid_lp <- seq(min(lp_tv) - 1, max(lp_tv) + 1, length.out = 400)
 cum <- sapply(zeta, function(z) plogis(z - grid_lp))       # P(Y <= k | lp)
 probs <- cbind(cum[, 1], t(apply(cum, 1, diff)), 1 - cum[, ncol(cum)])
@@ -795,13 +795,13 @@ p_prob
 save_plot(p_prob, "ordinal_class_probabilities.png", width = 9, height = 4.5)
 ```
 
-### 10.4 Effect of the three strongest features
+### 9.4 Effect of the three strongest features
 
 The predicted probability of each score as one feature varies across its observed range,
 with every other feature held at its mean.
 
 ```{r fig.width=11, fig.height=4}
-# 10.5
+# 9.5
 top3 <- betas$feature[order(-abs(betas$t))][1:3]
 eff <- lapply(top3, function(v) {
   base <- colMeans(zap(Xtv, p_tv))

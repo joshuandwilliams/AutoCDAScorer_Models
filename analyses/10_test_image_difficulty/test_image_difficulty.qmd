@@ -177,7 +177,7 @@ Everything below builds on this checked matrix.
 
 ### 1.4 Metrics and committee statistics (defined before use)
 
-Accuracy is reported two ways, as elsewhere in the project (`analyses/03` §6).
+Accuracy is reported two ways, as elsewhere in the project (`analyses/08` §6).
 **Exact** means the predicted score equals the label. **Near-miss** means it is within
 one. Because the splits are class-balanced, exact accuracy also equals **balanced**
 accuracy. For each image, the committee gives three counts that add up to 100 models.
@@ -212,7 +212,7 @@ print(f"Sanity: vote == modal prediction for every image: {np.array_equal(v_t, m
 
 ---
 
-## 2. Where scoring breaks down — by severity score
+## 2. Where scoring breaks down, by severity score
 
 The first question is *which scores* the committee gets wrong. The stacked bar below
 splits each true score's images into exact, off by 1, and off by 2 or more, so each bar
@@ -255,10 +255,10 @@ plt.colorbar(im, fraction=0.046, pad=0.04)
 plt.tight_layout(); plt.show()
 ```
 
-Scores 0 and 6 are correct about 80 to 86% of the time. The middle scores fall to about
-0.43 to 0.66, with score 5 worst. But almost all their lost accuracy goes to the
+Scores 0 and 6 are correct 86 and 84% of the time. The middle scores fall to 0.48 to
+0.66, with score 5 worst. But almost all their lost accuracy goes to the
 *adjacent* score. Near-miss stays at 0.95 or more for every score, and large errors are
-rare. The committee has essentially solved "roughly how much cell death". It only fails
+rare. The committee has solved "roughly how much cell death". It only fails
 at separating neighbouring scores.
 
 ---
@@ -402,7 +402,7 @@ pair = np.mean([(Pt[a] == Pt[b]).mean() for a, b in itertools.combinations(sampl
 print(f"Mean pairwise agreement between models (test): {pair:.3f} — correlated, not identical.")
 ```
 
-The models really are diverse. About 0.93 of test images are scored right by *some*
+The models are diverse. About 0.93 of test images are scored right by *some*
 model, and the mean agreement between pairs of models is only about 0.77. That is why the
 vote is stable. But the diversity is not independent where it matters. On the hard
 images with middle scores, the models tend to be wrong *together*. So the vote cannot
@@ -420,9 +420,9 @@ off by one is just ambiguity between adjacent scores (section 2), and is *not* t
 a label error.
 
 The committee is every configuration that is statistically indistinguishable from the best
-in its own grid -- within one standard error of that grid's best validation accuracy -- and
-it spans model families rather than being 100 CNNs from one grid. Each tied set counts
-distinct settings: the CNN grids train every `reg = None` setting three times, and
+in its own grid. That means within one standard error of that grid's best validation
+accuracy. It spans model families rather than being 100 CNNs from one grid. Each tied set
+counts distinct settings. The CNN grids train every `reg = None` setting three times.
 `src/grid_results.py` keeps the best run of each before taking the band, so one setting
 cannot fill three places. Both CNN grids are ranked on `avg_vaf`, as in Chapter 3.
 
@@ -629,7 +629,7 @@ for k, v in _P.items():
 
 ## 4b-ii. Where the best CNN departs from the raters
 
-Section 3 of `analyses/03_feature_classifiers` does this for the best model without deep
+Section 8b of `analyses/03_feature_classifiers` does this for the best model without deep
 learning. The same difference for the best CNN shows whether the two kinds of model go
 wrong in the same places. The rater matrix counts 917 judgements and the CNN 308
 predictions. So both rows are normalised before subtracting, and each cell is a change in
@@ -887,7 +887,7 @@ for _sc in range(7):
 print(f"  pooled over all 308: median {np.median(_off):.3f}")
 ```
 
-## 5. Ensembling — moved to `analyses/14_ensembling`
+## 5. Ensembling has moved to `analyses/14_ensembling`
 
 The ensembling section that used to be here was tuned on the test split, picked an
 arbitrary number of top-ranked members, and used one kind of model throughout. It was
@@ -898,47 +898,48 @@ choice is made on the 455-crop `ensemble` split, and every number is reported on
 
 ## 6. Interpretation and Discussion
 
-- **Errors are to adjacent scores, and concentrate in the middle (§2).** The vote scores
-  0 and 6 at about 0.80 to 0.86, and the middle scores at about 0.43 to 0.66, with score 5
-  worst. But near-miss stays at 0.95 or more for every score, and the confusion matrix is
-  a narrow band along the diagonal. The committee has solved coarse severity and only
-  fails at separating neighbouring scores. This is the ceiling `analyses/03` §6 found from
+- **Errors are to adjacent scores, and concentrate in the middle (§2).** The vote scores 0
+  and 6 at 0.86 and 0.84, and the middle scores at 0.48 to 0.66, with score 5 worst. But
+  near-miss stays at 0.95 or more for every score, and the confusion matrix is a narrow
+  band along the diagonal. The committee has solved coarse severity and only fails at
+  separating neighbouring scores. This is the ceiling `analyses/08` §6 found from
   near-miss reaching its maximum.
 
-- **The models are diverse. They miss *different* images (§3).** Only about 15% of test
-  images are unanimous, right or wrong, and about 77% are split decisions. The **oracle is
-  about 0.93**, as some model gets almost every image right. The best single model reaches
-  about 0.66. So the models are far from interchangeable, with pairwise agreement of about
+- **The models are diverse. They miss *different* images (§3).** Only 23% of test images
+  are unanimous, right or wrong, and 77% are split decisions. The **oracle is 0.93**, as
+  some model gets almost every image right. The best single model reaches 0.68, and the
+  vote 0.66. So the models are far from interchangeable, with pairwise agreement of about
   0.77. Difficulty partly belongs to *whole projects*, as source images from one project
   score high or low together (§3.4). This points to image conditions, such as lighting or
   staining, as a shared cause of errors.
 
 - **`analyses/14_ensembling` answers the ensembling question, not this document (§5).**
   That document tests seven ensemble designs against the diversity measured here. No
-  combining rule can be told apart from the best single model on 308 test crops. But the
-  single model that looks best on the ensemble split falls 4.55 pp on test (p = 0.040). So a
-  committee frees you from the lottery of picking one model, rather than adding accuracy.
+  combining rule can be told apart from the best single model on 308 test crops. The rule
+  that looks best on the ensemble split, a greedy committee, drops 3.46 pp on test. Single
+  models in that pool range from 56.82 to 67.53% on test, and the fixed rules from 64.94 to
+  68.51%. So a committee frees you from the lottery of picking one model, rather than
+  adding accuracy.
 
 - **A few images are probably mislabelled (§4).** Only a handful are almost unanimous
-  *and* off by 2 or more, such as a recorded 4 that all 100 models call 6. These are worth
-  checking again. The much larger set off by one is ambiguity between adjacent scores, not
-  bad labels.
+  *and* off by 2 or more, such as a recorded 2 that all 85 committee models call 4. These
+  are worth checking again. The much larger set off by one is ambiguity between adjacent
+  scores, not bad labels.
 
 - **The predictions are checked, not assumed (§1.3).** Every reported number rests on a
   prediction matrix whose test accuracy for each model exactly reproduces the grid
   search's recorded `test_acc` (maximum difference 0.000).
 
 - **The oracle is not room for improvement.** `analyses/14_ensembling` §2 breaks it down.
-  Of the crops where some member is right but the vote is not, 97.5% have only a *minority*
-  of members right. No plurality rule can reach them. "At least one of 22 correlated models
-  is right" says more about how many models there are than about what a committee could
-  achieve.
+  On all 124 ensemble crops where one of the 17 tied CNNs is right but the vote is not,
+  only a *minority* of members is right. No plurality rule can reach them. "At least one
+  of 17 correlated models is right" says more about how many models there are than about
+  what a committee could achieve.
 
 - **Limitations.** The 100 models are all in the top 100 by CV, so they are correlated
   (about 0.77). An image they all get wrong is strong evidence. For the same reason, the
   vote gains little over the best single model. The test set has 308 images (about ±3 pp,
-  `analyses/03` §3). The boxplot by project (§3.4) only uses the 14 projects with 4 or more
+  `analyses/08` §3). The boxplot by project (§3.4) only uses the 14 projects with 4 or more
   test crops. The "true" labels are the recorded human scores, which is exactly what §4
   tests.
-```
 

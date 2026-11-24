@@ -28,8 +28,8 @@ disagree.
    cell death area, so a model that has learned the task should weight those pixels above
    the healthy leaf around them.
 2. The margin over chance will be small. The crop *is* the rater's bounding box around the
-   lesion, so the lesion already fills about half of every crop (a mean of 0.51, measured
-   below). A map that spread attention evenly would score about 0.51 by design. Only the
+   lesion, so the lesion already fills almost half of every crop (a mean of 0.452,
+   measured below). A map that spread attention evenly would score 0.452 by design. Only the
    *lift* above that is evidence of anything.
 3. Grad-CAM and SHAP will agree on the rough location but not in detail. They measure
    different things. Grad-CAM pools gradients over the last convolutional feature map,
@@ -425,7 +425,7 @@ inside the lesion. Defined in Score-CAM (Wang et al., CVPRW 2020, arXiv:1910.012
 *"we care about how much energy of the saliency map falls into the target object bounding
 box... We denote this metric as Proportion = ΣL^c_(i,j)∈bbox / (ΣL^c_∈bbox +
 ΣL^c_∉bbox), and call this metric an energy-based pointing game."* Their ground truth is
-a bounding box; the Otsu mask used here is a segmentation, which is a tighter target.
+a bounding box. The Otsu mask used here is a segmentation, which is a tighter target.
 
 **Pointing game.** Whether the single pixel with the most attention lies inside the
 lesion. This is the older, coarser measure that EBPG extends.
@@ -607,7 +607,7 @@ print(pd.DataFrame(null_rows).round(4).to_string(index=False))
 again against the mask of a *different, randomly chosen* crop. Shuffled masks are just as
 central and as large as the real ones. So this null keeps the geometry the same and only
 removes the match to each image. The gap between the own and shuffled masks is the part
-of the overlap that really follows *this* lesion.
+of the overlap that follows *this* lesion.
 
 ```{python}
 # 4.5b
@@ -874,34 +874,36 @@ for name, col in [("Grad-CAM", "cam_lift"), ("SHAP", "shap_lift")]:
 - **What survives a matched null is small but real, and larger with the medoid crop than
   with the centre-of-overlap crop.** Scoring each map against a *different* crop's lesion
   keeps size and centrality the same, and removes only the match to each image. SHAP beats
-  that null by 0.0218 EBPG (p = 4e-6, 170 of 264 images), and Grad-CAM by 0.0208
-  (p = 0.003). On the centre-of-overlap crops, the same test gave SHAP only 0.0046. So
-  switching to the medoid box made the image-specific part about four times larger. The
+  that null by 0.0143 EBPG (p = 4e-5, 166 of 264 images). Grad-CAM's gap of 0.0067 is not
+  significant (p = 0.17, 126 of 264). An earlier run on the centre-of-overlap crops gave
+  SHAP only 0.0046. Its cache is no longer in the repository. Switching to the medoid box
+  made the image-specific part about three times larger. The
   reason is geometric. The medoid box is the one the other raters' boxes agree with most.
   The lesion fills 45% of it, against 51% of the centre-of-overlap crop. That leaves more
   leaf outside the lesion, which a map that favours the centre cannot take credit for.
   Hypothesis 1 holds in this form. Hypothesis 2 understated the problem. The issue is not
   that the margin is small, but that the obvious baseline is the wrong one.
 
-- **Grad-CAM fails here because of the architecture, not the method or the model.** At
-  the last convolution, its lift is +0.044 and its pointing game 0.341, below the area
-  baseline of 0.452. Section 4.4 finds the cause. The same computation at the 29x29
-  convolution gives a lift of +0.182. The last layer is 4x4, so the map has 16 values. Its
-  maximum can only be at one of 16 grid points, most of them near the edge, while the
-  baseline counts pixel area. These cannot be compared at that resolution. That is why the
-  pointing game can fall below "chance" without the model doing anything odd. Any Grad-CAM
-  result on a network this small should give the size of the feature map.
+- **Grad-CAM fails here because of the architecture, not the method or the model.** At the
+  last convolution, its lift is +0.007 and its pointing game 0.250, below the area
+  baseline of 0.452. Section 4.4 finds the cause. The same computation gives a lift of
+  +0.086 at the 29x29 convolution and +0.140 at the 12x12 one. The last layer is 4x4, so
+  the map has 16 values. Its maximum can only be at one of 16 grid points, most of them
+  near the edge, while the baseline counts pixel area. These cannot be compared at that
+  resolution. That is why the pointing game can fall below "chance" without the model
+  doing anything odd. Any Grad-CAM result on a network this small should give the size of
+  the feature map.
 
-- **The two methods disagree far more than expected.** For 115 of 262 images, the maps are
+- **The two methods disagree far more than expected.** For 104 of 264 images, the maps are
   *negatively* correlated pixel by pixel. Hypothesis 3 predicted agreement on the rough
-  location and differences in detail. At 4x4, Grad-CAM does not really have a rough
-  location to agree on. So the disagreement says little about the model. It is dominated
+  location and differences in detail. At 4x4, Grad-CAM has no rough location to
+  agree on. So the disagreement says little about the model. It is dominated
   by the gap in resolution between a 16-cell map and a 4,096-pixel one. In practice, SHAP
   is the method to trust on this architecture. Using Grad-CAM alone would have given a
   clearly wrong answer.
 
 - **Attention avoids the background, which is the one clear positive result.** SHAP puts
-  3.5% of its energy on dark background, which is 6.1% of the pixels. It puts 17.9% on leaf
+  2.6% of its energy on dark background, which is 6.1% of the pixels. It puts 18.5% on leaf
   outside the lesion, which is 48.8% of the pixels. Both get less than their share of the
   area, so hypothesis 4 holds. The little attention outside the lesion falls on leaf, not
   on the black surround. The model is not using the crop border or the padding.
