@@ -28,8 +28,8 @@ disagree.
    cell death area, so a model that has learned the task should weight those pixels above
    the healthy leaf around them.
 2. The margin over chance will be small. The crop *is* the rater's bounding box around the
-   lesion, so the lesion already fills about half of every crop (a mean of 0.51, measured
-   below). A map that spread attention evenly would score about 0.51 by design. Only the
+   lesion, so the lesion already fills almost half of every crop (a mean of 0.452,
+   measured below). A map that spread attention evenly would score 0.452 by design. Only the
    *lift* above that is evidence of anything.
 3. Grad-CAM and SHAP will agree on the rough location but not in detail. They measure
    different things. Grad-CAM pools gradients over the last convolutional feature map,
@@ -425,7 +425,7 @@ inside the lesion. Defined in Score-CAM (Wang et al., CVPRW 2020, arXiv:1910.012
 *"we care about how much energy of the saliency map falls into the target object bounding
 box... We denote this metric as Proportion = ΣL^c_(i,j)∈bbox / (ΣL^c_∈bbox +
 ΣL^c_∉bbox), and call this metric an energy-based pointing game."* Their ground truth is
-a bounding box; the Otsu mask used here is a segmentation, which is a tighter target.
+a bounding box. The Otsu mask used here is a segmentation, which is a tighter target.
 
 **Pointing game.** Whether the single pixel with the most attention lies inside the
 lesion. This is the older, coarser measure that EBPG extends.
@@ -607,7 +607,7 @@ print(pd.DataFrame(null_rows).round(4).to_string(index=False))
 again against the mask of a *different, randomly chosen* crop. Shuffled masks are just as
 central and as large as the real ones. So this null keeps the geometry the same and only
 removes the match to each image. The gap between the own and shuffled masks is the part
-of the overlap that really follows *this* lesion.
+of the overlap that follows *this* lesion.
 
 ```{python}
 # 4.5b
@@ -884,19 +884,20 @@ for name, col in [("Grad-CAM", "cam_lift"), ("SHAP", "shap_lift")]:
   Hypothesis 1 holds in this form. Hypothesis 2 understated the problem. The issue is not
   that the margin is small, but that the obvious baseline is the wrong one.
 
-- **Grad-CAM fails here because of the architecture, not the method or the model.** At
-  the last convolution, its lift is +0.007 and its pointing game 0.250, below the area
+- **Grad-CAM fails here because of the architecture, not the method or the model.** At the
+  last convolution, its lift is +0.007 and its pointing game 0.250, below the area
   baseline of 0.452. Section 4.4 finds the cause. The same computation gives a lift of
   +0.086 at the 29x29 convolution and +0.140 at the 12x12 one. The last layer is 4x4, so
   the map has 16 values. Its maximum can only be at one of 16 grid points, most of them
-  near the edge, while the baseline counts pixel area. These cannot be compared at that resolution. That is why the
-  pointing game can fall below "chance" without the model doing anything odd. Any Grad-CAM
-  result on a network this small should give the size of the feature map.
+  near the edge, while the baseline counts pixel area. These cannot be compared at that
+  resolution. That is why the pointing game can fall below "chance" without the model
+  doing anything odd. Any Grad-CAM result on a network this small should give the size of
+  the feature map.
 
 - **The two methods disagree far more than expected.** For 104 of 264 images, the maps are
   *negatively* correlated pixel by pixel. Hypothesis 3 predicted agreement on the rough
-  location and differences in detail. At 4x4, Grad-CAM does not really have a rough
-  location to agree on. So the disagreement says little about the model. It is dominated
+  location and differences in detail. At 4x4, Grad-CAM has no rough location to
+  agree on. So the disagreement says little about the model. It is dominated
   by the gap in resolution between a 16-cell map and a 4,096-pixel one. In practice, SHAP
   is the method to trust on this architecture. Using Grad-CAM alone would have given a
   clearly wrong answer.

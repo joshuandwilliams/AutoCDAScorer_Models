@@ -26,7 +26,7 @@ A few levers that are easy to get wrong will dominate. These are learning rate,
 optimizer and regularisation. Architecture size (filters, kernel, depth) will matter
 less, and dropout hardly at all. This links to `analyses/08_accuracy_noise_floor`. The
 hyperparameters should decide whether a model *reaches* the top plateau. **Inside** the
-plateau they should explain very little, because the remaining differences are noise.
+plateau they should explain little, because the remaining differences are noise.
 
 **Rationale:**
 

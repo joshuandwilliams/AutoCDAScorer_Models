@@ -15,7 +15,7 @@ Date: 18/07/2026
 
 The Medoid-CNN grid search trained 8,640 CNNs, covering 6,720 distinct settings, on
 the medoid_64 dataset. It ranked them by mean cross-validation accuracy (`avg_vaf`).
-The top 100 all fall in a narrow band, about 61 to 63%. This asks whether the single
+The top 100 all fall in a narrow band, from 62.1 to 64.6%. This asks whether the single
 "best" model is *reliably* the best, or whether picking the top config is just picking
 measurement noise.
 
@@ -145,7 +145,7 @@ plt.tight_layout()
 plt.show()
 ```
 
-Most models are well above chance (0.14), rising to a hard ceiling near 0.63. The
+Most models are well above chance (0.14), rising to a hard ceiling at 0.646. The
 whole top-100 band, in orange, is about **as wide as the band of one standard error
 either side, in red**. This is the first sign that the plateau is one measurement, not
 a ranking.
@@ -170,8 +170,8 @@ print(f"Held-out TEST accuracy SE (n={N_TEST})  = {100*se_test:.2f} pp "
       f"(95% CI ±{1.96*100*se_test:.1f} pp)")
 ```
 
-So one standard error is about 1 pp, and the whole top 100 spans only about 1.6
-standard errors. To count how many configs **cannot be statistically told apart from
+So one standard error is about 1 pp, and the whole top 100 spans only 2.49 standard
+errors. To count how many configs **cannot be statistically told apart from
 the best**, each model is compared with the top model by a one-sided two-proportion
 test. A model is "tied for first" if it is *not* significantly worse at the 5% level.
 
@@ -231,8 +231,8 @@ print(f"   -> the CV winner is nowhere near the top on independent data.")
 
 If the CV ranking meant something *within the plateau*, `avg_vaf` and `test_acc`
 would correlate among the top models. They do not. The correlation is strong across
-the full range, where real differences exist. Within the top cluster it falls to about
-0.
+the full range, where real differences exist (0.895 over all 6,720). It falls to 0.108
+in the top 100 and to -0.159 in the top 50.
 
 ```{python}
 # 4.2
@@ -392,16 +392,18 @@ for k in (100, 500):
 ## 7. Interpretation and Discussion
 
 - **Within the top cluster, the ranking is noise.** One accuracy measurement on this
-  dataset has a standard error of about 1 pp, and the whole top 100 spans only about
-  1.6 standard errors. By a simple two-proportion test, **about 200 configs are
-  statistically tied for first**. That count is conservative, because shared CV folds
-  make the real ties more numerous. Picking the single top config means picking noise.
+  dataset has a standard error of about 1 pp, and the whole top 100 spans only 2.49
+  standard errors. By a one-sided two-proportion test at 5%, **88 configs are
+  statistically tied for first**. Within one standard error of the best there are 17. That
+  count is conservative, because shared CV folds make the real ties more numerous. Picking
+  the single top config means picking noise.
 
 - **The held-out test set proves it.** The best model by CV does *not* stay best. It
-  ranks in the low hundreds on the separate test split, not first. Among the top 100 to
-  250 configs, CV and test accuracy are essentially **uncorrelated (r ≈ 0)**. The strong
-  overall correlation (r ≈ 0.9 across all 6,720) shows the method is sound.
-  Hyperparameters really do change accuracy across the full range. But that effect is
+  ranks 219th on the separate test split, not first. Within the top 100, CV and test
+  accuracy are **close to uncorrelated (r = 0.108)**, and within the top 50 the
+  correlation is -0.159. It is only 0.356 in the top 250. The strong overall correlation
+  (r = 0.895 across all 6,720) shows the method is sound.
+  Hyperparameters do change accuracy across the full range. But that effect is
   used up before the plateau. So the answer to the title is **yes. At the top, the "best
   model" is mostly luck.**
 
@@ -412,9 +414,9 @@ for k in (100, 500):
 - **Near-miss confirms it, and shows where the real difficulty is (§6).** Within one
   score, the top models reach about 96 to 98%. The noise shrinks to about 0.3 pp, and the
   plateau is even harder to rank. The winner's curse remains. The model with the best CV
-  near-miss is about 200th on test near-miss. Almost every error is to an *adjacent*
+  near-miss is 56th of 6,720 on test near-miss. Almost every error is to an *adjacent*
   score. So the CNNs' ceiling is about separating **neighbouring** scores. The coarse
-  task, cell death present or absent, is essentially solved.
+  task, cell death present or absent, is solved.
 
 - **What to do instead.**
   1. *Treat the top cluster as one group of equals,* not a ranked list. Choose a region
@@ -427,17 +429,15 @@ for k in (100, 500):
      answered reliably is which *regions* of hyperparameters reach the plateau.
      `analyses/09_hyperparameter_importance` takes this up.
 
-- **The plateau itself is the main result.** 6,720 CNN settings level off at about 62
-  to 63%. So tuning CNN hyperparameters has **hit a ceiling set by the data and the task,
-  not by the configuration.** Further gains must come from elsewhere, such as a
+- **The plateau itself is the main result.** 6,720 CNN settings level off at 62.1 to 64.6%
+  for the top 100. So tuning CNN hyperparameters has **hit a ceiling set by the data and
+  the task, not by the configuration.** Further gains must come from elsewhere, such as a
   different kind of model (the Vision Transformer sweep), augmentation or ensembling. More
-  CNN grid search will not help. This fits with the ViTs so far reaching the same
-  values.
+  CNN grid search will not help. This fits with the ViTs so far reaching the same values.
 
 - **Limitation.** `avg_vaf` is treated as one pooled accuracy over `N_CV`. The true
   variance also includes the randomness of training (initialisation, SGD and early
   stopping), which only *widens* the noise. So the conclusion is conservative.
-```
 
 
 ## Thesis figures

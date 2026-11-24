@@ -20,8 +20,8 @@ a standard technique.
 **Hypothesis:**
 
 Combining will not raise accuracy much. Every member is trained on the same 1,834 crops,
-and `analyses/10` §3 already found the top-100 CNNs give the same score as each other on
-77.5% of test crops. Averaging cannot fix a mistake the members share.
+and `analyses/10` §3 already found that two of the top-100 CNNs give the same score on
+77.9% of test crops, on average. Averaging cannot fix a mistake the members share.
 
 One gain is expected, in §5. Cross-validated near-miss accuracy is 0.966 to 0.985 across
 the tied members of all three grids, as recorded in each grid's
@@ -39,7 +39,7 @@ and is cited. "Conjecture" means the section measures it before testing it.
 
 | § | Idea | Why try it | Basis |
 |:--|:--|:--|:--|
-| 2 | Vote over the 17 tied CNNs | At least one of 100 CNNs is right on 93% of test crops against 66% for the best one | Known (`analyses/10` §3.5) |
+| 2 | Vote over the 17 tied CNNs | At least one of 100 CNNs is right on 93% of test crops against 68% for the best one | Known (`analyses/10` §3.5) |
 | 3 | Mix model families | A CNN, a transformer and a 12-feature regression may fail on different crops | Conjecture, measured in §3.1 |
 | 4 | Mix training data, keep the architecture | The augmented CNNs were trained on a different set of crops | Known (`models/07` builds from `medoid_64_aug`) |
 | 5 | Average the score instead of voting on it | Scores are ordered, and near-miss is 0.966-0.985, so nearly every error is off by one | Known (grid `avg_val_nearmiss`) |
@@ -789,62 +789,62 @@ print(f"rule with the best test accuracy: '{win['rule']}' at {win['test exact']:
 
 - **The oracle's lead is not accuracy waiting to be used (§2).** At least one of the 17
   tied CNNs is right on 89.23% of ensemble crops, against 63.96% for the best single one.
-  None of that can be reached. On every crop where some member is right but the vote is
+  None of that can be reached. On all 124 crops where some member is right but the vote is
   not, the correct score is a *minority* answer, given by a median of 4 of the 17 members.
   A vote returns the most common answer, so it cannot reach those crops. The vote scores
   64.94% on test, against 64.61% for the best single member.
 - **Different kinds of model do fail differently, but it is not worth much (§3).** The four
   lowest joint-error ratios are all between kinds of model, with CNN and ViT lowest at
-  1.753. The two highest are within one kind (augmented CNN 2.194, CNN 1.923). Mixing all
-  four gives 66.88% on test. That is 3.9 pp above the average single member, and level with
-  the best one.
-- **Different training data makes models less correlated than a different architecture
-  does (§4).** CNN against augmented CNN is 1.919, and CNN against ViT is 1.753. The same
+  1.753. The highest is within the augmented CNNs, at 2.227. Mixing all four kinds with
+  equal weight gives 67.21% on test. That is 4.16 pp above the mean single member (63.05%),
+  and within one standard error of the chapter's single model (66.88%).
+- **A different architecture decorrelates models more than different training data does
+  (§4).** CNN against augmented CNN is 1.929, and CNN against ViT is 1.753. The same
   architecture on different crops stays more alike than a different architecture on the
   same crops. The accuracies agree. CNN with augmented CNN is the worst pair, at 65.91%,
   below CNN with ViT at 67.53% and CNN with ordinal regression at 68.51%.
-- **Averaging the score beats voting on it (§5).** The two rules differ on 54 of 455
-  ensemble crops. On those, the average is right 53.70% of the time, against 42.59% for
-  the vote, with mean error 0.463 against 0.611. It wins on the split used to choose
-  (65.49%, against 65.49% for the argmax and 64.18% for the vote). It stays ahead on test,
-  with 68.83% exact and mean error 0.325, both the best of any rule here. Its near-miss
-  accuracy, 98.70%, is *not* the best. The chapter's single model reaches 99.03%.
+- **Averaging the score beats voting on it where the two differ (§5).** The two rules
+  differ on 51 of 455 ensemble crops. On those, the expected score is right 56.86% of the
+  time, against 41.18% for the vote, with mean error 0.431 against 0.608. Over the whole
+  ensemble split it scores 65.93%, level with the argmax of the same mean and above the
+  vote's 64.18%. On test it reaches 68.51% exact and mean error 0.331. That ties for the
+  best exact accuracy with CNN plus ordinal regression, and for the lowest mean error with
+  the logistic stack. Its near-miss accuracy, 98.38%, is *not* the best. The chapter's
+  single model reaches 99.03%.
 - **Picking members that disagree does not work (§6).** Greedy selection's first pick is
-  already the best single member, at 70.33%. Over 25 steps the curve only moves between
-  69.67% and 70.77%. That range of 1.10 pp is small against a standard error of 2.24 pp, so
-  choosing k is choosing noise. Its committee of k = 3 drops 5.83 pp on test, while the
-  average rule *gains* 0.34 pp. Adding members to a lucky model, on the split that made it
-  look lucky, does not help either. The ranked curve starts at the same 70.33% and falls to
-  68.57% by five members.
+  the best single member, at 68.13% on the ensemble split. Over 25 steps the curve spans
+  68.13% to 70.99%. That range of 2.86 pp is close to the standard error of 2.24 pp, so
+  choosing k is choosing noise. The chosen committee of k = 17 drops 3.46 pp on test, the
+  largest drop of any rule. Across all 13 rules the mean change from ensemble to test is a
+  *gain* of 1.39 pp. Adding members in order of ensemble-split rank does not help either.
+  That curve goes from 68.13% to 67.47% at five members and 67.91% at 25.
 - **A learned combiner cannot use the differences between scores (§7).** The differences
-  are real. On score 2, the ordinal regression reaches 0.569 against the CNNs' 0.452, and on
-  score 5, 0.662 against 0.521. But 455 rows need strong regularisation (C = 0.01). By
-  C = 10, the gap between training and CV is 8.6 pp. It gains 0.97 pp on test, with a CI of
-  −2.92 to +4.87. Shuffled labels give 0.156, against a chance rate of 0.143. So the fit is
-  real, just small.
+  are real. On score 2, the ordinal regression reaches 0.569 against the CNNs' 0.452. On
+  score 5 it reaches 0.662 against 0.521. But 455 rows need strong regularisation
+  (C = 0.01). At C = 10, the gap between training and CV is 9.0 pp. The stack gains
+  1.30 pp on test over the chapter's model, with a CI of −2.60 to +5.19 (p = 0.57).
+  Shuffled labels give 0.154, against a chance rate of 0.143, so nothing leaks.
 - **Declining uncertain crops is the one thing a committee can do that a single model
-  cannot (§8).** Accuracy rises from 47.4% on the 19 crops where under half the members
-  agree, to 79.1% on the 129 where over 90% agree. Thresholds set on the ensemble split
-  carry over. The cut that gives 75.4% at 61.5% coverage there gives 75.1% at 60.1% on
-  test. Declining the 10% with least agreement lifts the committee from 66.88% to 69.31%,
-  just above the human raters' 68.92%. Declining half gives 76.62%.
-- **No rule beats a good single model, but every rule beats a badly chosen one (§9).**
-  Every paired-bootstrap interval includes zero, and the smallest p is 0.34. The one
-  significant comparison goes the other way. The model that looked best on the ensemble
-  split, at 70.33% there, falls to 62.34% on test. That is 4.55 pp below the chapter's
-  chosen model, with a CI of −8.77 to −0.33 and p = 0.040. Single models from this pool
-  range from 56.82% to 67.53% on test, while every fixed rule lands between 64.94% and
-  68.83%. Combining removes the risk of picking the wrong model. It does not raise the
-  ceiling.
+  cannot (§8).** On test, accuracy rises from 50.0% on the 18 crops where under half the
+  members agree, to 78.3% on the 129 where over 90% agree. Thresholds set on the ensemble
+  split carry over. The cut that gives 75.2% at 64.6% coverage there gives 74.4% at 64.6%
+  on test. Declining the 10% with least agreement lifts the committee from 67.21% to
+  68.95%, level with the human raters' 68.92%. Declining half gives 76.62%.
+- **No rule beats a good single model, and every rule beats a badly chosen one (§9).**
+  Every paired-bootstrap interval against the chapter's model includes zero, and the
+  smallest p is 0.42. The best single model on the ensemble split is the chapter's model
+  itself, 6848. Single models from this pool range from 56.82% to 67.53% on test, while
+  every fixed rule lands between 64.94% and 68.51%. Combining removes the risk of picking
+  the wrong model. It does not raise the ceiling.
 
 ### Recommendation
 
 Two things are worth taking into the chapter, for different reasons:
 
 1. **The mean softmax, balanced across kinds of model and decided by expected score (§5).**
-   It has the highest exact accuracy and lowest mean error of anything tested. It also won
-   on the split used to choose it. The ordered labels justify it, not its score. Report it
-   as level with the best single model, not above it.
+   It ties for the highest exact accuracy on test and for the lowest mean error. It did not
+   win on the ensemble split, where it scored 65.93%. The ordered labels justify it, not
+   its score. Report it as level with the best single model, not above it.
 2. **The declining curve (§8).** This is the only result where a committee does something a
    single model cannot.
 
@@ -861,9 +861,9 @@ Everything else here is a negative result with a reason, and fits in one paragra
   the same measure, so a tied setting always has saved weights. Earlier runs of this
   analysis saw only 15, because only 17 of the grid's 100 saved models had been copied from
   the cluster.
-- The cGAN-augmented grid is left out because of the Results P11 finding. The soft-label
-  grid now has its 100 saved models on disk, and its 10-member tie is fully covered. So it
-  could be added as a fifth kind of model. It is left out because no paragraph needs it
-  yet.
+- The cGAN-augmented grid is left out, because cGAN augmentation did not help. Its CNN
+  scores 54.87% on test in `analyses/10` §4b. The soft-label grid now has its 100 saved
+  models on disk, and its 10-member tie is fully covered. So it could be added as a fifth
+  kind of model. It is left out because no paragraph needs it yet.
 - The labels are the recorded median human scores. `analyses/10` §4 shows they are wrong on
   a handful of test crops.

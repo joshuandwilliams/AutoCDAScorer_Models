@@ -46,7 +46,8 @@ keep. Disagreement from **different orderings** is a problem of perception. It c
 fixed that way.
 
 `analyses/10` showed that a majority vote matches the best single model but does not
-beat it. A learned stack over one-hot predictions added nothing either. Both results fit
+beat it. In `analyses/14` (section 7), a learned stack gains 0.97 pp on test, with a CI
+of -2.92 to +4.87. Both results fit
 models that share an ordering and differ mainly in where they cut it. Voting on labels
 throws away the continuous quantity the models agree on.
 
@@ -650,10 +651,10 @@ models agree is worth nothing if both are wrong about the humans. Section 6 also
 that fitting thresholds to the *true* labels gains nothing.
 
 The other explanation is that the target itself is poorly defined at these points. Each
-CDA has three independent rater scores, and the label is their median. Where the raters
-split, the median collapses a real disagreement into one number and loses information.
-If the models are running into this, the crops they split on should be the crops the
-raters split on.
+CDA has up to three independent rater scores, and the label is their median. Where the
+raters split, the median collapses a real disagreement into one number and loses
+information. If the models are running into this, the crops they split on should be the
+crops the raters split on.
 
 ```{python}
 # 7.1
@@ -770,9 +771,9 @@ plt.show()
 - **Averaging the latent score does not beat voting on labels either.** Averaging the
   latent score across all 200 models and cutting once gives 0.6656 exact and 0.9838
   near-miss. A plain majority vote gives 0.6688 and 0.9838. Near-miss is identical, and
-  exact accuracy differs by a tenth of an SE. `analyses/10` found that a learned stack
-  added nothing over a vote. The continuous quantity the stack threw away adds nothing
-  either, which rules out that explanation.
+  exact accuracy differs by a tenth of an SE. `analyses/14` (section 7) found that a
+  learned stack on the models' probabilities gains no reliable accuracy over a vote either.
+  Voting on labels does not lose accuracy by discarding the continuous score.
 
 - **The one consistent difference between architectures is how stable the boundaries
   are, not where they sit.** Mean cut-points are nearly identical for CNNs and ViTs at
