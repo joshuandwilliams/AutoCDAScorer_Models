@@ -13,7 +13,7 @@ Date: 09/09/2026
 
 **Goal:**
 
-Repeat `analyses/06` for the Vision Transformer. Take the top ViT from the Medoid-ViT
+Repeat `analyses/12` for the Vision Transformer. Take the top ViT from the Medoid-ViT
 grid, produce three attribution maps — **Chefer relevance**, **attention rollout** and
 **SHAP** — and measure how much of each falls inside the Otsu-segmented cell death area,
 using the identical masks, metrics and null models as the CNN analysis so the two are
@@ -26,23 +26,23 @@ directly comparable.
    is a property of the data, not of the architecture.
 2. The shuffled-mask permutation gap — the part that genuinely tracks *this* lesion —
    will be comparable to the CNN's +0.0218, because both models reach the same accuracy
-   (`analyses/07`: 0.6466 vs 0.6457 `avg_vaf`, difference 0.06 SE).
+   (`analyses/04`: 0.6466 vs 0.6457 `avg_vaf`, difference 0.06 SE).
 3. Chefer relevance will localise better than plain attention rollout. Rollout is
    class-agnostic — it produces the same map whatever class you ask about — so it cannot
    be measuring evidence for the predicted score.
-4. The ViT will not suffer the CNN's resolution problem. `analyses/06` found Grad-CAM's
+4. The ViT will not suffer the CNN's resolution problem. `analyses/12` found Grad-CAM's
    pointing game *below* chance because the last conv layer is 4x4, giving a 16-value
    map. The ViT's attention is over a 16x16 patch grid, 16x more spatial detail.
 
 **Rationale:**
 
-`analyses/07` showed the two architectures are indistinguishable on accuracy but agree
+`analyses/04` showed the two architectures are indistinguishable on accuracy but agree
 with each other much less than they agree internally (0.710 cross-class pairwise
 agreement against 0.779 within CNNs), and that 9 test images are solved by some ViT that
 no CNN gets right. Equal accuracy with different errors means they are using the image
 differently, and attribution is the direct way to see how.
 
-Holding the masks, metrics and nulls fixed from `analyses/06` is what makes the
+Holding the masks, metrics and nulls fixed from `analyses/12` is what makes the
 comparison meaningful. Any difference is then attributable to the model, not to the
 evaluation.
 
@@ -72,7 +72,7 @@ throughout.
 1. Load the top ViT, verify it reproduces its recorded test accuracy, and verify the
    attention-tapping forward pass reproduces the saved model's predictions.
 2. Compute Chefer relevance, attention rollout and SHAP for every test crop with score >= 1.
-3. Score all three against the same Otsu masks used in `analyses/06`.
+3. Score all three against the same Otsu masks used in `analyses/12`.
 4. Apply the same two nulls: a centred Gaussian, and the shuffled-mask permutation.
 5. Compare directly against the CNN's Grad-CAM and SHAP numbers.
 
@@ -289,7 +289,7 @@ def attention_rollout(images, batch=16):
 TensorFlow op gradients with `shap_`-prefixed handlers, and it has no handler for the
 `Neg` op the ViT's LayerNormalization introduces, failing with
 `LookupError: gradient registry has no entry for: shap_Neg`. `GradientExplainer`
-(expected gradients) needs only gradients and works on both architectures. `analyses/06`
+(expected gradients) needs only gradients and works on both architectures. `analyses/12`
 used `DeepExplainer` for the CNN, so for the cross-architecture comparison in section 7
 the CNN's SHAP is **recomputed here with `GradientExplainer`**, on the same background
 draw, rather than reusing that cache. Comparing a DeepLIFT map against an
@@ -332,7 +332,7 @@ print("Chefer:", chefer_all.shape, " rollout:", rollout_all.shape, " SHAP:", sha
 
 Chefer and rollout live on the 16x16 patch grid and are upsampled to the input
 resolution. SHAP is already per pixel, and is summed over colour channels with the
-positive part kept, exactly as in `analyses/06`.
+positive part kept, exactly as in `analyses/12`.
 
 ```{python}
 # 3.4
@@ -361,7 +361,7 @@ for k, v in MAPS.items():
 
 ## 4. Masks and overlap metrics
 
-Identical to `analyses/06`: the same mask files, the same three metrics, the same
+Identical to `analyses/12`: the same mask files, the same three metrics, the same
 matched-area binarisation.
 
 ```{python}
@@ -450,7 +450,7 @@ print(summary.round(4).to_string())
 
 ---
 
-## 5. The same two nulls as `analyses/06`
+## 5. The same two nulls as `analyses/12`
 
 ```{python}
 # 5.1
@@ -648,7 +648,7 @@ print(f"  CNN GradientExplainer EBPG: {np.nanmean(ebpg(cnn_shap[sel], masks[sel]
   the crop geometry. Scoring each map against a *different* crop's lesion holds size and
   centrality fixed, so the own-minus-shuffled gap is the part that responds to the lesion
   actually present. ViT SHAP gains **+0.097 EBPG** over that null (p = 6e-22, better on
-  212 of 264 crops) against the CNN's **+0.0218** in `analyses/06`. Same explainer, same
+  212 of 264 crops) against the CNN's **+0.0218** in `analyses/12`. Same explainer, same
   masks, same metric, same crops -- so this is an architecture difference, not a
   measurement one.
 
@@ -674,7 +674,7 @@ print(f"  CNN GradientExplainer EBPG: {np.nanmean(ebpg(cnn_shap[sel], masks[sel]
   way. That is a real limitation of substituting the ICCV variant.
 
 - **The ViT does not have the CNN's resolution failure, confirming hypothesis 4.**
-  `analyses/06` found Grad-CAM's pointing game at **0.341**, below the 0.452 area
+  `analyses/12` found Grad-CAM's pointing game at **0.341**, below the 0.452 area
   baseline, because the last conv layer is 4x4 and its argmax can only sit at one of 16
   lattice points. The ViT's attention is over a 16x16 patch grid, and both attention
   methods clear the baseline comfortably (rollout 0.924, Chefer 0.591). Any Grad-CAM
@@ -690,12 +690,12 @@ print(f"  CNN GradientExplainer EBPG: {np.nanmean(ebpg(cnn_shap[sel], masks[sel]
 - **The two architectures look at different pixels while both looking at the lesion.**
   With the explainer held identical, CNN SHAP and ViT SHAP correlate at a median of only
   **+0.115** per image. Both put most of their attention inside the mask, but not on the
-  same parts of it. That is a mechanism for the finding in `analyses/07` that the two
+  same parts of it. That is a mechanism for the finding in `analyses/04` that the two
   classes agree with each other less (0.710) than either agrees with itself (0.779 CNN,
   0.753 ViT) while reaching identical accuracy, and it is the reason a mixed committee is
   worth testing.
 
-- **Scope.** One ViT and one CNN, each the top of its grid. `analyses/03` showed the top
+- **Scope.** One ViT and one CNN, each the top of its grid. `analyses/08` showed the top
   cluster is a noise plateau, so these are representative members rather than uniquely
   best models, and nothing here establishes that the other 99 of each attend the same way.
   Extending the permutation test across both kept top-100s would say whether the

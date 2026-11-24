@@ -13,7 +13,7 @@ Date: 18/07/2026
 
 **Goal:**
 
-Use the 8,640-model Base-CNN grid search as a dataset in its own right —
+Use the Base-CNN grid search's 6,720 distinct settings as a dataset in its own right —
 hyperparameters in, mean CV accuracy (`avg_vaf`) out — and ask *which
 hyperparameters actually move accuracy*, and in which direction. A random forest
 ranks them by Gini importance (mirroring `10_image_entropy §6.6`) and SHAP
@@ -46,6 +46,7 @@ plateau then tests whether anything explains the within-cluster ranking at all.
 # 1.1
 import glob
 import pickle
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -57,7 +58,13 @@ from sklearn.ensemble import RandomForestRegressor
 plt.rcParams.update({"figure.dpi": 120})
 ```
 
-### 1.2 Load the full grid and build the feature matrix
+### 1.2 Load the grid, collapse it to distinct settings, and build the feature matrix
+
+The grid crosses `reg = None` with all three `reg_strength` values, and `reg_strength`
+does nothing without a regulariser, so 1,920 of the 8,640 runs repeat a setting. Those
+repeats would enter the surrogate as three observations of one point, understating the
+noise the forest has to fit through and weighting `reg = None` three times over on the
+`reg` axis. `grid_results.deduplicate` keeps each setting's best run, leaving 6,720.
 
 The target is `avg_vaf`. Features are the *searched* hyperparameters; the three
 constant columns (`epochs`, `batch_size`, `pooling_size`) carry no information and
@@ -74,11 +81,16 @@ def find_repo_root(start: Path) -> Path:
     raise FileNotFoundError("repo root not found")
 
 ROOT = find_repo_root(Path.cwd())
+sys.path.append(str(ROOT / "src"))
+from grid_results import deduplicate  # noqa: E402
+
 CNN_DIR = ROOT / "models" / "03_Medoid_CNN_RandomSearch" / "01_Categorical_Loss"
 
 frames = [pd.read_csv(CNN_DIR / "random_search_results.csv")]
 frames += [pd.read_csv(p) for p in glob.glob(str(CNN_DIR / "parts" / "*.csv"))]
-df = pd.concat(frames, ignore_index=True).drop_duplicates("model_id").reset_index(drop=True)
+runs = pd.concat(frames, ignore_index=True).drop_duplicates("model_id").reset_index(drop=True)
+df = deduplicate(runs).reset_index(drop=True)
+print(f"{len(runs)} runs -> {len(df)} distinct settings")
 df["reg"] = df["reg"].fillna("None")
 
 NUM = ["num_filters", "filter_size", "num_layers", "learning_rate", "reg_strength", "dropout"]
@@ -117,10 +129,10 @@ cache is robust across shap versions; the `Explanation` is rebuilt on load.
 CACHE = Path("shap_cache")
 CACHE.mkdir(exist_ok=True)
 CACHE_FILE = CACHE / "artifacts.pkl"
-# Candidate pools for the R^2 ladder in section 5, narrowing to the 22-config tied set the
+# Candidate pools for the R^2 ladder in section 5, narrowing to the 17-setting tied set the
 # noise-floor figure defines. Declared here so the cache fingerprint covers it and editing
 # the ladder forces a refit rather than returning stale curves.
-POOLS_TAIL = [4000, 2000, 1000, 500, 250, 100, 50, 22]
+POOLS_TAIL = [4000, 2000, 1000, 500, 250, 100, 50, 17]
 fingerprint = (f"{len(df)}rows|{df['avg_vaf'].sum():.6f}|{list(X.columns)}"
                f"|pools{POOLS_TAIL}")
 
@@ -324,10 +336,10 @@ plt.show()
   avoid there" rules rather than a single magic config.
 
 - **The signal is about reaching the plateau, not ranking within it (§5).** Refit on
-  smaller and smaller top-k pools, the out-of-bag R² falls from ~0.93 on the full
-  grid to ~0.5 (top-1000) to ~0.34 (top-500). Once every model already uses a
+  smaller and smaller top-k pools, the out-of-bag R² falls from 0.94 on the full
+  grid to 0.60 (top-1000) to 0.48 (top-500). Once every model already uses a
   sensible region, the hyperparameters no longer explain who wins — matching
-  `analyses/03`, where the top cluster's CV ranking does not transfer to held-out
+  `analyses/08`, where the top cluster's CV ranking does not transfer to held-out
   test accuracy. **The two analyses meet here:** settings get you onto the plateau;
   luck orders you on it.
 
@@ -337,7 +349,7 @@ plt.show()
   gains beyond the ~62% ceiling, the lever is not a better CNN config but a different
   approach — the ViT sweep, augmentation, or ensembling the plateau.
 
-- **Caveats.** Importances are computed on `avg_vaf`, itself noisy (`analyses/03`);
+- **Caveats.** Importances are computed on `avg_vaf`, itself noisy (`analyses/08`);
   the collapse of R² inside the plateau is partly that noise becoming the dominant
   signal, which is exactly the point. One-hot columns split a categorical's
   importance across its levels (e.g. `opt=Adam` and `opt=Momentum` are two views of
@@ -365,7 +377,7 @@ _se = np.sqrt(0.65 * 0.35 / 2289)
 _tied_mask = (df["avg_vaf"] >= df["avg_vaf"].max() - _se).to_numpy()
 # The forest has to be REFITTED inside the plateau to ask whether a hyperparameter still
 # matters there. Explaining the global forest on the tied rows answers a different question
-# -- how that global model attributes those 22 predictions -- and returns learning_rate at
+# -- how that global model attributes those 17 predictions -- and returns learning_rate at
 # the same importance inside the plateau as across the grid, which is an artefact of the
 # global fit rather than a property of the plateau.
 _rf_w = RandomForestRegressor(**RF_KW).fit(X, y)
@@ -377,7 +389,7 @@ _plat = pd.Series(np.abs(shap.TreeExplainer(_rf_t)(X[_tied_mask]).values).mean(0
 # zero that the second series is invisible, which reads as missing data rather than as the
 # result. The out-of-band R^2 ladder states the same thing as one readable quantity -- how
 # much of the accuracy differences a forest on the hyperparameters can explain, as the
-# candidate pool narrows from the whole grid to the 22 tied configurations.
+# candidate pool narrows from the whole grid to the 17 tied settings.
 _labels = ["all" if k == len(df) else str(k) for k in pools]
 _fig, _ax = plt.subplots(figsize=(5.8, 4.2))
 _ax.plot(range(len(pools)), r2s, "-o", color="#4C72B0", zorder=3)
