@@ -12,28 +12,28 @@ Date: 11/09/2026
 
 **Goal:**
 
-Put a floor under the deep models, using the same hand-crafted features, the same model
-families and the same code as Chapter 2's `10b_score_prediction.qmd`, but evaluated on the
-train/val/test split every model in this repository is evaluated on.
+Set a baseline for the deep models. It uses the same hand-crafted features, kinds of
+model and code as Chapter 2's `10b_score_prediction.qmd`. But it is evaluated on the
+training, validation and test split that every model in this repository uses.
 
 **Rationale:**
 
-This is a port, not a reimplementation. Sections 1-6 reproduce `10b_score_prediction.qmd`
-line for line -- the same twelve features, the same balanced undersample, the same
-source-grouped five-fold cross validation, the same `maxnodes` sweep, the
-same proportional-odds ordinal regression, the same baselines and the same leakage check --
-so the numbers here can be checked against the ones that analysis published. Section 7 is
-the only new part: the identical models refit on the medoid_64 train split, tuned on val
-and scored once on the 308 test CDAs, which is what makes them comparable with models/03
-and models/04.
+This copies the original code rather than rewriting it. Sections 1 to 6 reproduce
+`10b_score_prediction.qmd` line for line. They use the same twelve features, balanced
+undersample, five-fold cross validation grouped by leaf, `maxnodes` sweep,
+proportional-odds ordinal regression, baselines and leakage check. So the numbers here
+can be checked against the ones that analysis published. Section 7 is the only new
+part. The same models are refitted on the medoid_64 training split, tuned on the
+validation split and scored once on the 308 test CDAs. This makes them comparable with
+models/03 and models/04.
 
-Written in R for the same reason the original is: `MASS::polr` fits the proportional-odds
-model, and there is no equivalent in this project's Python environment.
+It is written in R for the same reason as the original. `MASS::polr` fits the
+proportional-odds model, and this project's Python environment has no equivalent.
 
-**The features:** eleven segmentation features plus `entropy_raw`. `frac_g_gt_r` is
-deliberately NOT a model feature -- its Otsu-artefact behaviour is discussed in
-`10_segmentation_and_feature_extraction` section 5.2 -- and is kept only for the
-single-feature "Threshold: CDA area" baseline.
+**The features** are eleven segmentation features and `entropy_raw`. `frac_g_gt_r` is
+deliberately NOT a model feature, because of the Otsu artefact discussed in
+`10_segmentation_and_feature_extraction` section 5.2. It is kept only for the
+one-feature "Threshold: CDA area" baseline.
 
 ---
 
@@ -104,7 +104,7 @@ save_plot <- function(p, name, width, height) {
 
 ## 2. Features, class balance and a leakage-safe cross validation
 
-Copied from `10b_score_prediction.qmd` section 2.1-2.3.
+Copied from `10b_score_prediction.qmd` sections 2.1 to 2.3.
 
 ```{r}
 # 2.1  Features and class balancing
@@ -255,8 +255,8 @@ save_plot(p_reg, "rf_regularisation.png", width = 8, height = 4.5)
 
 ## 4. Ordinal regression
 
-Proportional-odds ordinal logistic regression: one linear predictor over the twelve
-features plus six ordered cut-points, so the model uses the ordering of the scale rather
+Proportional-odds ordinal logistic regression fits one linear combination of the twelve
+features and six ordered cut-points. So the model uses the order of the scale, rather
 than treating the seven scores as unrelated labels.
 
 ```{r}
@@ -297,9 +297,10 @@ cat(sprintf(
 
 ## 5. Reproduction check against 10b
 
-If this port is faithful, the five rows below must match the values
-`10b_score_prediction.qmd` publishes: ordinal regression 0.615, random forest 0.565,
-CDA-area threshold 0.111, majority class 0.143.
+If this copy is faithful, the rows below must match the values that
+`10b_score_prediction.qmd` publishes. These are 0.615 for ordinal regression, 0.565 for
+the random forest, 0.111 for the CDA area threshold and 0.143 for always guessing one
+class.
 
 ```{r}
 # 5.1
@@ -351,9 +352,10 @@ results %>%
 
 ## 6. The medoid_64 splits
 
-The only part that is not in 10b. The same two models are refit on the medoid_64 train
-split (1,834 crops), each one's hyperparameter chosen on the val split (455), then refit on
-train+val and scored once on the 308 test CDAs -- the same crops models/03 and models/04
+This is the only part that is not in 10b. The same two models are refitted on the
+medoid_64 training split (1,834 crops), with each one's hyperparameter chosen on the
+validation split (455 crops). They are then refitted on training plus validation and
+scored once on the 308 test CDAs. These are the same crops that models/03 and models/04
 report `test_acc` on.
 
 ```{r}
@@ -515,9 +517,9 @@ rbind(final, deep) %>% arrange(desc(test_exact)) %>% as.data.frame()
 
 ## 7. Confusion matrix of the best model
 
-Ported from `10b_score_prediction.qmd` section 7, drawn on the medoid_64 test split rather
-than the grouped cross validation, and using `_plot_confusion_matrix` from
-`src/cnn_base.py` so it matches every other confusion matrix in this project.
+Adapted from `10b_score_prediction.qmd` section 7. It is drawn on the medoid_64 test
+split rather than the grouped cross validation. It uses `_plot_confusion_matrix` from
+`src/cnn_base.py`, so it matches every other confusion matrix in this project.
 
 ```{r}
 # 7.1
@@ -564,10 +566,11 @@ print(f"{cm.sum()} test crops; {np.trace(cm)} correct ({np.trace(cm) / cm.sum():
 
 ## 8. Ordinal forest: regularisation sweep and importance
 
-The same sweep the regression forest gets in section 3, on the ordinal forest's capacity
-parameter. `ordfor` passes `min.node.size` through to ranger: a larger minimum node size
-means smaller trees, so it plays the role `maxnodes` plays there, in the opposite direction.
-Training accuracy is resubstitution; held-out is the medoid_64 validation split.
+The same sweep as for the regression forest in section 3, on the ordinal forest's
+capacity setting. `ordfor` passes `min.node.size` to ranger. A larger minimum node size
+means smaller trees, so it does the job of `maxnodes` there, in the opposite direction.
+Training accuracy is measured on the training data. Held-out accuracy is on the
+medoid_64 validation split.
 
 ```{r}
 # 8.1
@@ -641,11 +644,11 @@ save_plot(p_imp, "ordinal_forest_importance.png", width = 7, height = 5)
 
 ## 8b. Confusion matrix as a change from the human baseline
 
-The model and human matrices look alike because both are band-diagonal. Differencing them
-makes the departure legible: each cell is the model's row proportion minus the human row
-proportion, so red means the model does that more often than a rater does and blue less.
-Counts are not comparable directly (917 rater judgements against 308 model predictions), so
-both are row-normalised first.
+The model and human matrices look alike, because both have most of their counts near the
+diagonal. Subtracting one from the other shows where they differ. Each cell is the model's
+row proportion minus the human row proportion. Red means the model does that more often
+than a rater, and blue less often. The counts cannot be compared directly, because there
+are 917 rater judgements and 308 model predictions. So each row is normalised first.
 
 ```{python}
 #| fig-cap: "Best non-DL model minus human raters, as a change in row proportion on the 308 test CDAs."
@@ -690,9 +693,9 @@ print(f"diagonal change: {_np.diag(_diff).round(3)}")
 
 ## 9. Ordinal regression: what the fitted model looks like
 
-Four candidate figures for the chapter, all read straight off the fitted `polr` object
-(train+val, 2,289 crops). Nothing here needs SHAP: a proportional-odds model exposes its
-coefficients and its cut-points directly.
+Four candidate figures for the chapter, all read directly from the fitted `polr` model
+(training plus validation, 2,289 crops). None needs SHAP, because a proportional-odds
+model shows its coefficients and cut-points directly.
 
 ```{r}
 # 10.1  Refit on train+val and pull out the pieces the plots need.
@@ -714,9 +717,9 @@ cat("spacing:\n"); print(round(diff(zeta), 3))
 
 ### 10.1 Coefficients
 
-The ordinal model's counterpart to the random forest's Gini panel: direction and
-significance, which Gini has neither of. One standard deviation of each standardised
-feature, in log-odds.
+The ordinal model's counterpart to the random forest's Gini panel. It shows direction
+and significance, which Gini does not. Each bar is the effect of one standard deviation
+of a standardised feature, in log-odds.
 
 ```{r fig.width=7, fig.height=5}
 # 10.2
@@ -736,9 +739,9 @@ save_plot(p_coef, "ordinal_coefficients.png", width = 7, height = 5)
 
 ### 10.2 Cut-points on the latent scale
 
-The six thresholds the model places on its single latent severity score, with the crops'
-own latent scores underneath. This is the consecutive-boundary structure directly, rather
-than inferred.
+The six thresholds the model sets on its single hidden severity score, with each crop's
+hidden score shown underneath. This shows the boundaries between consecutive scores
+directly, rather than inferring them.
 
 ```{r fig.width=9, fig.height=4.5}
 # 10.3
@@ -766,9 +769,9 @@ save_plot(p_cut, "ordinal_cutpoints.png", width = 9, height = 4.5)
 
 ### 10.3 Class-probability curves
 
-How the predicted probability of each score varies along the latent scale. Under
-proportional odds the seven curves are shifted copies of one shape, which this makes
-visible rather than assumed.
+How the predicted probability of each score changes along the hidden scale. Under
+proportional odds, the seven curves are shifted copies of one shape. This plot shows it
+rather than assuming it.
 
 ```{r fig.width=9, fig.height=4.5}
 # 10.4
@@ -794,8 +797,8 @@ save_plot(p_prob, "ordinal_class_probabilities.png", width = 9, height = 4.5)
 
 ### 10.4 Effect of the three strongest features
 
-Predicted class probability as each feature varies across its observed range, with every
-other feature held at its mean.
+The predicted probability of each score as one feature varies across its observed range,
+with every other feature held at its mean.
 
 ```{r fig.width=11, fig.height=4}
 # 10.5
@@ -827,9 +830,9 @@ save_plot(p_eff, "ordinal_effects.png", width = 11, height = 4)
 
 ## 10. Summary against the deep models and human raters
 
-Exact accuracy with the near-miss band stacked on top, so each bar's full height is
-near-miss and the solid part is exact. The framework is the same one the augmented and
-ensemble models drop into once those runs land.
+Exact accuracy, with near-miss accuracy stacked on top. Each bar's full height is the
+near-miss accuracy, and the solid part is the exact accuracy. The augmented and ensemble
+models use the same layout.
 
 ```{r fig.width=8, fig.height=4.5}
 # 10.1
@@ -869,4 +872,3 @@ save_plot(p_summ, "summary_vs_human.png", width = 8, height = 5.2)
 
 ## 11. Interpretation
 
-_Written after reading the rendered output._

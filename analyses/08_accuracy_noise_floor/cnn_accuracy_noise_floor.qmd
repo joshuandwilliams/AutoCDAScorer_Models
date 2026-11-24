@@ -13,29 +13,27 @@ Date: 18/07/2026
 
 **Goal:**
 
-The Medoid-CNN grid search trained 8,640 CNNs covering 6,720 distinct settings on the
-medoid_64 dataset and ranked them
-by mean cross-validation accuracy (`avg_vaf`). The top 100 all land in a narrow
-band (~61–63%). This asks whether the single "best" model is *reproducibly* the
-best, or whether picking the rank-1 config is essentially selecting on measurement
-noise.
+The Medoid-CNN grid search trained 8,640 CNNs, covering 6,720 distinct settings, on
+the medoid_64 dataset. It ranked them by mean cross-validation accuracy (`avg_vaf`).
+The top 100 all fall in a narrow band, about 61 to 63%. This asks whether the single
+"best" model is *reliably* the best, or whether picking the top config is just picking
+measurement noise.
 
 **Hypothesis:**
 
-The differences *within* the top cluster are smaller than the statistical
-uncertainty of measuring accuracy on a dataset this size, so (a) a large number of
-configs are statistically tied for first, and (b) the CV ranking within the cluster
-does not carry over to an independent held-out test set — the classic *winner's
-curse* of taking the maximum over many noisy estimates.
+The differences *within* the top cluster are smaller than the uncertainty of
+measuring accuracy on a dataset this size. So many configs are statistically tied for
+first. The CV ranking within the cluster also does not carry over to a separate
+held-out test set. This is the *winner's curse* of taking the maximum of many noisy
+estimates.
 
 **Rationale:**
 
-Accuracy measured on `n` samples is a proportion with standard error
-`√(p(1−p)/n)`. If that noise floor is comparable to the spread of the top cluster,
-then the cluster is one flat plateau and its internal ordering is noise. The
-decisive test is out-of-sample: the held-out test split never enters model
-selection, so if CV rank were real signal it would predict test accuracy — and if
-it is noise, it will not.
+Accuracy measured on `n` samples is a proportion with standard error `√(p(1−p)/n)`.
+If that noise is about as large as the spread of the top cluster, the cluster is one
+flat plateau, and its order is noise. The decisive test uses new data. The held-out
+test split plays no part in choosing models. So if the CV ranking were real, it would
+predict test accuracy. If it is noise, it will not.
 
 ---
 
@@ -61,16 +59,16 @@ plt.rcParams.update({"figure.dpi": 120, "axes.grid": True,
 
 ### 1.2 Load the grid and collapse it to its distinct settings
 
-The shared `random_search_results.csv` holds one row per trained config; a few
-tasks' rows may still sit in `parts/` un-merged, so both are concatenated and
-de-duplicated on `model_id` to recover the complete grid.
+The shared `random_search_results.csv` has one row for each trained config. A few
+tasks' rows may still be unmerged in `parts/`. So both are joined, and duplicate
+`model_id`s are removed, to recover the whole grid.
 
-The grid crosses `reg = None` with all three `reg_strength` values, and `reg_strength`
-has no effect without a regulariser, so 1,920 of the 8,640 runs repeat a setting the
-grid already contains. `grid_results.deduplicate` keeps each setting's best-scoring run,
-leaving 6,720 distinct settings. Everything below is measured on those. Without this a
-tied set counts one setting up to three times, and any mean over it is weighted towards
-whichever settings happened to be trained three times.
+The grid pairs `reg = None` with all three `reg_strength` values. `reg_strength` has no
+effect without a regulariser, so 1,920 of the 8,640 runs repeat a setting already in the
+grid. `grid_results.deduplicate` keeps the best run of each setting, leaving 6,720
+distinct settings. Everything below uses those. Otherwise a tied set would count one
+setting up to three times, and any mean over it would lean towards the settings that
+happened to be trained three times.
 
 ```{python}
 # 1.2
@@ -97,9 +95,9 @@ print(f"Collapsed to {len(df)} distinct settings ({len(runs) - len(df)} repeats 
 
 ### 1.3 The dataset sets the noise floor
 
-`avg_vaf` is the mean of the 5 fold validation accuracies. Across the 5 folds each
-pooled train+val image is in the validation split exactly once, so the estimate is
-effectively an accuracy over the whole pooled set. Its size is read straight from
+`avg_vaf` is the mean of the validation accuracies of the 5 folds. Across the folds,
+each pooled training and validation image is in the validation split exactly once. So
+the estimate is in effect one accuracy over the whole pooled set. Its size comes from
 the dataset metadata.
 
 ```{python}
@@ -147,17 +145,17 @@ plt.tight_layout()
 plt.show()
 ```
 
-The bulk of models sit well above chance (0.14), rising to a hard ceiling near 0.63.
-Crucially, the whole top-100 band (orange) is about the **same width as the ±1 SE
-noise strip (red)** — the first sign that the plateau is one measurement, not a
-ranking.
+Most models are well above chance (0.14), rising to a hard ceiling near 0.63. The
+whole top-100 band, in orange, is about **as wide as the band of one standard error
+either side, in red**. This is the first sign that the plateau is one measurement, not
+a ranking.
 
 ---
 
 ## 3. The noise floor, and how many models are tied for first
 
-A single accuracy over `N_CV` samples has standard error `√(p(1−p)/N_CV)`. The
-difference between two models' accuracies has SE `√2` larger.
+One accuracy over `N_CV` samples has standard error `√(p(1−p)/N_CV)`. The difference
+between two models' accuracies has a standard error `√2` times larger.
 
 ```{python}
 # 3.1
@@ -172,10 +170,10 @@ print(f"Held-out TEST accuracy SE (n={N_TEST})  = {100*se_test:.2f} pp "
       f"(95% CI ±{1.96*100*se_test:.1f} pp)")
 ```
 
-So one standard error is ~1 pp, and the entire top-100 spans only ~1.6 SE. To count
-how many configs are **statistically indistinguishable from the best**, each model
-is compared to the rank-1 model with a one-sided two-proportion test: a model is
-"tied for first" if it is *not* significantly worse at the 5% level.
+So one standard error is about 1 pp, and the whole top 100 spans only about 1.6
+standard errors. To count how many configs **cannot be statistically told apart from
+the best**, each model is compared with the top model by a one-sided two-proportion
+test. A model is "tied for first" if it is *not* significantly worse at the 5% level.
 
 ```{python}
 # 3.2
@@ -208,17 +206,17 @@ plt.tight_layout()
 plt.show()
 ```
 
-(If anything this *undercounts* the ties: the models are scored on the *same* CV
-folds, so their errors are positively correlated and the true SE of their difference
-is smaller than the independent-proportions value used here.)
+If anything, this *undercounts* the ties. The models are scored on the *same* CV
+folds, so their errors are positively correlated. The true standard error of their
+difference is therefore smaller than the value used here.
 
 ---
 
 ## 4. The winner's curse, measured on held-out data
 
-The argument above rests on a noise model. The **held-out test split settles it
-empirically**: it never enters model selection, so if CV rank were real signal it
-would predict test accuracy. The rank-1-by-CV model is followed onto the test set.
+The argument above rests on a model of the noise. The **held-out test split settles
+it with data**. It plays no part in choosing models, so if the CV ranking were real, it
+would predict test accuracy. The top model by CV is followed onto the test set.
 
 ```{python}
 # 4.1
@@ -231,10 +229,10 @@ print(f"   Best TEST accuracy achieved by ANY model = {df.test_acc.max():.4f}")
 print(f"   -> the CV winner is nowhere near the top on independent data.")
 ```
 
-If CV rank were meaningful *within the plateau*, `avg_vaf` and `test_acc` would
-correlate among the top models. They do not: the correlation is strong across the
-full range (where real differences exist) but collapses to ~0 once restricted to the
-top cluster.
+If the CV ranking meant something *within the plateau*, `avg_vaf` and `test_acc`
+would correlate among the top models. They do not. The correlation is strong across
+the full range, where real differences exist. Within the top cluster it falls to about
+0.
 
 ```{python}
 # 4.2
@@ -297,9 +295,9 @@ plt.show()
 
 ## 5. How much of the winner's edge is expected from noise alone?
 
-If the top few hundred configs shared one true accuracy and differed only by
-sampling noise, the maximum of that many draws would still sit well above their
-common mean purely by chance — the expected optimism of a maximum.
+Suppose the top few hundred configs had one true accuracy and differed only by
+sampling noise. The maximum of that many draws would still be well above their common
+mean, by chance alone. This is the expected optimism of a maximum.
 
 ```{python}
 # 5.1
@@ -316,9 +314,9 @@ print("The observed winner's margin is well within what noise alone produces.")
 
 ## 6. Near-miss (±1) tells the same story
 
-Configs are ranked on exact accuracy, but each is also scored on **near-miss** — the
-prediction landing within ±1 of the true score. Near-miss sits near the ceiling for
-the top cluster, so its noise floor is even smaller and its plateau even flatter.
+Configs are ranked on exact accuracy. Each is also scored on **near-miss**, a
+prediction within one score of the label. For the top cluster, near-miss is close to
+its maximum. So its noise is even smaller, and its plateau even flatter.
 
 ```{python}
 # 6.1
@@ -331,15 +329,15 @@ print(f"near-miss noise SE at the ceiling = {100*se_nm:.2f} pp "
       f"(vs {100*se_cv:.2f} pp for exact accuracy)")
 ```
 
-The top models place the score within ±1 about **96–98%** of the time: almost every
-error is to an *adjacent* score, so what the exact-accuracy plateau is really failing
-to do is separate neighbouring severities — not tell a healthy leaf from a dead one.
+The top models put the score within one of the label about **96 to 98%** of the
+time. Almost every error is to an *adjacent* score. So what the plateau in exact
+accuracy fails at is separating neighbouring scores, not telling a healthy leaf from a
+dead one.
 
-The two metrics are strongly related, but the relationship is **concave and
-saturating**: near-miss climbs fast as exact accuracy rises from chance, then flattens
-against its ceiling, so across the top exact-accuracy cluster the near-miss is almost
-constant — which is exactly why it cannot rank the plateau any better than exact
-accuracy can.
+The two metrics are strongly related, but the curve **bends and levels off**.
+Near-miss rises fast as exact accuracy rises from chance, then flattens near its
+ceiling. So across the top cluster, near-miss is almost constant. That is why it cannot
+rank the plateau any better than exact accuracy.
 
 ```{python}
 #| fig-cap: "Exact vs near-miss accuracy across all 6,720 CNN settings. Near-miss rises steeply with exact accuracy but saturates near 1.0, so the top exact-accuracy cluster (orange) is compressed into a nearly flat near-miss band — the two metrics co-rank models only where accuracy is low."
@@ -374,8 +372,8 @@ plt.tight_layout()
 plt.show()
 ```
 
-The winner's curse holds just as it did for exact accuracy: ranking by CV does not
-pick the best test near-miss.
+The winner's curse holds just as for exact accuracy. Ranking by CV does not pick the
+best test near-miss.
 
 ```{python}
 # 6.4
@@ -393,51 +391,52 @@ for k in (100, 500):
 
 ## 7. Interpretation and Discussion
 
-- **Within the top cluster, the ranking is noise.** One accuracy measurement on
-  this dataset carries ~1 pp of standard error, and the entire top-100 spans only
-  ~1.6 SE. By a straight two-proportion test **~200 configs are statistically tied
-  for first**, and that is a conservative count (shared CV folds make the real ties
-  more numerous). Picking the single rank-1 config is selecting on noise.
+- **Within the top cluster, the ranking is noise.** One accuracy measurement on this
+  dataset has a standard error of about 1 pp, and the whole top 100 spans only about
+  1.6 standard errors. By a simple two-proportion test, **about 200 configs are
+  statistically tied for first**. That count is conservative, because shared CV folds
+  make the real ties more numerous. Picking the single top config means picking noise.
 
-- **The held-out test set proves it.** The CV-best model does *not* transfer: it
-  ranks in the low hundreds on the independent test split, not first, and among the
-  top ~100–250 configs CV accuracy and test accuracy are essentially **uncorrelated
-  (r ≈ 0)**. The strong overall correlation (r ≈ 0.9 across all 6,720) confirms the
-  method is sound — hyperparameters genuinely move accuracy across the full range —
-  but that signal is exhausted before the plateau. So the answer to the title is
-  **yes: at the top, the "best model" is basically luck.**
+- **The held-out test set proves it.** The best model by CV does *not* stay best. It
+  ranks in the low hundreds on the separate test split, not first. Among the top 100 to
+  250 configs, CV and test accuracy are essentially **uncorrelated (r ≈ 0)**. The strong
+  overall correlation (r ≈ 0.9 across all 6,720) shows the method is sound.
+  Hyperparameters really do change accuracy across the full range. But that effect is
+  used up before the plateau. So the answer to the title is **yes. At the top, the "best
+  model" is mostly luck.**
 
-- **This is the winner's curse.** The maximum over 6,720 noisy scores is optimistic
-  by construction; the observed winning margin over the plateau mean is no larger
-  than `σ·√(2 ln N)`, the gap expected from noise alone.
+- **This is the winner's curse.** The maximum of 6,720 noisy scores is optimistic by
+  design. The winner's observed margin over the plateau mean is no larger than
+  `σ·√(2 ln N)`, the gap that noise alone would give.
 
-- **Near-miss confirms it, and locates the real difficulty (§6).** On the ±1 metric
-  the top models score ~96–98%, so the noise floor shrinks to ~0.3 pp and the plateau
-  is even less rankable; the winner's curse persists (the CV-best-near-miss model is
-  ~200th on test near-miss). Because almost every error is to an *adjacent* score,
-  the ceiling the CNNs hit is specifically about separating **neighbouring**
-  severities — the coarse task (present vs absent) is essentially solved.
+- **Near-miss confirms it, and shows where the real difficulty is (§6).** Within one
+  score, the top models reach about 96 to 98%. The noise shrinks to about 0.3 pp, and the
+  plateau is even harder to rank. The winner's curse remains. The model with the best CV
+  near-miss is about 200th on test near-miss. Almost every error is to an *adjacent*
+  score. So the CNNs' ceiling is about separating **neighbouring** scores. The coarse
+  task, cell death present or absent, is essentially solved.
 
 - **What to do instead.**
-  1. *Treat the top cluster as one equivalence class,* not a ranked list. Select a
-     region of hyperparameters, not an argmax.
-  2. *Ensemble the plateau* rather than betting on one lucky draw — the dataset even
-     carries a dedicated `ensemble` split for this.
-  3. *Prefer more stable selection signals* — e.g. quadratic-weighted kappa /
-     near-miss, or repeated CV with different seeds to expose rank instability.
-  4. *Do not over-invest in the exact winning hyperparameters;* which hyperparameter
-     *regions* populate the plateau is the reproducible question — pursued in
-     `analyses/09_hyperparameter_importance`.
+  1. *Treat the top cluster as one group of equals,* not a ranked list. Choose a region
+     of hyperparameters, not a single best config.
+  2. *Ensemble the plateau* rather than betting on one lucky draw. The dataset even has
+     an `ensemble` split for this.
+  3. *Choose models with more stable measures,* such as quadratic-weighted kappa or
+     near-miss, or repeat CV with different seeds to show how unstable the ranking is.
+  4. *Do not invest much in the exact winning hyperparameters.* The question that can be
+     answered reliably is which *regions* of hyperparameters reach the plateau.
+     `analyses/09_hyperparameter_importance` takes this up.
 
-- **The plateau itself is the real headline.** 6,720 CNN settings saturating at ~62–63%
-  means CNN hyperparameter tuning has **hit a ceiling set by the data and task, not
-  the configuration.** Further gains must come from elsewhere — a different model
-  class (the Vision Transformer sweep), augmentation, or ensembling — not from more
-  CNN grid search. (Consistent with the ViTs so far landing at the same values.)
+- **The plateau itself is the main result.** 6,720 CNN settings level off at about 62
+  to 63%. So tuning CNN hyperparameters has **hit a ceiling set by the data and the task,
+  not by the configuration.** Further gains must come from elsewhere, such as a
+  different kind of model (the Vision Transformer sweep), augmentation or ensembling. More
+  CNN grid search will not help. This fits with the ViTs so far reaching the same
+  values.
 
-- **Caveat.** `avg_vaf` is treated as a single pooled accuracy over `N_CV`; the true
-  variance also includes training stochasticity (init, SGD, early stopping), which
-  only *widens* the noise floor. The conclusion is therefore conservative.
+- **Limitation.** `avg_vaf` is treated as one pooled accuracy over `N_CV`. The true
+  variance also includes the randomness of training (initialisation, SGD and early
+  stopping), which only *widens* the noise. So the conclusion is conservative.
 ```
 
 

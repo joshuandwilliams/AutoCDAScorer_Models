@@ -10,16 +10,16 @@ Date: 15/01/2025
 
 ## Goal
 
-Generate a base dataset with side length 64 pixels for training, validation, ensemble, and test.
+Make a base dataset of 64 x 64 pixel images, split into training, validation, ensemble and test sets.
 
 ## Experimental Plan
-1. Load raw cropped CDA images.
-2. Resize loaded CDA images to 64x64 pixels.
-3. Split dataset into training, validation, ensemble, and test sets using stratified sampling.
-4. Balance class sizes by downsampling with a fixed seed.
-5. Normalise images to float range (0-1) and convert to Tensor. One-hot encode labels and convert to Tensor.
-6. Save processed dataset to .npy file, and filenames to .csv.
-7. Load saved base_64 dataset and check integrity
+1. Load the raw cropped CDA images.
+2. Resize them to 64 x 64 pixels.
+3. Split them into training, validation, ensemble and test sets by stratified sampling.
+4. Balance the class sizes by downsampling with a fixed seed.
+5. Scale the images to the range 0 to 1 and convert them to tensors. One-hot encode the labels and convert them to tensors.
+6. Save the dataset to a .npy file and the filenames to a .csv file.
+7. Load the saved base_64 dataset and check it.
 
 ### Required Libraries
 ```{python}

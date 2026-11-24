@@ -14,62 +14,58 @@ Date: 10/09/2026
 **Goal:**
 
 Decide which geometric augmentations to apply to the medoid CDA crops, and how many at
-once. An earlier attempt applied a large set of them together and did not improve
-validation accuracy. This works out which of them could have helped, which could not, and
-which were actively changing the thing being predicted.
+once. An earlier attempt applied many of them together and did not improve validation
+accuracy. This works out which could have helped, which could not, and which were
+changing the very thing being predicted.
 
 **Hypotheses:**
 
-1. **Some of the augmentations cannot help, because the crop they produce is
-   indistinguishable from the original in every measurable property of the lesion.** A
-   horizontal flip is the clearest candidate: a leaf photographed from above has no
-   canonical orientation, and every one of the twelve Chapter 2 features is a mean, a
-   spread, a count or a threshold over a region, all of which are unchanged when the
-   pixels are permuted.
-2. **Some of them change the severity content rather than a nuisance direction.** Zoom is
-   the clearest candidate here: enlarging the sampled window adds healthy leaf around the
-   lesion, which changes lesion area, mean greenness over the leaf and the green:red pixel
-   ratio -- three of the features that track severity. The label stays fixed, so the
-   augmented crop is mislabelled.
-3. **Applying many at once compounds 2.** Each transform that shifts severity content adds
-   to the last, so a composite of six is further from its label than any single one.
+1. **Some augmentations cannot help, because their crop matches the original in every
+   measurable property of the lesion.** A horizontal flip is the clearest case. A leaf
+   photographed from above has no natural orientation. Every one of the twelve Chapter 2
+   features is a mean, a spread, a count or a threshold over a region. None of these
+   change when the pixels are rearranged.
+2. **Some change the severity itself, not just irrelevant detail.** Zoom is the clearest
+   case. Enlarging the sampled window adds healthy leaf around the lesion. That changes
+   lesion area, mean greenness over the leaf and the ratio of green to red pixels, three
+   features that follow severity. The label stays the same, so the augmented crop is
+   mislabelled.
+3. **Applying many at once makes point 2 worse.** Each transform that shifts severity adds
+   to the last, so a combination of six is further from its label than any one alone.
 
 **Rationale:**
 
-An augmentation is worth applying only if it produces a crop that is *different* from the
-original in ways that do *not* change the label. That is two separate measurements and
-they have to be made separately:
+An augmentation is only worth applying if its crop is *different* from the original in
+ways that do *not* change the label. That needs two separate measurements:
 
-- **Displacement** -- how far the augmented crop moves in the twelve Chapter 2 features,
-  standardised on the real crops and expressed in units of the real within-class spread.
-  Near zero means the augmented copy is, in these terms, the same image again, so a model
-  has nothing new to learn from it.
-- **Label preservation** -- whether the top medoid CNN still predicts the same score for
-  the augmented crop. This is the closest available stand-in for asking a human rater
-  whether the severity changed, and it is measured on the same model that would be
-  trained on the augmented data.
+- **Displacement.** How far the augmented crop moves in the twelve Chapter 2 features.
+  The features are standardised on the real crops, and the distance is in units of the
+  real spread within a class. Near zero means the copy is, in these terms, the same image
+  again. A model has nothing new to learn from it.
+- **Label preservation.** Whether the top medoid CNN still predicts the same score for the
+  augmented crop. This is the closest available substitute for asking a rater whether the
+  severity changed. It uses the same model that would be trained on the augmented data.
 
-Crossing the two gives the decision directly:
+Combining the two gives the decision directly.
 
 | | label preserved | label changed |
 |---|---|---|
-| **displacement ~ 0** | nothing to learn -- drop it | (cannot occur) |
-| **displacement large** | real nuisance direction -- keep it | relabels the data -- drop it |
+| **displacement ~ 0** | nothing to learn, so drop it | (cannot occur) |
+| **displacement large** | real irrelevant variation, so keep it | changes the label, so drop it |
 
 **Experimental plan:**
 
 1. Rebuild every training crop from the raw leaf photographs, applying each augmentation
-   **alone**. Validate that the identity case reproduces the stored crops exactly.
+   **alone**. Check that the identity case reproduces the stored crops exactly.
 2. Measure displacement and label preservation for each.
-3. Do the same for a composite drawn from the original grid, to measure what applying
+3. Do the same for combinations drawn from the original grid, to measure what applying
    several at once costs.
 4. Recommend a set.
 
-**Why the crops are rebuilt from the raw photographs.** Rotating or shearing an
-already-cropped image leaves black corners, and shifting or zooming a crop can only pad,
-never reveal. Sampling from the raw leaf photograph means every output pixel is real leaf.
-This also matches the intent of the original pipeline, which re-cropped a larger region
-before transforming.
+**Why the crops are rebuilt from the raw photographs.** Rotating or shearing a cropped
+image leaves black corners. Shifting or zooming a crop can only add padding, never reveal
+more leaf. Sampling from the raw photograph means every output pixel is real leaf. This
+also matches the original pipeline, which cropped a larger region before transforming.
 
 ---
 
@@ -102,12 +98,12 @@ print(f"variants: {', '.join(NAMES)}")
 
 ### 1.1 What the original pipeline actually applied
 
-The grid is copied verbatim from
+The grid is copied exactly from
 `from_HPC/models/Model_0029_Aug_Sensitivity/random_search_array_sample.py`. Each
-augmented image drew one combination from it, and the only combination excluded was the
-one where every parameter is its identity value. Seven of the nine parameters are ternary
-with one identity level and two of them are binary flips, so the expected number of
-transforms firing on a single image is 7 x (2/3) + 2 x (1/2).
+augmented image drew one combination from it. The only combination left out is the one
+where every parameter has its identity value. Seven of the nine parameters have three
+levels, one of them the identity, and two are on-or-off flips. So the expected number of
+transforms applied to one image is 7 x (2/3) + 2 x (1/2).
 
 ```{python}
 # 1.2
@@ -123,10 +119,11 @@ print(pd.Series(n_act).value_counts().sort_index().to_string())
 
 ## 2. Displacement: which augmentations change anything measurable?
 
-Features are standardised on the identity crops, so one unit is one standard deviation of
-the real data. Displacement is then divided by the real **within-class spread** -- the mean
-distance from a crop to its own class centroid -- so a value of 1.0 means the augmentation
-moved the crop as far as a typical crop sits from the middle of its own class.
+The features are standardised on the identity crops, so one unit is one standard
+deviation of the real data. Displacement is then divided by the real **spread within a
+class**, the mean distance from a crop to the centre of its class. So a value of 1.0 means
+the augmentation moved the crop as far as a typical crop sits from the middle of its
+class.
 
 ```{python}
 # 2.1
@@ -188,9 +185,9 @@ plt.show()
 
 ## 3. Which features does each augmentation move?
 
-Displacement says how far, not in which direction. This says which of the twelve
-interpretable features each augmentation actually disturbs, which is what distinguishes a
-nuisance direction from a change in severity content.
+Displacement says how far, not in which direction. This shows which of the twelve
+features each augmentation changes. That is what separates irrelevant variation from a
+change in severity.
 
 ```{python}
 # 3.1
@@ -312,10 +309,11 @@ plt.show()
 
 ## 6. Was it the geometry, or the brightness?
 
-The composite draws brightness alongside the geometric transforms, and section 2 puts
-brightness at the top of the displacement table. Section 4's decline could therefore be
-brightness appearing in more of the larger composites rather than geometry stacking up.
-The draws are reproducible -- `compute.draw_original` was seeded -- so they can be split.
+The combinations draw brightness as well as the geometric transforms, and section 2 puts
+brightness at the top of the displacement table. So the decline in section 4 could come
+from brightness appearing in more of the larger combinations, not from the geometry
+adding up. The draws can be reproduced, because `compute.draw_original` was seeded. So
+they can be split.
 
 ```{python}
 # 6.1
@@ -341,17 +339,18 @@ print(t.groupby(["brightness", "geometric transforms"])
 ### 6.1 Which features a brightness change moves, and why
 
 A global gain multiplies every channel by the same constant. Whether a feature survives
-that is a property of its arithmetic, not something that needs to be discovered:
+that follows from how it is calculated. It does not need to be found by experiment.
 
-- `sep` is a ratio of between-class variance to total variance of leaf greenness. Scaling
-  greenness by `c` scales both by `c^2`, so the ratio is unchanged.
-- `log_gr` counts pixels where G >= R. A global gain multiplies G and R alike and cannot
-  reverse an inequality, so the counts are unchanged.
-- `frac_g_gt_r` is the Otsu lesion area over leaf area. Otsu's threshold is computed from
-  the data and scales with it, so the lesion mask is unchanged -- but the *leaf* mask uses
-  a fixed cut at mean RGB >= 0.15, which does not scale, so a little leakage is expected.
-- `leaf_bright`, `mean_green` and `cda_bright` are absolute intensities in 0-255 units.
-  They scale directly with `c` and cannot survive.
+- `sep` is the variance of leaf greenness between the two classes divided by its total
+  variance. Scaling greenness by `c` scales both by `c^2`, so the ratio does not change.
+- `log_gr` counts the pixels where G >= R. A global gain multiplies G and R equally and
+  cannot reverse an inequality, so the counts do not change.
+- `frac_g_gt_r` is the Otsu lesion area divided by the leaf area. Otsu's threshold is
+  computed from the data and scales with it, so the lesion mask does not change. But the
+  *leaf* mask uses a fixed threshold of mean RGB >= 0.15, which does not scale. So it
+  should change a little.
+- `leaf_bright`, `mean_green` and `cda_bright` are absolute intensities from 0 to 255.
+  They scale directly with `c`, so they cannot survive.
 
 ```{python}
 # 6.2
@@ -364,9 +363,9 @@ print(t.round(3).sort_values("brightness1.2", ascending=False).to_string())
 
 ### 6.2 A model built only on the gain-invariant features
 
-If the four features above really are immune to exposure, a model restricted to them
-should hold its accuracy when the gain changes, and should not drift towards higher
-scores. Both are testable directly.
+If the four features above really are unaffected by exposure, a model using only them
+should keep its accuracy when the gain changes. It should also not drift towards higher
+scores. Both can be tested directly.
 
 ```{python}
 # 6.3
@@ -419,103 +418,105 @@ print(f"\ninvariant set: {', '.join(INVARIANT)}")
 
 ### 7.1 The geometry was not the problem
 
-Splitting the composites by whether brightness was drawn separates the two causes cleanly.
-With brightness absent, label preservation falls gently as geometric transforms stack --
-0.833 at two, 0.700 at five, 0.621 at seven -- so each extra geometric transform costs
-roughly three points. With brightness present it sits between 0.406 and 0.464 at *every*
-count, and stacking more geometry on top changes almost nothing. Brightness costs about
-twenty-five points the moment it is included; the geometry costs three points per
-transform. The earlier attempt was applying 5.69 transforms per image, two thirds of which
-included brightness.
+Splitting the combinations by whether brightness was drawn separates the two causes
+cleanly. Without brightness, label preservation falls slowly as geometric transforms are
+added. It is 0.833 with two, 0.700 with five and 0.621 with seven. So each extra
+geometric transform costs about three points. With brightness, it stays between 0.406 and
+0.464 for *every* number of transforms, and adding more geometry changes almost nothing.
+Brightness costs about twenty-five points as soon as it is included. The geometry costs
+three points per transform. The earlier attempt applied 5.69 transforms per image, and two
+thirds of those images included brightness.
 
 ### 7.2 Flips and right angles are free, and that is exactly why they are worth applying
 
-Horizontal flip, vertical flip and 180-degree rotation move the crop by **0.000** in all
-twelve features, and 90 degrees by 0.008. This is not a small measured effect, it is an
-identity: each of these is a permutation of pixels, and every one of the twelve features
-is a mean, a spread, a count or a threshold over a region, none of which depends on where
-in the frame a pixel sits. Nothing measurable about the lesion changes.
+Horizontal flips, vertical flips and 180-degree rotation move the crop by **0.000** in
+all twelve features, and 90-degree rotation by 0.008. This is not a small measured effect.
+It is exact. Each of these only rearranges pixels. Every one of the twelve features is a
+mean, a spread, a count or a threshold over a region, and none depends on where a pixel
+sits in the frame. Nothing measurable about the lesion changes.
 
 Yet the CNN changes its prediction on 17 to 22 percent of crops under exactly these
-operations. That disagreement is the model contradicting itself, not the data changing.
-Training on flips and right-angle rotations cannot mislabel anything -- the label is
-provably still correct -- and it removes an error mode that costs the model up to a fifth
-of its answers. These are the cheapest gain available here.
+operations. The model is contradicting itself. The data have not changed. Training on
+flips and right-angle rotations cannot mislabel anything, because the label is provably
+still correct. It also removes a kind of error that costs the model up to a fifth of its
+answers. These are the cheapest gain available here.
 
 ### 7.3 Small geometry earns its place; large-angle rotation does not
 
-Rotation by 15 degrees, shear at 0.3 and a 20-pixel shift move the crop by 0.14 to 0.19
-within-class spreads while preserving the label on 83 to 92 percent of crops. Those are
-real nuisance directions: the bounding box a rater draws is a judgement, so a crop shifted
-or slightly rotated is a crop the same rater might plausibly have produced.
+Rotation by 15 degrees, shear of 0.3 and a 20-pixel shift move the crop by 0.14 to 0.19
+of the spread within a class. They keep the label on 83 to 92 percent of crops. These are
+real irrelevant variations. The bounding box a rater draws is a judgement. So a shifted or
+slightly rotated crop is one the same rater might well have drawn.
 
-The original grid's 150 and 300 degree rotations are not worth keeping. They achieve the
-same displacement as a 15 degree rotation (0.184 and 0.187 against 0.136) while preserving
-the label on 78 and 83 percent against 91.9 percent. A 150 degree rotation is a 180 degree
-rotation -- exact, free, label-preserving -- composed with a 30 degree one, so nothing is
-gained by asking for the large angle directly. Use exact multiples of 90 plus a small
-angle, and the interpolation cost disappears.
+The original grid's 150 and 300 degree rotations are not worth keeping. Their
+displacement is about the same as a 15 degree rotation (0.184 and 0.187, against 0.136).
+But they keep the label on only 78 and 83 percent of crops, against 91.9 percent. A 150
+degree rotation is a 180 degree rotation followed by a 30 degree one. The 180 degree
+rotation is exact, free and keeps the label. So asking for the large angle directly gains
+nothing. Using exact multiples of 90 degrees plus a small angle removes the cost of
+interpolation.
 
 ### 7.4 Zoom changes the quantity it is measuring
 
-Zoom moves the crop further than any other geometric transform (0.58 and 0.62), and
-section 3 shows where it goes: it moves `frac_g_gt_r` by **1.12 standard deviations**, the
-largest single-feature displacement anywhere in the table. That feature is segmented lesion
-area over leaf area, and enlarging the sampled window adds healthy leaf around the lesion,
-so this is the augmentation changing the thing it is measuring rather than perturbing a
-nuisance direction. Rater bounding boxes do genuinely disagree, so some zoom is defensible,
-but at a fraction of the tested magnitude -- 10 percent rather than 20.
+Zoom moves the crop further than any other geometric transform (0.58 and 0.62).
+Section 3 shows where it goes. It moves `frac_g_gt_r` by **1.12 standard deviations**, the
+largest change in a single feature in the whole table. That feature is the segmented
+lesion area divided by the leaf area. Enlarging the sampled window adds healthy leaf
+around the lesion. So this augmentation changes the thing being measured, not irrelevant
+detail. Raters' bounding boxes really do disagree, so some zoom is justified. But it
+should be a fraction of the size tested, 10 percent rather than 20.
 
 ### 7.5 Brightness must not be a fixed-label augmentation, and the reason is a confound
 
-Brightness produces the largest displacement in the whole table (0.798 and 0.833) and the
-worst label preservation (0.432 and 0.567). Section 3.2 shows why it is different in kind
-from the geometric transforms: it disturbs the severity-carrying features almost as much as
-the others (ratio 0.897), where zoom's ratio is 0.457 and the flips' is undefined at zero.
+Brightness gives the largest displacement in the whole table (0.798 and 0.833) and the
+worst label preservation (0.432 and 0.567). Section 3.2 shows why it differs in kind from
+the geometric transforms. It changes the features that carry severity almost as much as
+the others (ratio 0.897). Zoom's ratio is 0.457, and the flips' ratio is undefined, at
+zero.
 
-The mechanism is a confound in the data itself. Three of the twelve features are absolute
-intensities -- `leaf_bright`, `mean_green`, `cda_bright` -- and all three correlate with
-severity (rho 0.454, 0.682, 0.702), because dying tissue really is brighter than healthy
-leaf. A global gain moves those three by 0.76 to 0.95 standard deviations. Brightening a
-crop therefore moves it along the same axis that severity moves along. Telling the model
-the label has not changed is telling it something false, and that is why brightness at 1.0
-outscored both 0.8 and 1.2 in the earlier sensitivity run.
+The cause is a confound in the data. Three of the twelve features are absolute
+intensities: `leaf_bright`, `mean_green` and `cda_bright`. All three correlate with
+severity (rho 0.454, 0.682 and 0.702), because dying tissue really is brighter than
+healthy leaf. A global gain moves those three by 0.76 to 0.95 standard deviations. So
+brightening a crop moves it in the same direction as more severity. Telling the model
+the label has not changed tells it something false. That is why brightness 1.0 beat both
+0.8 and 1.2 in the earlier sensitivity run.
 
 ### 7.6 What to do about exposure shift instead
 
-The failure this was meant to defend against is real and reproducible. Applying a 1.2 gain
-to the training crops moves the top CNN's mean predicted score from 3.035 to 3.505, and a
-0.8 gain moves it to 2.395. Brighter images read as more severe, which is the reported
-behaviour on an externally supplied test set scored almost entirely as 6.
+The problem brightness augmentation was meant to prevent is real and reproducible. A
+gain of 1.2 on the training crops moves the top CNN's mean predicted score from 3.035 to
+3.505. A gain of 0.8 moves it to 2.395. Brighter images look more severe to the model.
+This matches what was reported for an external test set that the model scored almost
+entirely as 6.
 
 **Rescaling each image to a fixed leaf brightness removes the bias but not the damage.**
-After normalising, the mean predicted score returns to 2.94, so the systematic inflation is
-gone, but per-image accuracy recovers only from 0.529 to 0.548 against 0.715 on clean
-crops. Clipping is not the explanation -- only 2.6 percent of pixels saturate under a 1.2
-gain, and repeating the test without clipping gives 0.549. The reason is the confound
-again: forcing every crop to the same leaf brightness also erases the part of brightness
-that is genuine severity.
+After rescaling, the mean predicted score returns to 2.94, so the consistent inflation is
+gone. But accuracy only recovers from 0.529 to 0.548, against 0.715 on unaltered crops.
+Clipping does not explain this. Only 2.6 percent of pixels saturate at a gain of 1.2, and
+repeating the test without clipping gives 0.549. The reason is the confound again. Forcing
+every crop to the same leaf brightness also removes the part of brightness that is real
+severity.
 
-**Restricting the model to gain-invariant features does work.** Four of the twelve survive
-a global gain by construction, and the measurements confirm it: `sep` (0.055 and 0.058),
-`log_gr` (0.055 and 0.040), `frac_g_gt_r` (0.055 and 0.105) and `cda_green` (0.190 and
-0.181). A probe on those four alone scores 0.455 on clean crops against 0.606 for all
-twelve -- but under a 1.2 gain it scores 0.463 against 0.473, under a 0.8 gain 0.459
-against 0.406, and its mean predicted score moves from 3.087 to 3.047 where the full set
-drifts from 3.032 to 3.517. It gives up 15 points of clean accuracy and buys complete
-immunity to exposure.
+**Limiting the model to features unaffected by gain does work.** Four of the twelve
+survive a global gain by design, and the measurements confirm it: `sep` (0.055 and
+0.058), `log_gr` (0.055 and 0.040), `frac_g_gt_r` (0.055 and 0.105) and `cda_green`
+(0.190 and 0.181). A probe on those four alone scores 0.455 on unaltered crops, against
+0.606 for all twelve. But at a gain of 1.2 it scores 0.463 against 0.473, and at 0.8 it
+scores 0.459 against 0.406. Its mean predicted score moves from 3.087 to 3.047, while the
+full set drifts from 3.032 to 3.517. It gives up 15 points of accuracy on unaltered crops
+and becomes completely unaffected by exposure.
 
-The reason this is possible at all is that gain-invariance and severity-carrying are not
-mutually exclusive here. `log_gr` and `sep` are the second and fourth strongest severity
-carriers in the whole set (rho 0.823 and 0.757) and are also the two least disturbed by
-gain. Overall brightness cannot distinguish an overexposed leaf from a dying one; these two
-can.
+This works because, here, a feature can carry severity and still be unaffected by gain.
+`log_gr` and `sep` carry the second and fourth most information about severity in the
+whole set (rho 0.823 and 0.757). They are also the two least affected by gain. Overall
+brightness cannot tell an overexposed leaf from a dying one. These two can.
 
-**The deployable form of this is a two-number check.** For an incoming batch, compare
-`leaf_bright` against the training distribution and compare `sep` and `log_gr` against it.
-`leaf_bright` far out with `sep` and `log_gr` in place means an exposure shift, and the
-scores should not be trusted. All three moving together means the leaves really are more
-affected. This costs one pass of fixed arithmetic and needs no model.
+**In practice this becomes a simple check.** For a new batch of images, compare
+`leaf_bright`, `sep` and `log_gr` with their training distributions. If `leaf_bright` is
+far off but `sep` and `log_gr` are not, the exposure has shifted, and the scores should not
+be trusted. If all three move together, the leaves really are more affected. The check is
+one pass of fixed arithmetic and needs no model.
 
 ### 7.7 Recommended augmentation set
 
@@ -529,21 +530,21 @@ affected. This costs one pass of fixed arithmetic and needs no model.
 | shear, up to 0.3 | no | measured harmless (0.15 displacement at 0.90), but every leaf here was photographed flat, so there is no oblique viewing for it to model |
 | zoom, 0.8 to 1.2 | yes | rater box sizes span 0.814 to 1.201 of their 3-rater mean, so this range is the raters' own disagreement rather than a guess |
 | rotation at 150 or 300 deg | no | same displacement as 15 deg at 9 points worse label preservation, and 180 deg is free |
-| brightness | no | confounded with severity; handle by feature choice, not by augmentation |
+| brightness | no | confounded with severity. Handle it by choosing features, not by augmentation |
 
-**Apply one or two per image, not six.** Each additional geometric transform costs about
-three points of label preservation, and there is no measurement here suggesting a composite
-of six teaches anything a composite of two does not.
+**Apply one or two per image, not six.** Each extra geometric transform costs about three
+points of label preservation. Nothing measured here suggests that six at once teach
+anything that two do not.
 
 ### 7.8 A caveat on the label-preservation measure
 
-Label preservation is the top medoid CNN agreeing with itself, not a human re-scoring the
-augmented crop. Where a flip changes the prediction, the model is provably wrong, because
-the crop is identical in every measured property -- that direction of the argument is
+Label preservation is the top medoid CNN agreeing with itself, not a person scoring the
+augmented crop again. Where a flip changes the prediction, the model is provably wrong,
+because the crop is identical in every measured property. That part of the argument is
 sound. Where zoom or brightness changes the prediction, the model might be right that the
-severity content moved, or it might be as brittle as the flip result shows it to be. The
-feature displacements in section 3 are what settle those cases, because they do not depend
-on any model, and they agree with the prediction changes throughout.
+severity changed. Or it might be as fragile as the flip result shows. The feature
+displacements in section 3 settle those cases, because they do not depend on any model.
+They agree with the changes in prediction throughout.
 
 
 ## Thesis figure

@@ -13,55 +13,57 @@ Date: 09/09/2026
 
 **Goal:**
 
-Analyse the completed Medoid-ViT grid search (2,592 configs, 5-fold CV) on the same
-footing as `analyses/08` and `analyses/09` did for the CNN grid, and then compare
-the two model classes. Four questions: (1) did the search actually complete and are the
-numbers trustworthy; (2) is the top of the ViT grid a rankable ordering or a noise
-plateau, as it was for the CNNs; (3) which hyperparameters move accuracy, and in
-particular **did the axes added to this grid earn their cost**; (4) how does the best ViT
-compare with the best CNN, and what can and cannot be concluded from that comparison.
+Analyse the finished Medoid-ViT grid search (2,592 configs, 5-fold CV) in the same way
+as `analyses/08` and `analyses/09` did for the CNN grid, then compare the two kinds of
+model. There are four questions:
+1. Did the search finish, and can its numbers be trusted?
+2. Can the top of the ViT grid be ranked, or is it a plateau of noise, as it was for the
+   CNNs?
+3. Which hyperparameters change accuracy? In particular, **were the axes added to this
+   grid worth their cost?**
+4. How does the best ViT compare with the best CNN, and what can that comparison show?
 
 **Hypotheses:**
 
-1. The ViT grid will show the same noise plateau as the CNN grid. The CNN grid has 88 of
-   its 6,720 settings not significantly worse than the best at 5%, and CV-to-test
-   correlation collapsing from 0.89 to 0.04 within the top 100. Nothing about swapping the
-   architecture should change the measurement noise, which is set by the size of the
-   evaluation set.
-2. Learning rate will dominate, as it did for the CNNs (`analyses/09`: mean |SHAP| for
-   learning rate was ~33x that of dropout).
-3. The two capacity axes this grid added — `projection_dim` 256 and `mlp_ratio` 4 —
-   will not pay for themselves. They were added because a single pilot config with
+1. The ViT grid will show the same plateau of noise as the CNN grid. In the CNN grid,
+   88 of its 6,720 settings are not significantly worse than the best at 5%. Its
+   correlation between CV and test accuracy collapses from 0.89 to 0.04 within the top
+   100. Changing the architecture should not change the measurement noise, which depends
+   on the size of the evaluation set.
+2. Learning rate will dominate, as it did for the CNNs. In `analyses/09`, the mean |SHAP|
+   of learning rate was about 33 times that of dropout.
+3. The two capacity axes added to this grid, `projection_dim` 256 and `mlp_ratio` 4, will
+   not be worth their cost. They were added because one pilot config with
    `projection_dim` 128 scored best, which is a sample of one.
-4. The best ViT and the best CNN will land within noise of each other, consistent with
-   `analyses/08`'s conclusion that ~62-65% is a ceiling set by label noise rather than
+4. The best ViT and the best CNN will be within noise of each other. This would fit
+   `analyses/08`'s conclusion that about 62 to 65% is a ceiling set by label noise, not
    by architecture.
 
 **Rationale:**
 
-A grid search produces two things: a best model, and a dataset of 2,592 (hyperparameters
-→ accuracy) observations. `analyses/08` showed the first is largely noise, which makes
-the second the more valuable output. Treating the grid as data is also the only way to
-answer whether the grid was *well designed* — a question that matters here because this
-grid's shape was chosen partly on the basis of one pilot run, and that reasoning deserves
-auditing against 2,592 results.
+A grid search produces two things. One is a best model. The other is a dataset of 2,592
+pairs of hyperparameters and accuracy. `analyses/08` showed the best model is mostly noise,
+so the dataset is the more valuable output. Treating the grid as data is also the only way
+to tell whether the grid was *well designed*. That matters here, because this grid's shape
+was partly chosen from one pilot run. That reasoning should be checked against 2,592
+results.
 
-The CNN/ViT comparison is **matched**: `models/03_Medoid_CNN_RandomSearch` and
-`models/04_Medoid_ViT_RandomSearch` both ran the same 5-fold CV harness, with the same
-`cv_seed`, on the same `medoid_64` dataset. Nothing differs but the architecture and its
-hyperparameter grid, so a difference here is attributable to the model class rather than
-to the crop.
+The comparison of CNN and ViT is **matched**. `models/03_Medoid_CNN_RandomSearch` and
+`models/04_Medoid_ViT_RandomSearch` both ran the same 5-fold CV code, with the same
+`cv_seed`, on the same `medoid_64` dataset. Only the architecture and its hyperparameter
+grid differ. So any difference comes from the kind of model, not from the crops.
 
 **Experimental plan:**
 
-1. Validate: every grid index present exactly once, and a saved model reproducing its
-   recorded test accuracy.
-2. Distributions, then the noise-floor treatment of `analyses/08` applied to the ViT grid.
-3. A random-forest surrogate over the hyperparameters, as in `analyses/09`, plus explicit
-   per-axis marginals with confidence intervals.
-4. A direct audit of the three grid-design decisions, and a costing of what a corrected
-   grid would have been.
-5. CNN versus ViT, matched on the same dataset, splits and CV seed.
+1. Check that every grid index is present exactly once, and that a saved model
+   reproduces its recorded test accuracy.
+2. Plot the distributions, then apply the noise-floor analysis of `analyses/08` to the
+   ViT grid.
+3. Fit a random forest surrogate over the hyperparameters, as in `analyses/09`. Also give
+   the mean accuracy at each level of each axis, with confidence intervals.
+4. Check the three grid-design decisions directly, and cost what a corrected grid would
+   have been.
+5. Compare CNN and ViT on the same dataset, splits and CV seed.
 
 ---
 
@@ -96,11 +98,11 @@ CNN = repo_root / "models/03_Medoid_CNN_RandomSearch/01_Categorical_Loss"
 
 ### 1.2 Load both grids, and check the ViT grid is complete
 
-A self-scheduling grid can silently lose a config: `JobCounter.claim()` advances the
-shared counter *before* training, so a task killed mid-config leaves that index claimed
-and never trained, absent from the results with no error raised anywhere. That is exactly
-what the `--max_configs` clean-exit budget was added to prevent, so the first thing to
-check is whether it worked.
+A self-scheduling grid can lose a config without any warning. `JobCounter.claim()`
+advances the shared counter *before* training. So a task killed during a config leaves
+that index claimed but never trained. It is missing from the results, and no error is
+raised. The `--max_configs` budget, which makes tasks exit cleanly, was added to prevent
+exactly this. So the first check is whether it worked.
 
 ```{python}
 # 1.2
@@ -153,9 +155,8 @@ print(f"\nViT search cost: {total_gpu_h:.1f} GPU-hours "
 
 ### 1.3 Does a saved model reproduce its recorded number?
 
-The CSV is written by the search harness. Re-scoring a saved model against the held-out
-test split independently checks that the recorded numbers describe the models that were
-actually saved.
+The search code writes the CSV. Scoring a saved model again on the held-out test split
+checks independently that the recorded numbers describe the models that were saved.
 
 ```{python}
 # 1.3
@@ -232,11 +233,11 @@ print(vit.loc[dead].groupby("learning_rate").size().to_string())
 
 ## 3. Is the top of the ViT grid rankable, or a noise plateau?
 
-`analyses/08` established the method for the CNN grid. `avg_vaf` is the mean accuracy
-over 5 folds, and because each pooled image appears in validation exactly once, it is
-effectively one accuracy measured over all **N = 2,289** train+val images. The standard
-error of such a proportion is `sqrt(p(1-p)/N)`, and the standard error of the
-*difference* between two configs is `sqrt(2)` times that.
+`analyses/08` set out the method for the CNN grid. `avg_vaf` is the mean accuracy over
+5 folds. Each pooled image is in validation exactly once, so it is in effect one accuracy
+over all **N = 2,289** training and validation images. The standard error of such a
+proportion is `sqrt(p(1-p)/N)`. The standard error of the *difference* between two
+configs is `sqrt(2)` times that.
 
 ```{python}
 # 3.1
@@ -265,17 +266,18 @@ for alpha, label in [(0.05, "5%"), (0.01, "1%")]:
     print(f"configs NOT significantly worse than the best at {label}: {(z < crit).sum()}")
 ```
 
-This count is **conservative**: all configs share the same CV folds (`cv_seed` is fixed at
-42 across every task), so their errors are positively correlated and the true
-difference-SE is smaller than the independent-proportions value used here. It also
-ignores training stochasticity. The CNN grid measures that directly: its 960 triples of
-functionally identical configs, dropped in section 1.2, give a median within-triple SD of
-1.10 pp on CV and 1.97 pp on test, the same magnitude as the sampling SE above.
+This count is **conservative**. All configs share the same CV folds, because `cv_seed`
+is 42 in every task. So their errors are positively correlated, and the true standard
+error of a difference is smaller than the value used here. The count also ignores the
+randomness of training. The CNN grid measures that directly. Its 960 triples of
+functionally identical configs, dropped in section 1.2, have a median standard deviation
+within each triple of 1.10 pp on CV and 1.97 pp on test. That is the same size as the
+sampling standard error above.
 
 ### 3.2 The winner's curse, measured
 
-If the CV ranking carried real information at the top, the CV winner should also do well
-on the held-out test set, which took no part in selection.
+If the CV ranking meant something at the top, the CV winner should also do well on the
+held-out test set, which played no part in selection.
 
 ```{python}
 # 3.2
@@ -299,9 +301,9 @@ print("\n" + corr_tab.to_string(index=False))
 
 ### 3.3 Extreme-value check
 
-Over `M` noisy configs the largest observed value exceeds the true mean by roughly
-`sigma * sqrt(2 ln M)` through selection alone. If the winner's margin is smaller than
-that, it is within what noise produces without any config being genuinely better.
+Over `M` noisy configs, the largest observed value exceeds the true mean by about
+`sigma * sqrt(2 ln M)` from selection alone. If the winner's margin is smaller than
+that, noise could produce it without any config being really better.
 
 ```{python}
 # 3.3
@@ -324,8 +326,9 @@ print("=> " + ("margin is WITHIN what noise alone produces"
 
 ### 4.1 A surrogate model over the grid
 
-Same method as `analyses/09`: fit a random forest mapping hyperparameters to `avg_vaf`
-and report honest out-of-bag R². Constant columns carry no information and are dropped.
+The same method as `analyses/09`. A random forest predicts `avg_vaf` from the
+hyperparameters, and its out-of-bag R² is reported. Constant columns carry no
+information and are dropped.
 
 ```{python}
 # 4.1
@@ -381,9 +384,9 @@ print(plateau.to_string(index=False))
 
 ### 4.3 Per-axis marginals, with uncertainty
 
-Gini importance says an axis matters but not which value to choose. The marginal mean of
-`avg_vaf` at each level, with a 95% CI on the mean, says that directly. The CI is what
-separates a real level difference from grid noise.
+Gini importance shows that an axis matters, but not which value to choose. The mean of
+`avg_vaf` at each level, with a 95% CI, shows that directly. The CI separates a real
+difference between levels from noise in the grid.
 
 ```{python}
 # 4.3
@@ -411,13 +414,13 @@ plt.show()
 ## 5. Auditing the grid design
 
 This grid was not the obvious one. Three decisions were made before it ran, and 2,592
-results are now available to judge them. Two of the three were made on the evidence of a
-**single pilot config**, which `analyses/08` is precisely the argument against.
+results can now judge them. Two of the three were based on **one pilot config**, which is
+exactly what `analyses/08` argues against.
 
-Marginal means alone would be misleading here, because the levels are not balanced across
-the other axes in a way that guarantees comparability. Two views are reported: the
-marginal mean, and the share of the global top-100, which asks whether a level ever
-produces a competitive model.
+Mean accuracy per level alone would mislead here, because the levels are not balanced
+across the other axes in a way that makes them comparable. So two views are reported.
+One is the mean per level. The other is each level's share of the overall top 100, which
+asks whether a level ever produces a competitive model.
 
 ```{python}
 # 5.1
@@ -476,9 +479,9 @@ print(f"difference                       : {work.avg_vaf.max()-best_in_trim:.4f}
 
 ## 6. ViT versus CNN
 
-Both grids ran the same harness, same `cv_seed`, same 5 folds, on the same `medoid_64`
-dataset. The comparison is therefore matched and any difference is attributable to the
-architecture and its grid, not to the data.
+Both grids ran the same code, `cv_seed` and 5 folds, on the same `medoid_64` dataset.
+So the comparison is matched, and any difference comes from the architecture and its
+grid, not from the data.
 
 ```{python}
 # 6.1
@@ -652,7 +655,7 @@ for _name, _g in (("CNN", cnn), ("ViT", vit)):
 
 ### 6.3 Against the human benchmark
 
-`analyses/02` measured human agreement on the identical 308 test CDAs.
+`analyses/02` measured human agreement on the same 308 test CDAs.
 
 ```{python}
 # 6.3
@@ -675,89 +678,89 @@ print(f"\nnote: the model rows are the MAXIMUM over {len(cnn)} and {len(vit)} co
 
 ## 7. Interpretation and Discussion
 
-- **The search is sound, and the clean-exit budget is what made it so.** All 2,592
-  indices appear exactly once across 138 task-lifetimes. That is the outcome the
-  `--max_configs` budget existed to guarantee: because `claim()` advances the shared
-  counter *before* training, an OOM-killed task would have left its index claimed and
-  never trained, missing from the results with nothing raised anywhere. The failure mode
-  is silent, so a completeness assertion belongs in every analysis that reads a
-  self-scheduled grid, not only this one.
+- **The search is sound, because tasks exit cleanly.** All 2,592 indices appear exactly
+  once across 138 task lifetimes. The `--max_configs` budget existed to guarantee this.
+  `claim()` advances the shared counter *before* training. So a task killed for running
+  out of memory would have left its index claimed but never trained, with no error
+  raised. This failure is silent. So every analysis that reads a self-scheduled grid
+  should check that it is complete, not only this one.
 
-- **The ViT plateau is if anything tighter than the CNN's.** The top-100 spans 1.31 pp
-  against a difference-SE of 1.41 pp, so the entire top hundred fits inside **0.93** of
-  one standard error — where the CNN grid's 6,720 settings give 1.76. 351 configs are
-  not significantly worse than the winner at 5%, and that count is conservative for the
-  same two reasons as before: shared CV folds correlate the errors, and training
-  stochasticity is excluded. Changing the architecture did not change the measurement
-  noise, because that is set by the 2,289 evaluation images, not by the model.
+- **The ViT plateau is, if anything, narrower than the CNN's.** The top 100 span
+  1.31 pp, against a standard error of a difference of 1.41 pp. So the whole top 100
+  fits within **0.93** of one standard error. For the CNN grid's 6,720 settings, the
+  figure is 1.76. 351 configs are not significantly worse than the winner at 5%. That
+  count is conservative for the same two reasons as before. Shared CV folds correlate
+  the errors, and the randomness of training is left out. Changing the architecture
+  did not change the measurement noise, because the 2,289 evaluation images set it,
+  not the model.
 
-- **The winner's curse reproduces exactly.** The CV-best config ranks **138th of 2,592**
-  on the held-out test set, and CV-to-test correlation falls from 0.928 across the whole
-  grid to ~0.21 within the top 1,000 and 0.10 within the top 250. The winner's margin
-  over the top-500 mean is 1.88 pp against the 2.47 pp that selecting a maximum from
-  2,592 noisy draws produces on its own. The ranking carries real information across the
-  full range and none of it survives into the plateau.
+- **The winner's curse appears again, exactly.** The config that is best on CV ranks
+  **138th of 2,592** on the held-out test set. The correlation between CV and test
+  accuracy falls from 0.928 across the whole grid to about 0.21 within the top 1,000,
+  and 0.10 within the top 250. The winner's margin over the mean of the top 500 is
+  1.88 pp. Picking the maximum of 2,592 noisy draws produces 2.47 pp on its own. The
+  ranking means something across the full range, but nothing within the plateau.
 
-- **Learning rate is the whole story, and it acts as a switch rather than a dial.** It
-  takes 0.557 of the Gini importance, more than double `projection_dim` at 0.215. The
-  mechanism is visible in the distribution: 307 configs (11.8%) sit at chance, and
-  **every one of them uses `learning_rate` 0.01**. The grid is bimodal because one
-  learning-rate level fails to train at all, so most of what the surrogate "explains" is
-  the separation of dead configs from live ones, not fine discrimination among good ones.
+- **Learning rate explains almost everything, and it acts as a switch rather than a
+  dial.** It has 0.557 of the Gini importance, more than twice `projection_dim` at
+  0.215. The distribution shows why. 307 configs (11.8%) are at chance, and **every one
+  of them uses `learning_rate` 0.01**. The grid has two peaks because one learning rate
+  does not train at all. So most of what the surrogate "explains" is separating configs
+  that failed from those that trained, not fine differences among good ones.
 
-- **Inside the plateau the surrogate has nothing left.** OOB R² falls 0.963 → 0.279
-  (top-500) → **−0.032** (top-250). A negative out-of-bag R² means the forest predicts
-  worse than the pool mean, which is what zero remaining signal looks like. This is a
-  sharper collapse than the CNN grid's 0.933 → 0.337, and it closes the same loop
-  `analyses/09` drew: hyperparameters determine whether you reach the plateau, and
-  nothing determines where on it you land.
+- **Within the plateau, the surrogate explains nothing.** The out-of-bag R² falls from
+  0.963 to 0.279 in the top 500, and to **−0.032** in the top 250. A negative
+  out-of-bag R² means the forest predicts worse than the mean, which is what no
+  remaining information looks like. This collapse is sharper than the CNN grid's, from
+  0.933 to 0.337. It matches `analyses/09`. Hyperparameters decide whether a model
+  reaches the plateau, and nothing decides where on it the model lands.
 
-- **Two of the three grid-design decisions did not pay for themselves, and both were
-  made from a single pilot run.** `projection_dim` was extended to 256 because one pilot
-  config at 128 scored best. In the event 256 is the *worst* of the four levels
-  (marginal mean 0.4693) and contributes 16 of the top 100 against 59 for
-  `projection_dim` 32 — the optimum is at the small end, in the opposite direction to the
-  extension. `mlp_ratio` 4 separates from 2 by 0.0040, well inside the 0.0100 single-config
-  SE. Restricting to `projection_dim <= 64` with `mlp_ratio` fixed at 2 would have been
-  **648 configs and roughly 68 GPU-hours instead of 2,592 and 273**, and would have found
-  a best `avg_vaf` of 0.6431 against 0.6466 — a gap of **0.25 difference-SE**, which is
-  indistinguishable. 75% of the compute bought a quarter of one standard error. The
-  general lesson is the one `analyses/08` already established and this grid re-learned the
-  expensive way: a single configuration is not evidence about an axis.
+- **Two of the three design decisions were not worth their cost, and both came from
+  one pilot run.** `projection_dim` was extended to 256 because one pilot config at 128
+  scored best. In fact 256 is the *worst* of the four levels, with a mean of 0.4693. It
+  provides 16 of the top 100, against 59 for `projection_dim` 32. The best value is at
+  the small end, the opposite direction to the extension. `mlp_ratio` 4 differs from 2
+  by 0.0040, well within the standard error of one config, 0.0100. Limiting the grid to
+  `projection_dim <= 64` with `mlp_ratio` 2 would have needed **648 configs and about
+  68 GPU-hours, instead of 2,592 and 273**. Its best `avg_vaf` would have been 0.6431
+  against 0.6466, a gap of **0.25 standard errors of a difference**. The two cannot be
+  told apart. 75% of the compute bought a quarter of one standard error. `analyses/08`
+  already showed the general lesson, and this grid learned it again at a cost. One
+  configuration is not evidence about an axis.
 
-- **The regularisation axis was cheap and inert.** L2 versus none differs by 0.0014 in
-  marginal mean, and the two strengths by 0.0014. Both are an order of magnitude below the
-  1.00 pp noise floor. Splitting the grid into sub-grids so `reg=None` was not duplicated
-  across strengths avoided 864 redundant configs, which was worth doing, but the axis
+- **The regularisation axis was cheap and had no effect.** L2 and no regularisation
+  differ by 0.0014 in mean accuracy, and so do the two strengths. Both are ten times
+  smaller than the 1.00 pp noise floor. Splitting the grid so `reg=None` was not repeated
+  for each strength avoided 864 duplicate configs. That was worth doing, but the axis
   itself answered nothing.
 
-- **On matched data the two architectures are indistinguishable.** Both grids ran the
-  same harness and `cv_seed` on the same `medoid_64` dataset, so this is a clean
-  architecture comparison. Best `avg_vaf` is 0.6466 (ViT) against 0.6457 (CNN), a gap of
-  0.09 pp against a 1.41 pp difference-SE — 0.06 SE, which is as close to identical as the
-  measurement can resolve. The best test accuracy reached by any config is **0.6818 in
-  both grids**. The CV-selected models differ by more (0.6429 against 0.6169), but that is
-  1 test-SE and is the winner's-curse lottery described above rather than an architecture
-  effect. The ViT reached this with 2,592 configs and 273 GPU-hours against the CNN's
-  6,720 settings and 1,194 CPU-hours, so the architectures tie on accuracy while differing
-  in search cost and hardware, which are not comparable in the same units.
+- **On the same data, the two architectures cannot be told apart.** Both grids ran the
+  same code and `cv_seed` on the same `medoid_64` dataset, so this is a clean comparison
+  of architecture. The best `avg_vaf` is 0.6466 for the ViT and 0.6457 for the CNN. The
+  gap is 0.09 pp, against a standard error of a difference of 1.41 pp. At 0.06 standard
+  errors, that is as close to identical as the measurement can show. The best test
+  accuracy of any config is **0.6818 in both grids**. The models chosen by CV differ by
+  more (0.6429 against 0.6169). But that is one test standard error, and it is the
+  winner's-curse lottery described above, not an effect of architecture. The ViT needed
+  2,592 configs and 273 GPU-hours, against the CNN's 6,720 settings and 1,194 CPU-hours.
+  So the architectures tie on accuracy. They differ in search cost and hardware, which
+  cannot be compared in the same units.
 
-- **Both model classes remain below human exact agreement and above it on near-miss.**
-  Against the 0.6892 exact and 0.9280 near-miss that `analyses/02` measured for human
-  raters on these same 308 CDAs, the best ViT reaches 0.6818 and 0.9903. The first of
-  those is a maximum taken over 2,592 configs *selected on the test set*, so it is
-  optimistically biased and should not be read as a headline; the CV-selected model scores
-  0.6429. The near-miss figure is the robust one, and it says the same thing as every
-  earlier analysis: the coarse task is solved and the residual error is adjacent-score
-  confusion, which is where the human raters disagree too.
+- **Both kinds of model stay below human exact agreement, and above it within one
+  score.** On these same 308 CDAs, `analyses/02` measured 0.6892 exact and 0.9280
+  near-miss for human raters. The best ViT reaches 0.6818 and 0.9903. The first figure
+  is the maximum over 2,592 configs *chosen on the test set*. So it is biased upwards and
+  should not be quoted as a headline. The model chosen by CV scores 0.6429. The
+  near-miss figure is the reliable one. It says the same as every earlier analysis. The
+  coarse task is solved, and the remaining errors confuse adjacent scores, which is
+  where the human raters disagree too.
 
-- **What to do next.** With the architecture question answered as a tie, the remaining
-  headroom is not in the model. Since 351 ViT configs are statistically tied here, the
-  useful object is the committee rather than the argmax: `analyses/10` showed a 100-model
-  CNN vote matched the best single model with none of the per-model lottery. Both grids
-  now have a kept top-100 on the same splits, so the informative test is a **mixed
-  CNN+ViT committee**, where the two classes may fail on different images even though
-  they reach the same accuracy separately. Their agreement rate is the quantity to
-  measure first, because a tie in accuracy with low agreement is exactly the situation in
-  which ensembling pays.
+- **What to do next.** The architectures tie, so the remaining room for improvement is
+  not in the model. 351 ViT configs are statistically tied here. So the useful thing is
+  the committee of tied models, not the single best one. `analyses/10` showed that a vote
+  of 100 CNNs matched the best single model without the lottery of picking one. Both
+  grids now keep their top 100 on the same splits. So the informative test is a **mixed
+  committee of CNNs and ViTs**. The two kinds may fail on different images even though
+  they reach the same accuracy. How often they agree should be measured first. Equal
+  accuracy with low agreement is exactly when ensembling pays.
 

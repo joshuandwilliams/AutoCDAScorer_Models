@@ -12,41 +12,42 @@ Date: 17/07/2026
 
 **Goal:**
 
-Locate the specific medoid_64 held-out test set within the distribution of human
-rater agreement, so model test accuracy can be compared against a like-for-like
-human benchmark.
+Find where the medoid_64 held-out test set sits in the distribution of human rater
+agreement. Model test accuracy can then be compared with a human benchmark on the
+same images.
 
 **Hypothesis:**
 
-The test set's human agreement will fall within the distribution of human
-agreement (i.e. it is a plausible draw, not an anomalously easy or hard subset).
+Human agreement on the test set will fall within the distribution of human
+agreement. That is, the test set is a typical draw, not an unusually easy or hard
+one.
 
 **Rationale:**
 
-Model test accuracy and near-miss accuracy are reported on this one fixed
-test split. To judge whether the model matches human raters, the human benchmark
-must be computed on the *same* CDAs. The test set is small (44 CDAs/class), so
-its human value will differ from the full-dataset mean by chance; what matters is
-that it sits comfortably within the distribution of agreement values you would
-get from any test-sized draw - because that single value is exactly what the
-model is compared against.
+Model test accuracy and near-miss accuracy are reported on this one fixed test
+split. To judge whether the model matches human raters, the human benchmark must
+use the *same* CDAs. The test set is small, with 44 CDAs per class, so its human
+value will differ from the full-dataset mean by chance. What matters is that it
+sits well within the range of values from any draw of the same size. That single
+value is exactly what the model is compared with.
 
-Only **Metric 3** is used here - median agreement corrected for the median-of-3
-tautology - the chosen benchmark from `uv-agroinfiltration-dataset`
-(`analyses/03_human_performance`). Its full-dataset distribution (1,000
-iterations of stratified undersampling to 436 CDAs/class) is loaded from that
-repo's cache; the `human_performance` functions are imported from there too, so
-the test-set value is computed with identical methodology.
+Only **Metric 3** is used here. It is agreement with the median, corrected so a
+rater does not count as agreeing just because their score is the median of three
+different scores. It is the benchmark chosen in `uv-agroinfiltration-dataset`
+(`analyses/03_human_performance`). Its full-dataset distribution comes from 1,000
+rounds of stratified undersampling to 436 CDAs per class, and is loaded from that
+repository's cache. The `human_performance` functions are imported from there too,
+so the test-set value is computed in exactly the same way.
 
 Two reference distributions are shown:
 
-1. **Full-dataset distribution** (436 CDAs/class) - the cached distribution.
-   Very tight, because each draw uses ~10x more data than the test set and the
-   draws overlap heavily.
-2. **Test-sized distribution** (44 CDAs/class) - generated here. Same
-   undersampling procedure at the test set's own size, so its spread reflects
-   the real sampling noise of a 308-CDA estimate. This is the distribution the
-   test-set value should be judged against.
+1. **Full-dataset distribution** (436 CDAs per class). This is the cached
+   distribution. It is very narrow, because each draw uses about ten times more
+   data than the test set, and the draws overlap heavily.
+2. **Test-sized distribution** (44 CDAs per class). This is generated here, with
+   the same undersampling at the test set's size. Its spread is the real sampling
+   noise of an estimate from 308 CDAs. The test-set value should be judged
+   against this one.
 
 ## 1. Setup
 
@@ -101,8 +102,8 @@ testsize_cache_path = analysis_dir / "metric3_testsize_resampling.csv"
 
 ## 2. Load the cached full-dataset distribution
 
-1,000 exact and near-miss values, one pair per iteration of stratified
-undersampling to 436 CDAs/class. Loaded, not recomputed.
+1,000 exact and near-miss values, one pair for each round of stratified
+undersampling to 436 CDAs per class. They are loaded, not recomputed.
 
 ```{python}
 # 2
@@ -114,11 +115,11 @@ print(f"Loaded {len(full_exact)} iterations (full-dataset, 436 CDAs/class).")
 
 ## 3. Map the medoid_64 test set onto the rater data and compute its value
 
-The medoid_64 filenames encode the CDA as `<Basename>_<Row>_<Col>_<Pos>.tif`.
-Stripping the trailing `_Row_Col_Pos` and the extension recovers the Basename,
-which matches the rater data case-insensitively. Every test CDA maps to a rater
-record, and its medoid_64 `label` equals the rater `Median_Score` - a check that
-the mapping is correct.
+The medoid_64 filenames name each CDA as `<Basename>_<Row>_<Col>_<Pos>.tif`.
+Removing the final `_Row_Col_Pos` and the extension gives the Basename, which
+matches the rater data, ignoring case. Every test CDA matches a rater record, and
+its medoid_64 `label` equals the rater `Median_Score`. This confirms the matching
+is correct.
 
 ```{python}
 # 3
@@ -205,10 +206,10 @@ print(f"  Near-Miss: {test_near * 100:.2f}%  (bootstrap 95% CI {test_near_ci[0] 
 
 ### 3.1 The same metric on the train+validation crops
 
-`analyses/04`'s grid-distribution figure plots cross-validation accuracy, measured over
-the 2,289 pooled train and validation crops. A human reference line drawn on that axis has
-to be the rate on those same crops, not the test-set rate, so it is computed here with the
-identical Metric 3 code.
+The grid distribution figure in `analyses/04` plots cross-validation accuracy, measured
+over the 2,289 pooled training and validation crops. A human reference line on that axis
+must be the rate on those same crops, not the test-set rate. So it is computed here with
+the same Metric 3 code.
 
 ```{python}
 # 3.1
@@ -226,11 +227,11 @@ print(f"  Near-Miss: {tv_near * 100:.2f}%   (test-set value {test_near * 100:.2f
 
 ## 4. Generate the test-sized distribution (44 CDAs/class)
 
-The same stratified-undersampling procedure as the cached distribution, but
-drawing 44 CDAs/class (the test set's size) instead of 436, over 1,000 seeds.
-This distribution's spread is the genuine sampling noise of a test-sized
-estimate, so it is the fair reference for the single test-set value. Cached to
-CSV so re-renders are instant.
+The same stratified undersampling as the cached distribution, but drawing 44 CDAs
+per class, the test set's size, instead of 436, over 1,000 seeds. Its spread is the
+real sampling noise of an estimate the size of the test set. So it is the fair
+reference for the single test-set value. It is saved to a CSV so later renders are
+instant.
 
 ```{python}
 # 4
@@ -277,12 +278,12 @@ dist_report(full_near, test_near, "Full-dataset distribution (436/class)")
 dist_report(testsize_near, test_near, "Test-sized distribution (44/class)")
 ```
 
-The percentile against the **full-dataset** distribution can look extreme
-because that distribution is far tighter than the test set's own sampling error
-(more data, overlapping draws). The **test-sized** distribution is the honest
-reference: it shows the test value is an ordinary draw. Either way, the model is
-compared against the single test-set value, so all that matters is that it lies
-within the range of plausible human agreement - which it does.
+The percentile against the **full-dataset** distribution can look extreme. That
+distribution is far narrower than the test set's own sampling error, because it
+uses more data and its draws overlap. The **test-sized** distribution is the fair
+reference, and it shows the test value is an ordinary draw. Either way, the model
+is compared with the single test-set value. All that matters is that it lies
+within the range of plausible human agreement, and it does.
 
 ## 6. Distribution plots
 
@@ -310,8 +311,9 @@ def plot_distribution(dist, out_path, x_label, test_value, test_interval=None):
 
 ### 6.1 Full-dataset distribution (436 CDAs/class)
 
-The cached distribution. The test-set value's bootstrap 95% CI (dashed) shows
-that its distance from the mean is small relative to its own uncertainty.
+The cached distribution. The dashed lines show the bootstrap 95% CI of the
+test-set value. Its distance from the mean is small compared with its own
+uncertainty.
 
 ```{python}
 #| fig-cap: "Metric 3 human agreement over 1,000 iterations of stratified undersampling to 436 CDAs/class, with the medoid_64 test-set value and its bootstrap 95% CI. (a) Exact. (b) Near-miss."
@@ -324,9 +326,9 @@ plot_distribution(full_near, str(thesis_plots_dir / "metric3_nearmiss_full_datas
 
 ### 6.2 Test-sized distribution (44 CDAs/class)
 
-The reference at the test set's own size. The histogram's spread is the real
-sampling noise of a 308-CDA estimate, and the test-set value (green) sits well
-inside it.
+The reference at the test set's own size. The spread of the histogram is the real
+sampling noise of an estimate from 308 CDAs. The test-set value, in green, sits
+well inside it.
 
 ```{python}
 #| fig-cap: "Metric 3 human agreement over 1,000 iterations of stratified undersampling to 44 CDAs/class (the test set's size), with the medoid_64 test-set value. (a) Exact. (b) Near-miss."
@@ -347,24 +349,25 @@ print(f"  Near-Miss: {test_near * 100:.2f}%")
 print(f"\nTest-sized distribution (44/class) means: exact {np.mean(testsize_exact) * 100:.2f}%, near-miss {np.mean(testsize_near) * 100:.2f}%")
 ```
 
-The test-set value lies within the test-sized distribution of human agreement,
-so the held-out split is a plausible, representative draw. Its small size means
-it can sit a little either side of the full-dataset mean by chance, but that is
-immaterial: the model's exact and near-miss test accuracy are compared directly
-against this single value, measured on the identical, class-balanced test CDAs.
+The test-set value lies within the test-sized distribution of human agreement.
+So the held-out split is a typical, representative draw. Because it is small, it
+can sit a little above or below the full-dataset mean by chance. That does not
+matter. The model's exact and near-miss test accuracies are compared directly with
+this single value, measured on the same class-balanced test CDAs.
 
 
 ## 8. Confusion matrix
 
-Styled to match every model confusion matrix in this project: counts rather than
-proportions, the Greens colour map, a "Frequency" colour bar and a black border on the
-diagonal.
+Styled like every model confusion matrix in this project. It shows counts rather
+than proportions, uses the Greens colour map with a "Frequency" colour bar, and has a
+black border on the diagonal.
 
-Rows are a CDA's median score, columns are what an individual rater gave it, one entry per
-rater judgement. The tautological matches Metric 3 removes -- the rater whose own score is
-the median when all three disagree -- sit in a separate strip to the right, since they are
-not a rater score. Keeping them visible makes the figure total all 917 judgements, so its
-diagonal gives the reported 68.92% rather than the 72.23% the seven-column form implies.
+Rows are a CDA's median score, and columns are the score one rater gave it, with
+one entry per rater judgement. Metric 3 removes the automatic matches, where a
+rater's score is the median because all three scores differ. These sit in a
+separate strip on the right, because they are not counted as rater agreement.
+Keeping them visible makes the figure total all 917 judgements. Its diagonal then
+gives the reported 68.92%, not the 72.23% that the seven-column version implies.
 
 ```{python}
 #| fig-cap: "Human rater agreement with the median on the 308 medoid_64 test CDAs, Metric 3 (corrected)."
