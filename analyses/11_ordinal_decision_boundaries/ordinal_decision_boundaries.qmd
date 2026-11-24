@@ -13,52 +13,52 @@ Date: 09/09/2026
 
 **Goal:**
 
-The severity score is ordinal, so a 7-class classifier is really placing **six consecutive
-boundaries** on an underlying severity continuum. This analysis tests whether the 200
-saved models (100 CNN, 100 ViT) can be described that way, extracts each model's six
-cut-points, and then asks the question that matters: when two models disagree about an
-image, is it because they **rank** it differently, or because they **cut** the same
-ranking in different places?
+The severity score is ordinal. A 7-class classifier therefore places **six consecutive
+boundaries** on an underlying scale of severity. This analysis tests whether the 200
+saved models (100 CNN, 100 ViT) work that way. It extracts each model's six cut-points.
+It then asks the main question. When two models disagree about an image, do they
+**rank** it differently, or do they **cut** the same ranking in different places?
 
 **Hypotheses:**
 
-1. Each model's 7-class prediction is well approximated by thresholding a single latent
-   score at six cut-points. Categorical cross-entropy does not enforce this — nothing in
-   the loss knows the classes are ordered — so it is an empirical claim, not a given.
-2. Models will agree on the *ordering* of images far more than they agree on the
-   *labels*. `analyses/10` found mean pairwise prediction agreement of 0.779 with 237 of
-   308 images split; if the ordering is shared, most of that disagreement is cut-point
-   placement rather than perception.
-3. Cut-point spread will be widest in the middle of the scale. `analyses/08` and
-   `analyses/10` both located the errors at the middle scores, with near-miss saturating
-   near 0.98, which is what boundary jitter between adjacent classes looks like.
+1. Each model's 7-class prediction is close to what thresholding a single latent score
+   at six cut-points would give. Categorical cross-entropy does not enforce this. Nothing
+   in the loss knows the classes are ordered. So this has to be tested, not assumed.
+2. Models will agree on the *ordering* of images far more than on the *labels*.
+   `analyses/10` found mean pairwise prediction agreement of 0.779, with 237 of 308
+   images split. If the ordering is shared, most of that disagreement comes from where
+   the cut-points sit, not from how the models see the image.
+3. Cut-points will spread most in the middle of the scale. `analyses/08` and
+   `analyses/10` both found the errors at the middle scores, with near-miss accuracy
+   levelling off near 0.98. Boundaries that shift a little between adjacent classes
+   would produce exactly that.
 4. CNNs and ViTs will differ more in cut-points than in ordering. `analyses/04` found
-   cross-architecture prediction agreement of 0.710 against 0.779 within CNNs, yet
-   identical accuracy — a pattern that a shared ordering with different cuts would
-   produce.
+   prediction agreement of 0.710 across architectures against 0.779 within CNNs, with
+   identical accuracy. A shared ordering cut in different places would produce that
+   pattern.
 
 **Rationale:**
 
-This decomposition has a direct consequence. Disagreement from **different cut-points** is
-a calibration problem: it can be removed after training by re-thresholding, and an
-ensemble that averages labels is discarding information that averaging the latent score
-would keep. Disagreement from **different orderings** is a perception problem and cannot
-be fixed that way.
+This split has a direct consequence. Disagreement from **different cut-points** is a
+calibration problem. Re-thresholding after training can remove it. An ensemble that
+averages labels also throws away information that averaging the latent score would
+keep. Disagreement from **different orderings** is a problem of perception. It cannot be
+fixed that way.
 
-`analyses/10` showed a majority vote matches the best single model but does not beat it,
-and that a learned stack over one-hot predictions adds nothing. Both results are what you
-would expect if the models share an ordering and differ mainly in where they cut it,
-because voting on labels throws away the continuous quantity the models actually agree on.
+`analyses/10` showed that a majority vote matches the best single model but does not
+beat it. A learned stack over one-hot predictions added nothing either. Both results fit
+models that share an ordering and differ mainly in where they cut it. Voting on labels
+throws away the continuous quantity the models agree on.
 
 **Experimental plan:**
 
-1. Score all 308 test crops with all 200 saved models, keeping the full softmax rather
-   than the argmax.
-2. Define a latent severity per model per image and test hypothesis 1 by asking how well
-   six fitted cut-points reproduce that model's own argmax.
+1. Score all 308 test crops with all 200 saved models. Keep the full softmax, not just
+   the argmax.
+2. Define a latent severity for each model and image. Test hypothesis 1 by measuring how
+   well six fitted cut-points reproduce that model's own argmax.
 3. Extract the cut-points and show their spread, by boundary and by architecture.
 4. Decompose pairwise disagreement into an ordering component and a cut-point component.
-5. Locate the images that sit on a boundary, and relate them to the per-image difficulty
+5. Find the images that sit on a boundary. Compare them with the per-image difficulty
    from `analyses/10`.
 
 ---
@@ -99,8 +99,9 @@ CLASSES = np.arange(7)
 
 ### 1.2 Full softmax outputs for all 200 models
 
-The argmax alone cannot answer this question — the latent score has to come from the
-probability vector. Cached, because it is 200 model loads.
+The argmax alone cannot answer this question. The latent score has to come from the
+probability vector. The outputs are cached, because computing them means loading 200
+models.
 
 ```{python}
 # 1.2
@@ -148,21 +149,19 @@ print(f"mean accuracy: CNN {(pred_all[~is_vit] == y).mean():.4f}  "
 ## 2. Is a single latent score enough?
 
 The natural latent severity for an ordinal problem is the **expected score**,
-$s = \sum_k k\,p_k$. It uses the whole probability vector rather than only its mode, and
-it is monotone in the sense the scale intends: shifting probability mass towards higher
-classes raises it.
+$s = \sum_k k\,p_k$. It uses the whole probability vector, not only its mode. It also
+moves the way the scale intends. Shifting probability towards higher classes raises it.
 
-Hypothesis 1 says each model's argmax is recoverable by cutting its own $s$ at six
-thresholds. That is not automatic — the network was trained with categorical
-cross-entropy, which treats the seven classes as unordered, so nothing forced the argmax
-to be monotone in $s$.
+Hypothesis 1 says that cutting a model's own $s$ at six thresholds recovers its argmax.
+That is not automatic. The network was trained with categorical cross-entropy, which
+treats the seven classes as unordered. Nothing forced the argmax to rise with $s$.
 
 ### 2.1 Fitting the six cut-points
 
-For boundary $k \in \{1..6\}$ the cut-point $t_k$ is chosen to best separate the images
-the model called $<k$ from those it called $\ge k$, by scanning every midpoint between
-adjacent sorted values of $s$ and taking the one with fewest errors. The reconstructed
-prediction is then simply how many cut-points $s$ exceeds.
+For boundary $k \in \{1..6\}$, the cut-point $t_k$ best separates the images the model
+called $<k$ from those it called $\ge k$. It is found by scanning every midpoint between
+adjacent sorted values of $s$ and keeping the one with the fewest errors. The
+reconstructed prediction is the number of cut-points that $s$ exceeds.
 
 ```{python}
 # 2.1
@@ -285,11 +284,11 @@ print(sd.round(4).to_string())
 
 ### 3.2 Every model's six cut-points on the shared latent
 
-Section 3.1 summarises the cut-points as boxplots by boundary. These two draw the same
-numbers the other way round: one row per model, so a model that cuts low everywhere is a
-row shifted left, against a model whose boundaries move independently of each other. The
-crops' own latent scores are drawn underneath on the same axis, so the width of a cut-point
-cloud can be read against how densely crops sit there.
+Section 3.1 summarises the cut-points as boxplots by boundary. These two plots draw the
+same numbers the other way round, with one row per model. A model that cuts low everywhere
+appears as a row shifted left. A model whose boundaries move independently does not. The
+crops' own latent scores are drawn underneath on the same axis. The width of each cloud
+of cut-points can then be read against how many crops sit there.
 
 ```{python}
 # 3.2
@@ -359,10 +358,10 @@ for _k in range(6):
 
 ## 4. Ordering versus cutting
 
-This is the decomposition. Two models disagree on an image either because they **rank**
-the images differently, or because they rank them the same and **cut** at different
-places. Spearman correlation between two models' latent scores measures the first; the
-agreement recovered after forcing both to use a common set of cut-points measures the
+This is the split itself. Two models disagree on an image for one of two reasons. They
+**rank** the images differently, or they rank them the same and **cut** at different
+places. The Spearman correlation between two models' latent scores measures the first.
+The agreement gained by forcing both onto a common set of cut-points measures the
 second.
 
 ```{python}
@@ -424,12 +423,12 @@ plt.show()
 
 ### 4.3 What "the same ranking" looks like
 
-The correlations above are summary numbers. This is the thing itself: every test image
-placed by its rank under the best CNN against its rank under the best ViT. A point on the
-dashed diagonal means both models put that image in the same position in the queue.
+The correlations above are summaries. This plot shows the rankings directly. Each test
+image is placed by its rank under the best CNN against its rank under the best ViT. A
+point on the dashed diagonal means both models put that image in the same position.
 
-The two models are the top of each grid by ``avg_vaf`` -- different architectures,
-different hyperparameter grids, trained independently.
+The two models are the top of each grid by ``avg_vaf``. They have different
+architectures and different hyperparameter grids, and were trained independently.
 
 ```{python}
 # 4.3
@@ -480,12 +479,10 @@ print(f"label agreement between these two models: "
 
 ---
 
----
-
 ## 5. Which images sit on a boundary?
 
-An image whose latent score falls close to a cut-point is one the models will split on,
-regardless of how good they are. This is the mechanism `analyses/10` saw as "237 of 308
+The models will split on an image whose latent score falls close to a cut-point, however
+good they are. This is the mechanism behind the finding in `analyses/10` that "237 of 308
 images are split decisions".
 
 ```{python}
@@ -541,10 +538,10 @@ print(img.nsmallest(8, "dist_to_boundary")[
 
 ## 6. Does re-cutting a single model help?
 
-If disagreement is cut-point placement, then refitting one model's cut-points on held-out
-data should improve it. The `ensemble` split exists precisely for this kind of tuning and
-has never been used for training, so the cut-points are fitted there and reported on
-`test`.
+If disagreement comes from where the cut-points sit, refitting one model's cut-points on
+held-out data should improve it. The `ensemble` split exists for this kind of tuning and
+was never used for training. The cut-points are fitted there and the results are
+reported on `test`.
 
 ```{python}
 # 6.1
@@ -622,16 +619,15 @@ print(comp.to_string())
 
 ## 7. Is the disagreement the models' fault, or the labels'?
 
-Everything above is model-versus-model. That is the wrong comparison to stop at: making
-two models agree with each other is worth nothing if they are both wrong about the
-humans, and section 6 already showed that fitting thresholds to the *true* labels buys
-nothing either.
+Everything above compares models with models. That comparison is not enough. Making two
+models agree is worth nothing if both are wrong about the humans. Section 6 also showed
+that fitting thresholds to the *true* labels gains nothing.
 
-The alternative explanation is that the target itself is not well defined at these
-points. Each CDA carries three independent rater scores and the label is their median, so
-where the raters split the median is a lossy collapse of a genuine disagreement. If that
-is what the models are running into, then the crops the models split on should be the
-crops the raters split on.
+The other explanation is that the target itself is poorly defined at these points. Each
+CDA has three independent rater scores, and the label is their median. Where the raters
+split, the median collapses a real disagreement into one number and loses information.
+If the models are running into this, the crops they split on should be the crops the
+raters split on.
 
 ```{python}
 # 7.1
@@ -700,88 +696,88 @@ plt.show()
 
 ## 8. Interpretation and Discussion
 
-- **The ordinal framing is correct: every model really is thresholding one number.** Six
+- **The ordinal framing is correct. Every model is thresholding one number.** Six
   cut-points reproduce a model's own 7-class argmax with mean fidelity **0.974** (CNN
-  0.958, ViT 0.990, worst model 0.922), and the Kendall tau between the latent score and
-  the argmax never falls below 0.913. Nothing in categorical cross-entropy enforces this
-  -- the loss treats the seven classes as unordered -- so the models learned the ordering
-  from the data rather than from the objective. Hypothesis 1 holds, and the ViT holds it
-  more tightly than the CNN.
+  0.958, ViT 0.990, worst model 0.922). The Kendall tau between the latent score and the
+  argmax never falls below 0.913. Categorical cross-entropy does not enforce this,
+  because the loss treats the seven classes as unordered. The models learned the
+  ordering from the data, not from the objective. Hypothesis 1 holds, and holds more
+  tightly for the ViT than for the CNN.
 
-- **The models agree on the ranking almost perfectly.** Mean Spearman correlation between
-  two models' latent scores is **0.992** within CNNs, 0.987 within ViTs, and **0.982
-  across architectures**. Whatever the disagreement is, it is not that one model thinks a
-  crop is severe and another thinks it is mild.
+- **The models agree on the ranking almost perfectly.** The mean Spearman correlation
+  between two models' latent scores is **0.992** within CNNs, 0.987 within ViTs and
+  **0.982 across architectures**. The disagreement is not one model calling a crop severe
+  and another calling it mild.
 
-- **But cut-point placement is NOT where the disagreement lives, and that is the result I
-  did not expect.** Forcing every model onto one common set of cut-points raises pairwise
-  agreement only from 0.783 to 0.811 (CNN-CNN), 0.762 to 0.773 (ViT-ViT), and 0.707 to
-  0.732 (CNN-ViT). So of the ~22-29 pp gap between a 0.98 rank correlation and ~75%
-  label agreement, re-cutting recovers about **2-3 pp**. Hypotheses 2 and 4 are therefore
-  only half right: the shared ordering is real, the differing cut-points are real, but
-  the cut-points explain almost none of the disagreement.
+- **But the disagreement does NOT come from where the cut-points sit. I did not expect
+  this.** Forcing every model onto one common set of cut-points raises pairwise agreement
+  only from 0.783 to 0.811 (CNN-CNN), 0.762 to 0.773 (ViT-ViT) and 0.707 to 0.732
+  (CNN-ViT). There is a gap of about 22-29 pp between a 0.98 rank correlation and label
+  agreement of about 75%. Re-cutting recovers only about **2-3 pp** of it. Hypotheses 2
+  and 4 are therefore half right. The shared ordering is real, and so are the different
+  cut-points. But the cut-points explain almost none of the disagreement.
 
-- **The mechanism is that a 0.98 Spearman still permits heavy local reordering, and local
-  is all that matters.** Rank correlation is dominated by the easy long-range comparisons
-  -- a score-0 crop below a score-6 crop -- which every model gets right. Label identity
-  is decided only by which side of a cut-point a crop falls on, so it is governed by the
-  ordering of crops that are already close together on the latent scale. The models agree
-  globally and disagree locally, and only the local part is visible in the label.
+- **A Spearman correlation of 0.98 still allows heavy reordering of nearby crops, and
+  only nearby crops matter.** Rank correlation is dominated by easy comparisons between
+  distant crops, such as a score-0 crop against a score-6 crop. Every model gets those
+  right. The label depends only on which side of a cut-point a crop falls. So it depends
+  on the order of crops that already sit close together on the latent scale. The models
+  agree on the overall order and disagree on nearby pairs. Only the nearby pairs show up
+  in the label.
 
-- **The per-image view confirms it.** Images in the closest quartile to a boundary have
-  modal-label consensus of **0.625** against **0.876** for the rest, and are correctly
-  scored by 93 of 200 models against 135. The eight closest sit within 0.02 of a cut-point
-  and split the committee almost exactly in half. This is the mechanism behind
-  `analyses/10`'s "237 of 308 images are split decisions": those are not hard images in
-  any deep sense, they are images sitting on a boundary.
+- **The per-image view confirms it.** Images in the quartile closest to a boundary have
+  modal-label consensus of **0.625**, against **0.876** for the rest. They are scored
+  correctly by 93 of 200 models, against 135. The eight closest sit within 0.02 of a
+  cut-point and split the committee almost exactly in half. This explains the finding in
+  `analyses/10` that "237 of 308 images are split decisions". Those images are not hard
+  in any deep sense. They sit on a boundary.
 
-- **Re-thresholding does not help, and note what it was fitted against.** The cut-points
-  in section 6 are fitted to the **true human labels** on the held-out `ensemble` split,
-  not to another model, so this is a test of aligning a model to the humans rather than to
-  its peers. It changes exact accuracy by **+0.47 pp** with exactly **100 of 200 models
-  improving** -- a coin flip, far inside the 2.7 pp test-set SE. Calling the model-versus-
-  model version of this a "calibration problem" would be the wrong frame: making two
-  models agree with each other is worth nothing if both are wrong about the humans, and
-  the human-facing version of the fix fails too.
+- **Re-thresholding does not help, even against the human labels.** The cut-points in
+  section 6 are fitted to the **true human labels** on the held-out `ensemble` split, not
+  to another model. This tests aligning a model with the humans, not with other models.
+  It changes exact accuracy by **+0.47 pp**, with exactly **100 of 200 models
+  improving**. That is a coin flip, far inside the test-set SE of 2.7 pp. Calling the
+  model-versus-model version a "calibration problem" would therefore be wrong. Making two
+  models agree is worth nothing if both are wrong about the humans. The version of the
+  fix aimed at the humans fails too.
 
-- **Nor does ensembling the latent score beat voting on labels.** Averaging the latent
-  score across all 200 models and cutting once gives 0.6656 exact and 0.9838 near-miss,
-  against 0.6688 and 0.9838 for a plain majority vote. Identical near-miss, and the
-  difference in exact accuracy is a tenth of an SE. `analyses/10` found a learned stack
-  added nothing over a vote; this shows the same is true of the continuous quantity the
-  stack was throwing away, which closes off that explanation.
+- **Averaging the latent score does not beat voting on labels either.** Averaging the
+  latent score across all 200 models and cutting once gives 0.6656 exact and 0.9838
+  near-miss. A plain majority vote gives 0.6688 and 0.9838. Near-miss is identical, and
+  exact accuracy differs by a tenth of an SE. `analyses/10` found that a learned stack
+  added nothing over a vote. The continuous quantity the stack threw away adds nothing
+  either, which rules out that explanation.
 
-- **The one systematic architecture difference is boundary stability, not boundary
-  position.** Mean cut-points are nearly identical between CNNs and ViTs at every
-  boundary (largest gap 0.058, at 0|1). What differs is the spread: the ViT's cut-point SD
-  is lower at all six boundaries (0.032-0.057 against 0.058-0.086). ViTs place their
-  boundaries more consistently with each other than CNNs do, which is consistent with
-  their higher ordinal fidelity above, and is a property worth knowing when choosing which
-  class to ensemble.
+- **The one consistent difference between architectures is how stable the boundaries
+  are, not where they sit.** Mean cut-points are nearly identical for CNNs and ViTs at
+  every boundary. The largest gap is 0.058, at 0|1. The spread differs. The ViTs' cut-point
+  SD is lower at all six boundaries (0.032-0.057 against 0.058-0.086). ViTs place their
+  boundaries more consistently with each other than CNNs do. This matches their higher
+  ordinal fidelity above. It matters when choosing which kind of model to ensemble.
 
 - **Where the spread is widest.** For CNNs the cut-point SD peaks at the 3|4 and 4|5
-  boundaries (0.086, 0.084) and is smallest at 0|1 (0.058). Hypothesis 3 said the middle,
-  and the answer is the upper-middle. The 0|1 boundary being tightest is expected: score 0
-  means no cell death, a qualitative rather than a graded distinction.
+  boundaries (0.086 and 0.084). It is smallest at 0|1 (0.058). Hypothesis 3 predicted
+  the middle, and the answer is just above the middle. The 0|1 boundary is the tightest,
+  as expected. Score 0 means no cell death, so this boundary separates presence from
+  absence rather than two degrees of severity.
 
-- **The disagreement belongs to the labels, not to the models (section 7).** Matching all
-  308 test crops back to their three individual rater scores: where the raters were
-  unanimous (107 crops) model consensus is **0.859** and 152 of 200 models score the crop
-  correctly; where the raters disagreed (201 crops) consensus falls to **0.788** and only
-  110 of 200 are correct (Mann-Whitney p = 2.3e-06). Rater disagreement tracks model
-  disagreement at Spearman **-0.28**, and tracks how few models get the crop right at
-  **-0.33**. The models fragment where the humans fragmented.
+- **The disagreement belongs to the labels, not to the models (section 7).** All 308
+  test crops were matched back to their three individual rater scores. Where the raters
+  were unanimous (107 crops), model consensus is **0.859** and 152 of 200 models score the
+  crop correctly. Where the raters disagreed (201 crops), consensus falls to **0.788** and
+  only 110 of 200 are correct (Mann-Whitney p = 2.3e-06). Rater disagreement correlates
+  with model disagreement at Spearman **-0.28**. It correlates with the number of models
+  that get the crop right at **-0.33**. The models split where the humans split.
 
-- **Which is why no set of thresholds can fix this.** The label is the median of three
-  raters, so where they split it is a lossy collapse of a real disagreement rather than a
-  ground truth the model is failing to hit. Threshold-fitting optimises against a target
-  that is not well defined at exactly the points where the fitting would matter, and that
-  is the mechanism behind the coin-flip result above.
+- **This is why no set of thresholds can fix it.** The label is the median of three
+  raters. Where they split, the median collapses a real disagreement and loses
+  information. It is not a ground truth the model fails to hit. Fitting thresholds
+  optimises against a target that is poorly defined at exactly the points where the
+  fitting would matter. That explains the coin-flip result above.
 
 - **This changes what the soft-label run is for.** `models/05` should not be judged on
-  whether it raises exact accuracy, because exact accuracy is scored against the same
-  collapsed median. Its point is that it stops discarding the disagreement: where the
-  raters split 1/2, it trains against the split instead of asserting a confident median.
-  The metrics that could show a real gain are near-miss and QWK, which price an
-  adjacent-score error correctly, rather than exact agreement with a label that was never
-  unanimous.
+  exact accuracy, because exact accuracy is scored against the same collapsed median. Its
+  purpose is to keep the disagreement. Where the raters split 1/2, it trains against the
+  split instead of a confident median. A real gain would show in near-miss accuracy and
+  QWK. Both give an adjacent-score error its proper weight. Exact agreement with a label
+  that was never unanimous would not show it.

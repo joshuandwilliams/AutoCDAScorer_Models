@@ -13,28 +13,28 @@ Date: 18/07/2026
 
 **Goal:**
 
-Use the Base-CNN grid search's 6,720 distinct settings as a dataset in its own right —
-hyperparameters in, mean CV accuracy (`avg_vaf`) out — and ask *which
-hyperparameters actually move accuracy*, and in which direction. A random forest
-ranks them by Gini importance (mirroring `10_image_entropy §6.6`) and SHAP
-attributes each model's accuracy to its settings, with direction (mirroring `§6.7`).
+Treat the Base-CNN grid search's 6,720 distinct settings as a dataset in their own
+right. The inputs are the hyperparameters and the output is mean CV accuracy
+(`avg_vaf`). The question is *which hyperparameters move accuracy*, and in which
+direction. A random forest ranks them by Gini importance. SHAP then attributes each
+model's accuracy to its settings, with direction. Both follow the dataset repository's
+`10b_score_prediction` (sections 8 and 9).
 
 **Hypothesis:**
 
-A few "don't-mess-it-up" levers — learning rate, optimizer, and regularisation —
-dominate, while architecture size (filters, kernel, depth) matters modestly and
-dropout barely at all. And, tying back to `analyses/08_accuracy_noise_floor`:
-this signal is about *reaching* the top plateau; **inside** the plateau the
-hyperparameters should explain very little, because the remaining differences are
-noise.
+A few levers that are easy to get wrong will dominate. These are learning rate,
+optimizer and regularisation. Architecture size (filters, kernel, depth) will matter
+less, and dropout hardly at all. This links to `analyses/08_accuracy_noise_floor`. The
+hyperparameters should decide whether a model *reaches* the top plateau. **Inside** the
+plateau they should explain very little, because the remaining differences are noise.
 
 **Rationale:**
 
-If hyperparameters had diffuse, equal effects, no config would consistently beat
-another and tuning would be hopeless. If instead a handful of levers dominate, the
-search is really a search for the right *region*, and SHAP will show each lever's
-direction (e.g. which learning rate helps). Fitting the same model inside the
-plateau then tests whether anything explains the within-cluster ranking at all.
+If every hyperparameter had a small, equal effect, no config would reliably beat
+another and tuning would be hopeless. If a handful of levers dominate, the search is a
+search for the right *region*. SHAP then shows which way each lever pushes, for example
+which learning rate helps. Fitting the same model inside the plateau tests whether
+anything explains the ranking within the top cluster.
 
 ---
 
@@ -60,17 +60,17 @@ plt.rcParams.update({"figure.dpi": 120})
 
 ### 1.2 Load the grid, collapse it to distinct settings, and build the feature matrix
 
-The grid crosses `reg = None` with all three `reg_strength` values, and `reg_strength`
-does nothing without a regulariser, so 1,920 of the 8,640 runs repeat a setting. Those
-repeats would enter the surrogate as three observations of one point, understating the
-noise the forest has to fit through and weighting `reg = None` three times over on the
-`reg` axis. `grid_results.deduplicate` keeps each setting's best run, leaving 6,720.
+The grid crosses `reg = None` with all three `reg_strength` values. `reg_strength` does
+nothing without a regulariser, so 1,920 of the 8,640 runs repeat a setting. Those
+repeats would enter the surrogate as three observations of one point. That would hide
+some of the noise the forest has to fit through. It would also count `reg = None` three
+times on the `reg` axis. `grid_results.deduplicate` keeps each setting's best run,
+leaving 6,720.
 
-The target is `avg_vaf`. Features are the *searched* hyperparameters; the three
-constant columns (`epochs`, `batch_size`, `pooling_size`) carry no information and
-are dropped. `reg = None` arrives as an empty cell, so it is made an explicit
-category. The three categoricals are one-hot encoded and columns are given readable
-names.
+The target is `avg_vaf`. The features are the *searched* hyperparameters. The three
+constant columns (`epochs`, `batch_size`, `pooling_size`) carry no information and are
+dropped. `reg = None` arrives as an empty cell, so it becomes an explicit category. The
+three categorical columns are one-hot encoded and given readable names.
 
 ```{python}
 # 1.2
@@ -111,17 +111,17 @@ y = df["avg_vaf"].values
 print(f"{len(df)} models | {X.shape[1]} features: {list(X.columns)}")
 ```
 
-### 1.3 Fit the forest and compute SHAP — cached
+### 1.3 Fit the forest and compute SHAP (cached)
 
-The random forest fit and, especially, the SHAP `TreeExplainer` pass (plus the
-plateau refits in §5) are the only slow steps. They are computed once and cached to
+The only slow steps are the random forest fit, the plateau refits in §5 and, above all,
+the SHAP `TreeExplainer` pass. They run once and are cached to
 `shap_cache/artifacts.pkl`. The cache is keyed on a fingerprint of the input (row
-count, `avg_vaf` sum, feature columns), so editing the analysis re-runs instantly
-from the cache, while a changed results CSV auto-invalidates it and recomputes.
-Delete the `shap_cache/` folder to force a full recompute.
+count, `avg_vaf` sum and feature columns). Editing the analysis therefore re-runs
+instantly from the cache. A changed results CSV invalidates the cache and triggers a
+recompute. Delete the `shap_cache/` folder to force a full recompute.
 
-Only plain arrays/floats are cached (not the `shap.Explanation` object), so the
-cache is robust across shap versions; the `Explanation` is rebuilt on load.
+Only plain arrays and floats are cached, not the `shap.Explanation` object. The cache
+therefore works across shap versions. The `Explanation` is rebuilt on load.
 
 ```{python}
 #| output: false
@@ -210,8 +210,9 @@ print(f"SHAP artifacts: {status}  ->  {CACHE_FILE}")
 
 ## 2. A random forest predicts accuracy from hyperparameters alone
 
-If hyperparameters determine accuracy, a model mapping settings → `avg_vaf` should
-fit well. Out-of-bag R² (honest, no separate split needed) is reported.
+If hyperparameters determine accuracy, a model that maps settings to `avg_vaf` should
+fit well. The out-of-bag R² is reported. It is an honest estimate and needs no separate
+split.
 
 ```{python}
 # 2.1
@@ -223,8 +224,8 @@ print("The settings explain the great majority of the accuracy spread across the
 
 ## 3. Gini importance
 
-Mean decrease in impurity ranks the features globally (magnitude only, no
-direction).
+Mean decrease in impurity ranks the features over the whole grid. It gives size only,
+not direction.
 
 ```{python}
 #| fig-cap: "Random-forest Gini importance. Learning rate, optimizer and regularisation dominate; dropout is negligible."
@@ -243,10 +244,10 @@ plt.show()
 
 ## 4. SHAP: magnitude and direction of each lever
 
-Gini importance is directionless. SHAP (SHapley Additive exPlanations) attributes
-each model's predicted accuracy to its hyperparameters, so both *how much* and
-*which way* each lever pushes are visible. Computed with `TreeExplainer` on the
-forest (§1.3, cached); the beeswarm/scatter use the cached sample for legibility.
+Gini importance has no direction. SHAP (SHapley Additive exPlanations) attributes
+each model's predicted accuracy to its hyperparameters. It shows both *how much* and
+*which way* each lever pushes. It is computed with `TreeExplainer` on the forest (§1.3,
+cached). The beeswarm and scatter plots use the cached sample so they stay readable.
 
 ```{python}
 #| fig-cap: "SHAP beeswarm. Each dot is one model; position is that hyperparameter's contribution to predicted accuracy; colour is the feature value. Learning rate, optimizer and regularisation spread widest."
@@ -293,11 +294,11 @@ plt.show()
 
 ## 5. Does the signal survive *inside* the plateau?
 
-`analyses/08_accuracy_noise_floor` argued the top cluster is one noisy plateau.
-If so, the hyperparameters — which explain accuracy so well across the whole grid —
-should explain progressively **less** as the candidate pool is narrowed to the best
-models, because what is left is noise, not signal. The forest is refit on
-successively smaller top-k pools (computed in §1.3, cached).
+`analyses/08_accuracy_noise_floor` argued that the top cluster is one noisy plateau.
+If so, the hyperparameters explain accuracy well across the whole grid but should
+explain **less and less** as the pool narrows to the best models. What is left there is
+noise. The forest is refit on smaller and smaller top-k pools (computed in §1.3,
+cached).
 
 ```{python}
 #| fig-cap: "Out-of-bag R² of hyperparameters → accuracy, refit on successively smaller top-k pools. The explanatory power collapses inside the plateau."
@@ -322,40 +323,38 @@ plt.show()
 
 ## 6. Interpretation and Discussion
 
-- **A few levers dominate (§3–§4).** Learning rate, optimizer (Adam vs Momentum)
-  and regularisation (type + strength) account for most of the Gini importance and
-  the widest SHAP spreads; kernel size, filter count and depth matter modestly; and
-  **dropout is essentially inert** on this task. Hyperparameter tuning here is really
-  a search for the right *region* of a handful of settings, not fine control of all
-  of them.
+- **A few levers dominate (§3 and §4).** Learning rate, optimizer (Adam or Momentum)
+  and regularisation (type and strength) account for most of the Gini importance. They
+  also have the widest SHAP spreads. Kernel size, filter count and depth matter less.
+  **Dropout has almost no effect** on this task. Tuning here is a search for the right
+  *region* of a handful of settings, not fine control of all of them.
 
-- **SHAP shows the directions (§4).** Learning rate is the clearest: the mid value
-  (1e-3) contributes positively while the smallest (1e-4, under-training in the fixed
-  epoch budget) drags accuracy down; heavy L1 / large `reg_strength` push accuracy
-  down; the optimizer split separates cleanly. These are actionable "set it here,
-  avoid there" rules rather than a single magic config.
+- **SHAP shows the directions (§4).** Learning rate is the clearest case. The middle
+  value (1e-3) raises accuracy. The smallest (1e-4) lowers it, because the model
+  under-trains in the fixed number of epochs. Heavy L1 and a large `reg_strength` both
+  lower accuracy. The two optimizers separate cleanly. These are practical rules about
+  which values to use and which to avoid. They do not point to a single best config.
 
-- **The signal is about reaching the plateau, not ranking within it (§5).** Refit on
-  smaller and smaller top-k pools, the out-of-bag R² falls from 0.94 on the full
-  grid to 0.60 (top-1000) to 0.48 (top-500). Once every model already uses a
-  sensible region, the hyperparameters no longer explain who wins — matching
-  `analyses/08`, where the top cluster's CV ranking does not transfer to held-out
-  test accuracy. **The two analyses meet here:** settings get you onto the plateau;
-  luck orders you on it.
+- **The hyperparameters decide who reaches the plateau, not the order within it
+  (§5).** Refit on smaller and smaller top-k pools, the out-of-bag R² falls from 0.94
+  on the full grid to 0.60 for the top 1000 and 0.48 for the top 500. Once every model
+  uses a sensible region, the hyperparameters no longer explain which one wins. This
+  matches `analyses/08`, where the top cluster's CV ranking does not carry over to
+  held-out test accuracy. **The two analyses agree.** Settings get a model onto the
+  plateau. Chance decides its place there.
 
-- **Practical takeaway.** Fix the high-impact levers to their good region (learning
-  rate ≈ 1e-3, the better optimizer, light/no regularisation) and stop trying to
-  read meaning into the exact winning combination of the low-impact ones. For real
-  gains beyond the ~62% ceiling, the lever is not a better CNN config but a different
-  approach — the ViT sweep, augmentation, or ensembling the plateau.
+- **In practice.** Set the high-impact levers to their good region. That means a
+  learning rate near 1e-3, the better optimizer, and light or no regularisation. Do not
+  read meaning into the exact winning combination of the low-impact ones. Gains beyond
+  the ceiling of about 62% need a different approach, not a better CNN config. The
+  options are the ViT sweep, augmentation, or an ensemble of the plateau.
 
-- **Caveats.** Importances are computed on `avg_vaf`, itself noisy (`analyses/08`);
-  the collapse of R² inside the plateau is partly that noise becoming the dominant
-  signal, which is exactly the point. One-hot columns split a categorical's
-  importance across its levels (e.g. `opt=Adam` and `opt=Momentum` are two views of
-  one 2-level choice), so read them together. In-grid importances describe *this*
-  dataset and search space, not CNNs universally.
-```
+- **Limits.** The importances are computed on `avg_vaf`, which is itself noisy
+  (`analyses/08`). Inside the plateau that noise is most of what is left to explain, so
+  R² falls. That fall is the result. One-hot columns split a categorical's importance
+  across its levels. For example, `opt=Adam` and `opt=Momentum` are two views of one
+  choice between 2 options, so read them together. The importances describe *this*
+  dataset and search space, not CNNs in general.
 
 
 ## Thesis figure
