@@ -874,9 +874,10 @@ for name, col in [("Grad-CAM", "cam_lift"), ("SHAP", "shap_lift")]:
 - **What survives a matched null is small but real, and larger with the medoid crop than
   with the centre-of-overlap crop.** Scoring each map against a *different* crop's lesion
   keeps size and centrality the same, and removes only the match to each image. SHAP beats
-  that null by 0.0218 EBPG (p = 4e-6, 170 of 264 images), and Grad-CAM by 0.0208
-  (p = 0.003). On the centre-of-overlap crops, the same test gave SHAP only 0.0046. So
-  switching to the medoid box made the image-specific part about four times larger. The
+  that null by 0.0143 EBPG (p = 4e-5, 166 of 264 images). Grad-CAM's gap of 0.0067 is not
+  significant (p = 0.17, 126 of 264). An earlier run on the centre-of-overlap crops gave
+  SHAP only 0.0046. Its cache is no longer in the repository. Switching to the medoid box
+  made the image-specific part about three times larger. The
   reason is geometric. The medoid box is the one the other raters' boxes agree with most.
   The lesion fills 45% of it, against 51% of the centre-of-overlap crop. That leaves more
   leaf outside the lesion, which a map that favours the centre cannot take credit for.
@@ -884,15 +885,15 @@ for name, col in [("Grad-CAM", "cam_lift"), ("SHAP", "shap_lift")]:
   that the margin is small, but that the obvious baseline is the wrong one.
 
 - **Grad-CAM fails here because of the architecture, not the method or the model.** At
-  the last convolution, its lift is +0.044 and its pointing game 0.341, below the area
-  baseline of 0.452. Section 4.4 finds the cause. The same computation at the 29x29
-  convolution gives a lift of +0.182. The last layer is 4x4, so the map has 16 values. Its
-  maximum can only be at one of 16 grid points, most of them near the edge, while the
-  baseline counts pixel area. These cannot be compared at that resolution. That is why the
+  the last convolution, its lift is +0.007 and its pointing game 0.250, below the area
+  baseline of 0.452. Section 4.4 finds the cause. The same computation gives a lift of
+  +0.086 at the 29x29 convolution and +0.140 at the 12x12 one. The last layer is 4x4, so
+  the map has 16 values. Its maximum can only be at one of 16 grid points, most of them
+  near the edge, while the baseline counts pixel area. These cannot be compared at that resolution. That is why the
   pointing game can fall below "chance" without the model doing anything odd. Any Grad-CAM
   result on a network this small should give the size of the feature map.
 
-- **The two methods disagree far more than expected.** For 115 of 262 images, the maps are
+- **The two methods disagree far more than expected.** For 104 of 264 images, the maps are
   *negatively* correlated pixel by pixel. Hypothesis 3 predicted agreement on the rough
   location and differences in detail. At 4x4, Grad-CAM does not really have a rough
   location to agree on. So the disagreement says little about the model. It is dominated
@@ -901,7 +902,7 @@ for name, col in [("Grad-CAM", "cam_lift"), ("SHAP", "shap_lift")]:
   clearly wrong answer.
 
 - **Attention avoids the background, which is the one clear positive result.** SHAP puts
-  3.5% of its energy on dark background, which is 6.1% of the pixels. It puts 17.9% on leaf
+  2.6% of its energy on dark background, which is 6.1% of the pixels. It puts 18.5% on leaf
   outside the lesion, which is 48.8% of the pixels. Both get less than their share of the
   area, so hypothesis 4 holds. The little attention outside the lesion falls on leaf, not
   on the black surround. The model is not using the crop border or the padding.

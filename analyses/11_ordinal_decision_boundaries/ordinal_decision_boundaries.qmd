@@ -33,9 +33,9 @@ It then asks the main question. When two models disagree about an image, do they
    levelling off near 0.98. Boundaries that shift a little between adjacent classes
    would produce exactly that.
 4. CNNs and ViTs will differ more in cut-points than in ordering. `analyses/04` found
-   prediction agreement of 0.710 across architectures against 0.779 within CNNs, with
-   identical accuracy. A shared ordering cut in different places would produce that
-   pattern.
+   that the two have identical accuracy. Over every pair of the 200 models (section 4.4),
+   prediction agreement is 0.710 across architectures against 0.779 within CNNs. A shared
+   ordering cut in different places would produce that pattern.
 
 **Rationale:**
 
@@ -475,6 +475,32 @@ print(f"crops whose rank moves by <=10 places between the two models: {within:.1
 print(f"largest rank shift: {int(np.abs(off).max())} places")
 print(f"label agreement between these two models: "
       f"{(pred_all[ci] == pred_all[vi]).mean():.4f}")
+```
+
+### 4.4 Agreement over every pair of models
+
+Section 4.1 samples 60 models to keep the Spearman loop quick. Label agreement is cheap to
+compute, so this counts it over all 19,900 pairs of the 200 models. It also counts the
+test images that some ViT scores correctly and no CNN does, and the reverse.
+`analyses/13` cites these numbers.
+
+```{python}
+# 4.4
+def mean_pairwise(a, b=None):
+    if b is None:
+        agree = (a[:, None, :] == a[None, :, :]).mean(-1)
+        return float(agree[np.triu_indices(len(a), k=1)].mean())
+    return float((a[:, None, :] == b[None, :, :]).mean())
+
+
+pc, pv = pred_all[~is_vit], pred_all[is_vit]
+print(f"mean pairwise agreement over all pairs: CNN-CNN {mean_pairwise(pc):.4f}  "
+      f"ViT-ViT {mean_pairwise(pv):.4f}  CNN-ViT {mean_pairwise(pc, pv):.4f}")
+cnn_right, vit_right = (pc == y).any(0), (pv == y).any(0)
+print(f"test images some ViT scores correctly and no CNN does: "
+      f"{int((vit_right & ~cnn_right).sum())}")
+print(f"test images some CNN scores correctly and no ViT does: "
+      f"{int((cnn_right & ~vit_right).sum())}")
 ```
 
 ---
