@@ -191,3 +191,30 @@ class TestTrainCgan:
         assert len(history) == 1
         saved = np.load(tmp_path / "samples" / "epoch_00001.npz")
         assert saved["images"].shape == (4 * NUM_CLASSES, IMG_SIZE, IMG_SIZE, 3)
+
+
+def test_fcd_uses_the_real_part_of_a_complex_square_root(feature_model_path, monkeypatch):
+    import cgan
+
+    fcd = FrechetCDADistance(feature_model_path)
+    x = images(16)
+    expected = fcd(x, x)
+    real_sqrtm = cgan.linalg.sqrtm
+    monkeypatch.setattr(cgan.linalg, "sqrtm", lambda m: real_sqrtm(m) + 0j)
+    assert fcd(x, x) == pytest.approx(expected)
+
+
+def test_training_step_runs_eagerly(tmp_path):
+    # Eager execution runs the @tf.function step as plain Python, so its lines are
+    # measured. In graph mode coverage cannot see inside the traced function.
+    tf.config.run_functions_eagerly(True)
+    try:
+        history, _ = train_cgan(images(8), [0] * 8, PARAMS, epochs=1, out_dir=tmp_path)
+    finally:
+        tf.config.run_functions_eagerly(False)
+    assert np.isfinite(history[0]["gen_loss"]) and np.isfinite(history[0]["disc_loss"])
+
+
+def test_progress_is_printed_every_100_epochs(tmp_path, capsys):
+    train_cgan(images(4), [0] * 4, PARAMS, epochs=100, out_dir=tmp_path, sample_every=1000)
+    assert "epoch 100: gen" in capsys.readouterr().out

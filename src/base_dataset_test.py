@@ -351,6 +351,19 @@ class TestSaveDataset:
         assert os.path.exists(f"{base_path}.npy")
         assert os.path.exists(f"{base_path}.csv")
 
+    def test_tensor_filepaths_and_labels(self, mock_dataset, tmp_path):
+        ds = dict(mock_dataset)
+        for split in ["train", "val", "ensemble", "test"]:
+            ds[f"{split}_filepaths"] = tf.constant(mock_dataset[f"{split}_filepaths"])
+            ds[f"{split}_labels"] = tf.constant(mock_dataset[f"{split}_labels"])
+        save_dataset(ds, str(tmp_path / "tensors"))
+
+        import pandas as pd
+
+        csv = pd.read_csv(tmp_path / "tensors.csv")
+        assert csv["filename"].iloc[0] == "image_train_0.jpg"
+        assert csv["label"].tolist()[:100] == mock_dataset["train_labels"].tolist()
+
 
 class TestLoadDataset:
 

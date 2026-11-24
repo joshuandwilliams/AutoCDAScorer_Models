@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from grid_results import deduplicate, setting_key, standard_error, tie_band
+from grid_results import deduplicate, load_grid, setting_key, standard_error, tie_band
 
 
 def grid(rows):
@@ -75,3 +75,21 @@ class TestTieBand:
         )
         assert len(tie_band(g)) == 3
         assert len(tie_band(deduplicate(g))) == 2
+
+
+class TestLoadGrid:
+    def test_merges_unmerged_parts_without_duplicates(self, tmp_path):
+        pd.DataFrame({"model_id": [1, 2], "avg_vaf": [0.5, 0.6]}).to_csv(
+            tmp_path / "random_search_results.csv", index=False
+        )
+        (tmp_path / "parts").mkdir()
+        pd.DataFrame({"model_id": [2, 3], "avg_vaf": [0.6, 0.7]}).to_csv(
+            tmp_path / "parts" / "9.csv", index=False
+        )
+        assert sorted(load_grid(tmp_path)["model_id"]) == [1, 2, 3]
+
+    def test_without_parts_folder(self, tmp_path):
+        pd.DataFrame({"model_id": [1], "avg_vaf": [0.5]}).to_csv(
+            tmp_path / "random_search_results.csv", index=False
+        )
+        assert len(load_grid(tmp_path)) == 1

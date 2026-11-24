@@ -462,6 +462,8 @@ def save_dataset(dataset: dict[str, np.ndarray | tf.Tensor], base_out_path: str)
             labels = labels.numpy()
 
         for path, label in zip(filepaths, labels, strict=False):
+            if isinstance(path, bytes):  # string tensors convert to bytes
+                path = path.decode()
             rows.append(
                 {
                     "split": split,

@@ -379,3 +379,129 @@ def test_split_accuracy_reports_real_and_augmented_separately(monkeypatch):
     assert np.allclose(cv["train_acc_aug_fold"], 0.0)
     # The pooled number must sit between the two, not equal either.
     assert all(0.0 < a < 1.0 for a in cv["val_acc_fold"])
+
+
+class TestRssMb:
+    def test_reads_vmrss_in_megabytes(self, monkeypatch):
+        import builtins
+        import io
+
+        import random_search
+
+        monkeypatch.setattr(
+            builtins, "open", lambda *a, **k: io.StringIO("Name:\tpython\nVmRSS:\t  2048 kB\n")
+        )
+        assert random_search._rss_mb() == 2.0
+
+    def test_returns_none_without_proc(self, monkeypatch):
+        import builtins
+
+        import random_search
+
+        def no_proc(*a, **k):
+            raise OSError("no /proc on this system")
+
+        monkeypatch.setattr(builtins, "open", no_proc)
+        assert random_search._rss_mb() is None
+
+
+class TestPartFiles:
+    def test_stale_part_file_is_removed(self, tmp_path):
+        search = RandomSearch(CNNModelBuilder(), {}, run_id="7")
+        (tmp_path / "parts").mkdir()
+        (tmp_path / "parts" / "7.csv").write_text("old")
+        _, part_csv = search._part_path(str(tmp_path))
+        assert not (tmp_path / "parts" / "7.csv").exists()
+        assert part_csv.endswith("7.csv")
+
+    def test_merge_keeps_parts_dir_used_by_other_tasks(self, tmp_path):
+        search = RandomSearch(CNNModelBuilder(), {}, run_id="7")
+        parts_dir, part_csv = search._part_path(str(tmp_path))
+        (tmp_path / "parts" / "8.csv").write_text("another task's rows")
+        search._merge_part(str(tmp_path), parts_dir, part_csv, [{"model_id": "a", "avg_vaf": 0.5}])
+        assert (tmp_path / "parts" / "8.csv").exists()
+        assert len(pd.read_csv(tmp_path / "random_search_results.csv")) == 1
+
+
+def test_train_one_skips_a_config_that_fails(tiny_data, tmp_path, capsys):
+    images, labels = tiny_data
+    search = RandomSearch(CNNModelBuilder(), {}, k=2, run_id="1")
+
+    def fail(*a, **k):
+        raise ValueError("bad config")
+
+    search._cross_validate = fail
+    from results_store import TopNStore
+
+    row = search._train_one(
+        {"num_filters": 4},
+        "0",
+        images,
+        labels,
+        list(range(7)),
+        TopNStore(str(tmp_path), 1),
+        None,
+        None,
+    )
+    assert row is None
+    assert "failed to build/train (bad config); skipping" in capsys.readouterr().out
+
+
+def test_run_raises_if_no_config_completes(tiny_data, tiny_space, tmp_path):
+    images, labels = tiny_data
+    search = RandomSearch(CNNModelBuilder(), tiny_space, k=2, run_id="1")
+    search._train_one = lambda *a, **k: None
+    with pytest.raises(RuntimeError, match="No configs completed successfully"):
+        search.run(images, labels, n_models=2, global_dir=str(tmp_path))
+
+
+class TestRunGridBudgets:
+    @staticmethod
+    def _search(results):
+        search = RandomSearch(CNNModelBuilder(), _three_config_space(), k=2, run_id="1")
+        rows = iter(results)
+        search._train_one = lambda params, model_id, *a, **k: next(rows)(model_id)
+        return search
+
+    @staticmethod
+    def _row(model_id):
+        return {"model_id": model_id, "avg_vaf": 0.5}
+
+    def test_failed_config_is_skipped(self, tiny_data, tmp_path, monkeypatch):
+        import random_search
+
+        monkeypatch.setattr(random_search, "_rss_mb", lambda: None)
+        images, labels = tiny_data
+        search = self._search([lambda m: None, self._row, self._row])
+        df = search.run_grid(images, labels, global_dir=str(tmp_path))
+        assert sorted(df["model_id"]) == ["1", "2"]
+
+    def test_stops_at_config_budget(self, tiny_data, tmp_path, monkeypatch, capsys):
+        import random_search
+
+        monkeypatch.setattr(random_search, "_rss_mb", lambda: 100.0)
+        images, labels = tiny_data
+        search = self._search([self._row] * 3)
+        df = search.run_grid(images, labels, global_dir=str(tmp_path), max_configs=1)
+        out = capsys.readouterr().out
+        assert len(df) == 1
+        assert "[rss] after 1 config(s): 100 MB" in out
+        assert "hit the 1-config budget" in out
+
+    def test_stops_at_memory_ceiling(self, tiny_data, tmp_path, monkeypatch, capsys):
+        import random_search
+
+        monkeypatch.setattr(random_search, "_rss_mb", lambda: 100.0)
+        images, labels = tiny_data
+        search = self._search([self._row] * 3)
+        df = search.run_grid(images, labels, global_dir=str(tmp_path), max_rss_mb=50)
+        assert len(df) == 1
+        assert "reached the 50 MB ceiling after 1 configs" in capsys.readouterr().out
+
+    def test_no_rows_when_grid_already_done(self, tiny_data, tmp_path):
+        images, labels = tiny_data
+        (tmp_path / "next.txt").write_text("3")
+        search = self._search([])
+        df = search.run_grid(images, labels, global_dir=str(tmp_path))
+        assert df.empty
+        assert not (tmp_path / "random_search_results.csv").exists()
