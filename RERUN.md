@@ -40,7 +40,18 @@ The rerun writes to new folders, so the current pools and results are not touche
    ```
 
    They are written to `data/datasets/medoid_64_aug_trainval/` and
-   `data/datasets/medoid_64_cgan_trainval/`.
+   `data/datasets/medoid_64_cgan_trainval/`. Build them on the Mac, not the cluster. The
+   crop folders are read in filesystem order, so the seeded split depends on the machine.
+   A pool built on the cluster in September (`reruns_trainval/`) held 227 of the 308 test
+   crops. Check both pools before going further:
+
+   ```bash
+   python analyses/01_generate_base_dataset/check_pool_leakage.py \
+       data/datasets/medoid_64_aug_trainval/medoid_64_aug.npz \
+       data/datasets/medoid_64_cgan_trainval/medoid_64_cgan.npz
+   ```
+
+   It must report no ensemble or test crops.
 
 2. Copy the code and the two new pools to the cluster. `sync_to_hpc.sh --code-only`
    copies the code, including the two new run folders. The pools are in `data/`, which
