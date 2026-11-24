@@ -13,24 +13,25 @@ Date: 13/09/2026
 
 **Goal:**
 
-Test whether combining the CNNs that cross-validation cannot tell apart beats using one
-of them.
+Test whether combining the CNNs that cross validation cannot tell apart beats using
+one of them.
 
 **Hypothesis:**
 
-It will not. The 17 tied CNNs are trained on the same 1,834 crops and give the same score
-as each other on 77.5% of held-out crops, so most of what one gets wrong the others get
-wrong too. Averaging cannot fix a shared mistake.
+It will not. The 17 tied CNNs are trained on the same 1,834 crops. Pairs of them give
+the same score on 77.5% of held-out crops, so most of what one gets wrong, the others
+get wrong too. Averaging cannot fix a shared mistake.
 
 **Rationale:**
 
-At least one of the 17 is right on 89.23% of crops while the best single one reaches
-63.96%. That gap is worth testing even if the models are correlated. The 17 agree exactly
-on 77.5% of crops and to within one score on 99.7%, so where they disagree it is the same
-adjacent-score confusion the human raters show against each other.
+At least one of the 17 is right on 89.23% of crops, while the best single one reaches
+63.96%. That gap is worth testing even if the models are correlated. The 17 agree
+exactly on 77.5% of crops and to within one score on 99.7%. So where they disagree, it
+is the same confusion between adjacent scores that the human raters show.
 
-Members, rule and any choice are made on the `ensemble` split (455 crops, held out of all
-training). `test` (308 crops) is scored once. Both are reported.
+The members, the combining rule and every other choice are made on the `ensemble`
+split (455 crops, never used in training). `test` (308 crops) is scored once. Both are
+reported.
 
 ---
 
@@ -619,10 +620,10 @@ print(f"- **Both rules cut the large errors.** Near-miss rises from "
       f"are 2 or more scores out; it does not turn a near miss into a hit.\n")
 ```
 
-- **Within one family, the reason it fails is that the members shift together.** They
-  disagree by one score and almost never by more, so when they are wrong they have all
-  moved the same way. Averaging errors scattered around the truth recovers the middle;
-  averaging errors that have all moved in one direction returns the shift.
+- **Within one family, it fails because the members shift together.** They disagree by
+  one score and almost never by more. So when they are wrong, they are all wrong in the
+  same direction. Averaging errors scattered around the truth recovers the truth.
+  Averaging errors that all lean one way just returns the lean.
 
 ```{python}
 #| output: asis
@@ -667,6 +668,6 @@ print(f"- **More families is not better.** All {len(names)} together give "
 
 ### Caveats
 
-- Test is 308 crops, so one standard error is 2.72 pp. Two rules within about 5 pp of each
-  other are not separable here.
+- The test split has 308 crops, so one standard error is 2.72 pp. Two rules within about
+  5 pp of each other cannot be told apart here.
 - The best single model is chosen on the ensemble split, not on test.

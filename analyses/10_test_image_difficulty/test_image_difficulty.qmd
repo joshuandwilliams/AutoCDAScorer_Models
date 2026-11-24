@@ -13,27 +13,30 @@ Date: 18/07/2026
 
 **Goal:**
 
-Score every held-out image with all 100 kept CNNs (the global top-100 of the Base-CNN
-grid search) and use the committee to answer two questions: (1) *where* does scoring
-break down — which severity scores, and which individual images (candidate **label
-errors**); and (2) do the 100 models fail on the *same* images or *different* ones (model
-**diversity**). Whether that diversity can be turned into a better scorer is the subject
-of `analyses/14_ensembling`, which builds on the matrices this document verifies.
+Score every held-out image with all 100 kept CNNs, the overall top 100 of the Base-CNN
+grid search. Use this committee to answer two questions:
+1. *Where* does scoring fail? Which severity scores, and which individual images? The
+   images may be **label errors**.
+2. Do the 100 models fail on the *same* images or *different* ones? This is model
+   **diversity**.
+
+`analyses/14_ensembling` tests whether that diversity can make a better scorer. It builds
+on the prediction matrices this document checks.
 
 **Hypothesis:**
 
-Errors concentrate on the middle scores (adjacent-severity confusion, the ceiling
-`analyses/08_accuracy_noise_floor` §6 identified) and on a few genuinely
-mislabelled crops. The 100 models are all top-100 configs, so they are correlated, but
-not identical — they should miss *different* images, which is the raw material any
-committee rule would have to work with.
+Errors will concentrate on the middle scores and on a few truly mislabelled crops. The
+middle scores are confused with their neighbours, the ceiling that
+`analyses/08_accuracy_noise_floor` §6 found. The 100 models are all top-100 configs, so
+they are correlated but not identical. They should miss *different* images, which is what
+any committee rule would have to work with.
 
 **Rationale:**
 
-100 independently trained models are a natural committee. Per-score and confusion views
-show *where* it fails; the spread of per-image agreement shows whether the failures are
-shared or idiosyncratic; and the gap between "at least one model is right" (an oracle)
-and "the vote is right" bounds the diversity a committee could in principle exploit.
+100 separately trained models form a natural committee. Results by score and the
+confusion matrix show *where* it fails. The spread of agreement on each image shows
+whether the failures are shared or individual. The gap between "at least one model is
+right" (an oracle) and "the vote is right" limits the diversity a committee could use.
 
 ---
 
@@ -63,15 +66,14 @@ SEV = ["#2c7bb6", "#66c2a5", "#abdda4", "#ffcc66", "#fdae61", "#f46d43", "#d7191
 
 ### 1.2 Score every held-out image with every kept model (cached)
 
-Each of the 100 kept models is the **best cross-validation fold** of a top-100 config,
-saved to `results/<avg_vaf>_<model_id>/model.keras` by the grid search. Here every model
-is reloaded and run over the two held-out splits — `ensemble` (455 images) and `test`
-(308) — that were set aside from training (the models were trained on `train`+`val`
-only, so both splits are genuinely unseen). A model's prediction for an image is the
-`argmax` of its softmax output (the most-probable severity score). The result is two
-prediction matrices `P[model, image]`; because inference over 100 tiny CNNs is the only
-slow step, both matrices are cached to `pred_cache/predictions.npz` and only the first
-render loads TensorFlow.
+Each of the 100 kept models is the **best cross-validation fold** of a top-100 config.
+The grid search saved it to `results/<avg_vaf>_<model_id>/model.keras`. Here every model
+is loaded again and run on the two held-out splits, `ensemble` (455 images) and `test`
+(308). The models were trained on `train` and `val` only, so neither split was seen in
+training. A model's prediction for an image is the `argmax` of its softmax output, the
+most probable score. The result is two prediction matrices, `P[model, image]`. Running
+100 small CNNs is the only slow step, so both matrices are saved to
+`pred_cache/predictions.npz`. Only the first render loads TensorFlow.
 
 ```{python}
 #| output: false
@@ -139,18 +141,18 @@ print(f"{n_models} models | ensemble split {Pe.shape[1]} images | test split {Pt
 print("class balance (test):", np.bincount(yt).tolist(), "| (ensemble):", np.bincount(ye).tolist())
 ```
 
-The splits are class-balanced (equal images per score), which matters for §1.4: on
-balanced data exact accuracy equals balanced accuracy, and a majority-class guess scores
-only 1/7.
+The splits are class-balanced, with equal images per score. This matters for §1.4. On
+balanced data, exact accuracy equals balanced accuracy, and always guessing one class
+scores only 1/7.
 
 ### 1.3 Validation: does the inference reproduce the grid search's own numbers?
 
-Before trusting any of it, the inference is checked against an **independent record of
-the same quantity**: the grid search already evaluated each kept model on this exact
-test split and wrote its accuracy to `test_acc` in `random_search_results.csv`. If the
-committee matrix is built correctly, each model's test accuracy computed here from
-`Pt` must equal that recorded value. (Two of the 100 models' rows are still in the
-un-merged `parts/`, so those are folded in for a complete join.)
+Before any of it is trusted, the predictions are checked against **a separate record of
+the same quantity**. The grid search already scored each kept model on this test split
+and saved its accuracy as `test_acc` in `random_search_results.csv`. If the matrix is
+correct, each model's test accuracy computed here from `Pt` must equal that saved value.
+Two of the 100 models' rows are still in the unmerged `parts/`, so those are included
+too.
 
 ```{python}
 # 1.3
@@ -169,21 +171,21 @@ print(f"Max |here - recorded| = {np.max(np.abs(mine[matched] - rec[matched])):.5
       f"(0 => the inference exactly reproduces the grid search's own evaluation).")
 ```
 
-A maximum difference of zero means the prediction matrix is not a black box: it
-reproduces, model for model, the accuracies the grid search recorded when it trained
-them. Everything below is built on this verified matrix.
+A maximum difference of zero means the prediction matrix can be trusted. For every
+model, it reproduces the accuracy the grid search recorded when it trained the model.
+Everything below builds on this checked matrix.
 
 ### 1.4 Metrics and committee statistics (defined before use)
 
-Accuracy is reported two ways, following the project convention (`analyses/03` §6):
-**exact** (predicted score = true score) and **near-miss** (within ±1, i.e. the standard
-±1 tolerance). Because the splits are class-balanced, exact accuracy also equals
-**balanced** accuracy. For each image the committee gives three counts that partition the
-100 models — `n_right` (exact), `n_near` (off by exactly 1), `n_wrong` (off by ≥2) — plus
-the **modal prediction** (the single score the most models vote for) and its
-**agreement** (how many of the 100 voted it). The **majority vote** is that modal score;
-the **oracle** is "≥1 of the 100 models is exactly right", an upper bound on what any
-committee rule could achieve.
+Accuracy is reported two ways, as elsewhere in the project (`analyses/03` §6).
+**Exact** means the predicted score equals the label. **Near-miss** means it is within
+one. Because the splits are class-balanced, exact accuracy also equals **balanced**
+accuracy. For each image, the committee gives three counts that add up to 100 models.
+`n_right` is exact, `n_near` is off by exactly 1, and `n_wrong` is off by 2 or more. It
+also gives the **modal prediction**, the score most models vote for, and its
+**agreement**, how many of the 100 voted for it. The **majority vote** is that modal
+score. The **oracle** is "at least one of the 100 models is exactly right". It is an
+upper limit on what any committee rule could achieve.
 
 ```{python}
 # 1.4
@@ -213,9 +215,9 @@ print(f"Sanity: vote == modal prediction for every image: {np.array_equal(v_t, m
 ## 2. Where scoring breaks down — by severity score
 
 The first question is *which scores* the committee gets wrong. The stacked bar below
-splits each true score's images into exact / off-by-1 / off-by-≥2 (so each bar sums to
-1), and the confusion matrix shows exactly which scores are mistaken for which. Both use
-the majority vote on the test split.
+splits each true score's images into exact, off by 1, and off by 2 or more, so each bar
+sums to 1. The confusion matrix shows which scores are mistaken for which. Both use the
+majority vote on the test split.
 
 ```{python}
 #| fig-cap: "Vote outcome by true score (test): each bar splits that score's images into exact (green), off-by-1 (amber) and off-by-≥2 (red). Bar height up to the amber top is near-miss accuracy. The middle scores lose most of their height to off-by-1; gross (≥2) errors are rare everywhere."
@@ -253,20 +255,20 @@ plt.colorbar(im, fraction=0.046, pad=0.04)
 plt.tight_layout(); plt.show()
 ```
 
-Scores 0 and 6 are scored correctly ~80–86% of the time; the middle scores drop to
-~0.43–0.66 (score 5 worst), but their lost accuracy goes almost entirely to the
-*adjacent* score — near-miss stays ≥0.95 across all scores and gross errors are rare.
-The committee has essentially solved "how much cell death, roughly", and stumbles only
-on separating neighbouring severities.
+Scores 0 and 6 are correct about 80 to 86% of the time. The middle scores fall to about
+0.43 to 0.66, with score 5 worst. But almost all their lost accuracy goes to the
+*adjacent* score. Near-miss stays at 0.95 or more for every score, and large errors are
+rare. The committee has essentially solved "roughly how much cell death". It only fails
+at separating neighbouring scores.
 
 ---
 
 ## 3. Do the models fail on the *same* images, or different ones?
 
-If the 100 models were interchangeable they would fail on identical images — every image
-would be scored right by either all 100 or none of them. The distribution of `n_right`
-tests that directly: a pile-up at 0 and 100 would mean no diversity, while a spread in
-between means different models miss different images.
+If the 100 models were interchangeable, they would fail on the same images. Every image
+would be scored right by all 100 or by none. The distribution of `n_right` tests this
+directly. Peaks at 0 and 100 would mean no diversity. A spread in between means different
+models miss different images.
 
 ```{python}
 # 3.1
@@ -295,8 +297,8 @@ plt.tight_layout(); fig.savefig(THESIS_PLOTS / "per_image_agreement_histogram.pn
 plt.show()
 ```
 
-The spread confirms diversity: only a minority of images are unanimous. Two views of
-*where* that diversity sits follow — by severity score, and by source **project**.
+The spread confirms the diversity. Only a minority of images are unanimous. Two views of
+*where* the diversity lies follow, by severity score and by source **project**.
 
 ```{python}
 #| fig-cap: "Per-image fraction of the 100 models correct, grouped by true score. The middle scores (esp. 5) both score lowest and disagree most; 0 and 6 are near-unanimous."
@@ -311,15 +313,15 @@ ax.set_ylim(-0.02, 1.02); ax.set_title("Per-image model agreement, by score")
 plt.tight_layout(); plt.show()
 ```
 
-A **project** is one of the eight upstream experiments (Projects A–H) the images were
-originally sourced from — each a *group of many source images* (different plants, dates,
-labs, imaging conditions), the level `uv-agroinfiltration-dataset`'s
-`04_project_level_analysis` treats as the real batch. Project membership is the
-authoritative `image_info.csv` mapping (vendored to `data/`): a crop's source `Basename`
-(filename with the trailing `_Row_Col_Pos` stripped) is looked up to its source folder,
-whose top level is the project, then mapped to the anonymised A–H label. Grouping the
-per-image fraction-correct by project tests whether difficulty is a *batch* property
-(imaging conditions shared across a whole experiment) rather than per-crop.
+A **project** is one of the eight original experiments the images came from, Projects A
+to H. Each is a *group of many source images*, with different plants, dates, labs and
+imaging conditions. `uv-agroinfiltration-dataset`'s `04_project_level_analysis` treats
+this level as the real batch. Project membership comes from `image_info.csv`, copied to
+`data/`. A crop's source `Basename`, its filename without the final `_Row_Col_Pos`, gives
+its source folder. The folder's top level is the project, which maps to the anonymous
+label A to H. Grouping the fraction correct per image by project tests whether difficulty
+belongs to a *batch*, through imaging conditions shared across a whole experiment, rather
+than to each crop.
 
 ```{python}
 # 3.4  Map each test crop to its project (A-H) via the authoritative image_info.csv.
@@ -354,8 +356,8 @@ ax.set_title("Per-image model agreement, by project")
 plt.tight_layout(); plt.show()
 ```
 
-The finer **source-image** level (one photographed leaf) is shown too, for the images
-with ≥4 test crops — difficulty also clusters at this level within projects.
+The finer **source-image** level, one photographed leaf, is shown too, for images with
+4 or more test crops. Difficulty also clusters at this level within projects.
 
 ```{python}
 #| fig-cap: "The same, at the finer source-image level (source images with ≥4 test crops, ordered by median). Crops from one leaf tend to be scored similarly."
@@ -400,22 +402,22 @@ pair = np.mean([(Pt[a] == Pt[b]).mean() for a, b in itertools.combinations(sampl
 print(f"Mean pairwise agreement between models (test): {pair:.3f} — correlated, not identical.")
 ```
 
-The models are genuinely diverse — ~0.93 of test images are caught by *some* model, and
-mean pairwise agreement is only ~0.77 — which is why the vote is stable. But the
-diversity is not independent where it matters: on the hard middle-score images the models
-tend to be wrong *together*, so the vote cannot convert the 0.93 oracle headroom into
-accuracy.
+The models really are diverse. About 0.93 of test images are scored right by *some*
+model, and the mean agreement between pairs of models is only about 0.77. That is why the
+vote is stable. But the diversity is not independent where it matters. On the hard
+images with middle scores, the models tend to be wrong *together*. So the vote cannot
+turn the oracle's 0.93 into accuracy.
 
 ---
 
 ## 4. Candidate label errors
 
-An image the whole committee misses is either mislabelled or intrinsically hard. The
-discriminating signal is **near-unanimity combined with distance**: independently trained
-models rarely converge on the *same wrong* score by chance, so an image where a large
-majority agrees on a score **>=2 away** from the recorded label is a strong mislabel
-candidate. An off-by-one majority, by contrast, is just adjacent-score ambiguity (section 2)
-and is *not* treated as a label error.
+An image the whole committee misses is either mislabelled or hard in itself. What tells
+them apart is **near-agreement together with distance**. Separately trained models rarely
+agree on the *same wrong* score by chance. So an image where a large majority agrees on a
+score **2 or more away** from the label is a strong candidate for a label error. A majority
+off by one is just ambiguity between adjacent scores (section 2), and is *not* treated as
+a label error.
 
 The committee is every configuration that is statistically indistinguishable from the best
 in its own grid -- within one standard error of that grid's best validation accuracy -- and
@@ -523,10 +525,10 @@ if len(show):
 
 ## 4b. Agreement across model families
 
-The committee above is 100 CNNs. This asks the wider question: do the best CNN, the best
+The committee above is 100 CNNs. This asks a wider question. Do the best CNN, the best
 ViT and the two feature models agree about which test crops are hard, or do different
-families fail on different images? Pairwise agreement is the fraction of the 308 test crops
-on which two models give the *same* prediction, right or wrong.
+kinds of model fail on different images? Pairwise agreement is the fraction of the 308 test
+crops on which two models give the *same* prediction, right or wrong.
 
 ```{python}
 #| fig-cap: "Pairwise agreement between the best model of each family on the 308 test CDAs (A), and how many of the four score each crop correctly (B)."
@@ -627,10 +629,11 @@ for k, v in _P.items():
 
 ## 4b-ii. Where the best CNN departs from the raters
 
-Section 3 of `analyses/03_feature_classifiers` does this for the best non-DL model. The same
-difference for the best CNN says whether the two model families go wrong in the same places.
-The rater matrix counts 917 judgements and the CNN 308 predictions, so both are
-row-normalised before differencing and each cell is a change in row proportion.
+Section 3 of `analyses/03_feature_classifiers` does this for the best model without deep
+learning. The same difference for the best CNN shows whether the two kinds of model go
+wrong in the same places. The rater matrix counts 917 judgements and the CNN 308
+predictions. So both rows are normalised before subtracting, and each cell is a change in
+row proportion.
 
 ```{python}
 #| fig-cap: "Selected best model (geometric-augmentation CNN 6848) minus human raters, as a change in row proportion on the 308 test CDAs."
@@ -712,11 +715,11 @@ for _n, _ok, _h in [("exact", (_p == yt).astype(float), HUMAN_EXACT),
 
 ## 4c. Agreement inside one grid against across grids
 
-Section 4b compares one model from each family. This asks the same question inside a single
-grid: among the configurations that are statistically tied on validation, do they agree with
-each other more than a model agrees with a different architecture? Both grids are shown, so
-the CNN and ViT plateaus are readable against each other and against the 0.70 mean of the
-cross-family comparison.
+Section 4b compares one model of each kind. This asks the same question within one grid.
+Do the configurations that are statistically tied on validation agree with each other more
+than a model agrees with a different architecture? Both grids are shown. So the CNN and ViT
+plateaus can be compared with each other, and with the mean of 0.70 between kinds of
+model.
 
 ```{python}
 #| fig-cap: "Distribution of pairwise agreement on the prediction among the configurations tied within 1 SE of the best validation accuracy, for the CNN grid and the ViT grid."
@@ -777,18 +780,18 @@ print(f"ViT tied {len(_vt)}: median {np.median(_offv):.3f}, range {_offv.min():.
 
 ## 4d. The noise floor score by score
 
-`analyses/08_accuracy_noise_floor` plots test against validation accuracy over the whole
-grid and marks the configurations tied within 1 SE. That is one number per model, pooled
-over all seven scores. This asks the same question per score: on the crops of a given true
-score, how much does test accuracy move across models that validation cannot separate?
+`analyses/08_accuracy_noise_floor` plots test against validation accuracy for the whole
+grid, and marks the configurations tied within one standard error. That is one number per
+model, pooled over all seven scores. This asks the same question for each score. On the
+crops with a given label, how much does test accuracy vary across models that validation
+cannot separate?
 
-Two limits on what this can be. Only the 100 kept models have stored test predictions, so
-the cloud is the top-100 configurations rather than all 8,640 — the low-accuracy mass of
-the grid is absent by construction. And the x axis stays *overall* validation accuracy,
-because that is the quantity the search selects on; there is no per-score validation
-accuracy to rank by. Each panel therefore reads as: among models chosen by one pooled
-number, how far apart do they land on this score alone? Each panel has 44 test crops, so
-one crop is 2.3 percentage points.
+This has two limits. Only the 100 kept models have saved test predictions. So the cloud
+is the top 100 configurations, not all 8,640, and the low-accuracy bulk of the grid is
+missing by design. The x axis is still *overall* validation accuracy, because the search
+selects on that. There is no validation accuracy per score to rank by. So each panel
+shows how far apart models chosen by one pooled number land on this score alone. Each
+panel has 44 test crops, so one crop is 2.3 percentage points.
 
 ```{python}
 #| fig-cap: "Test accuracy on the crops of each true score against overall validation accuracy, for the 100 kept models. The tied set is the configurations within 1 SE of the best validation accuracy; the dashed line is human exact agreement on that score."
@@ -845,11 +848,10 @@ print(pd.DataFrame(_rows).to_string(index=False))
 
 ### 4d.2 The same agreement heatmap, score by score
 
-Section 4c's heatmap pools all 308 test crops. This is the same 22 x 22 matrix computed on
-the 44 crops of one true score at a time, so a panel answers: on crops the raters called
-this score, how often do two tied models say the same thing? Each panel rests on 44 crops,
-so one crop is 2.3 percentage points and the per-cell noise is roughly three times that of
-the pooled version.
+Section 4c's heatmap pools all 308 test crops. This is the same 22 x 22 matrix, computed
+on the 44 crops of one label at a time. So a panel shows how often two tied models agree on
+crops the raters gave this score. Each panel uses 44 crops, so one crop is 2.3 percentage
+points. The noise in each cell is about three times that of the pooled version.
 
 ```{python}
 #| fig-cap: "Pairwise agreement among the 22 tied CNN configurations, computed separately on the 44 test crops of each true score."
@@ -887,51 +889,56 @@ print(f"  pooled over all 308: median {np.median(_off):.3f}")
 
 ## 5. Ensembling — moved to `analyses/14_ensembling`
 
-The ensembling material that used to sit here optimised on the test split, drew an
-arbitrary number of top-ranked members, and used one model family throughout. It has been
-removed rather than patched. `analyses/14_ensembling` replaces it: seven ensemble designs,
-each stated as an observation about the models before it is built, every choice made on
-the 455-crop `ensemble` split and every number reported once on the 308-crop `test` split.
+The ensembling section that used to be here was tuned on the test split, picked an
+arbitrary number of top-ranked members, and used one kind of model throughout. It was
+removed rather than patched. `analyses/14_ensembling` replaces it. It tests seven ensemble
+designs, each based on an observation about the models made before it is built. Every
+choice is made on the 455-crop `ensemble` split, and every number is reported once on the
+308-crop `test` split.
 
 ## 6. Interpretation and Discussion
 
-- **Errors are adjacent-score, concentrated on the middle (§2).** The vote scores 0 and 6
-  at ~0.80–0.86 and the middle at ~0.43–0.66 (score 5 worst), but near-miss stays ≥0.95
-  across all scores and the confusion matrix is a tight band-diagonal. The committee has
-  solved coarse severity and stumbles only on separating neighbours — the exact ceiling
-  `analyses/03` §6 identified from near-miss saturation.
+- **Errors are to adjacent scores, and concentrate in the middle (§2).** The vote scores
+  0 and 6 at about 0.80 to 0.86, and the middle scores at about 0.43 to 0.66, with score 5
+  worst. But near-miss stays at 0.95 or more for every score, and the confusion matrix is
+  a narrow band along the diagonal. The committee has solved coarse severity and only
+  fails at separating neighbouring scores. This is the ceiling `analyses/03` §6 found from
+  near-miss reaching its maximum.
 
-- **The models are diverse — they miss *different* images (§3).** Only ~15% of test
-  images are unanimous (either way); ~77% are split decisions. The **oracle ≈ 0.93** (some
-  model gets almost every image right) against a best single of ~0.66 shows the models
-  are far from interchangeable (pairwise agreement ~0.77). Difficulty is partly a
-  *whole-project* property — source images sit high or low together (§3.4) — pointing at
-  per-image conditions (lighting, staining) as a shared error cause.
+- **The models are diverse. They miss *different* images (§3).** Only about 15% of test
+  images are unanimous, right or wrong, and about 77% are split decisions. The **oracle is
+  about 0.93**, as some model gets almost every image right. The best single model reaches
+  about 0.66. So the models are far from interchangeable, with pairwise agreement of about
+  0.77. Difficulty partly belongs to *whole projects*, as source images from one project
+  score high or low together (§3.4). This points to image conditions, such as lighting or
+  staining, as a shared cause of errors.
 
-- **Ensembling is answered in `analyses/14_ensembling`, not here (§5).** That document
-  tests seven ensemble designs against the diversity this one measures. Its finding: no
-  combining rule is distinguishable from the best single model on 308 test crops, but the
-  single model that looks best on the ensemble split falls 4.55 pp on test (p = 0.040), so
-  what a committee buys is freedom from the selection lottery rather than accuracy.
+- **`analyses/14_ensembling` answers the ensembling question, not this document (§5).**
+  That document tests seven ensemble designs against the diversity measured here. No
+  combining rule can be told apart from the best single model on 308 test crops. But the
+  single model that looks best on the ensemble split falls 4.55 pp on test (p = 0.040). So a
+  committee frees you from the lottery of picking one model, rather than adding accuracy.
 
-- **A few images are likely mislabelled (§4).** Only a handful are near-unanimous *and*
-  off by ≥2 (e.g. a recorded 4 that all 100 models call 6); these are worth re-checking.
-  The much larger off-by-one set is adjacent-score ambiguity, not bad labels.
+- **A few images are probably mislabelled (§4).** Only a handful are almost unanimous
+  *and* off by 2 or more, such as a recorded 4 that all 100 models call 6. These are worth
+  checking again. The much larger set off by one is ambiguity between adjacent scores, not
+  bad labels.
 
-- **The inference is verified, not assumed (§1.3).** Every reported number rests on a
-  prediction matrix whose per-model test accuracies reproduce the grid search's own
-  recorded `test_acc` exactly (max difference 0.000).
+- **The predictions are checked, not assumed (§1.3).** Every reported number rests on a
+  prediction matrix whose test accuracy for each model exactly reproduces the grid
+  search's recorded `test_acc` (maximum difference 0.000).
 
-- **The oracle is not headroom.** `analyses/14_ensembling` §2 decomposes it: of the crops
-  where some member is right but the vote is not, 97.5% have a *minority* of members
-  correct, so no plurality rule can reach them. "At least one of 22 correlated models is
-  right" is closer to a statement about how many models there are than about what a
-  committee could achieve.
+- **The oracle is not room for improvement.** `analyses/14_ensembling` §2 breaks it down.
+  Of the crops where some member is right but the vote is not, 97.5% have only a *minority*
+  of members right. No plurality rule can reach them. "At least one of 22 correlated models
+  is right" says more about how many models there are than about what a committee could
+  achieve.
 
-- **Caveats.** The 100 models are all top-100-by-CV, hence correlated (~0.77) — an
-  agreed-wrong image is a strong signal but the vote's gain over the best single model is
-  small for the same reason. Test is 308 images (±~3 pp, `analyses/03` §3), and the
-  per-project boxplot (§3.4) uses only the 14 projects with ≥4 test crops. "True" labels
-  are the recorded human scores — the very thing §4 stress-tests.
+- **Limitations.** The 100 models are all in the top 100 by CV, so they are correlated
+  (about 0.77). An image they all get wrong is strong evidence. For the same reason, the
+  vote gains little over the best single model. The test set has 308 images (about ±3 pp,
+  `analyses/03` §3). The boxplot by project (§3.4) only uses the 14 projects with 4 or more
+  test crops. The "true" labels are the recorded human scores, which is exactly what §4
+  tests.
 ```
 

@@ -11,12 +11,11 @@ Date: 10/09/2026
 
 ## What this is for
 
-`models/06_Medoid_CGAN` trained 64 conditional GANs and recorded one number each, the best
-Fréchet CDA distance. That number on its own cannot say whether a generator is good,
-because there is nothing to compare it against and because it is a **minimum over 100 noisy
-evaluations** rather than a typical value. This document supplies the missing pieces: the
-training curves the run did not plot, a real-data reference for the distance, and the
-generated crops side by side with real ones.
+`models/06_Medoid_CGAN` trained 64 conditional GANs and recorded one number for each, the
+best Fréchet CDA distance. That number alone cannot show whether a generator is good. There
+is nothing to compare it with, and it is the **minimum of 100 noisy evaluations**, not a
+typical value. This document adds what is missing: the training curves the run did not
+plot, a reference distance for real data, and generated crops next to real ones.
 
 ```{python}
 # 1
@@ -45,15 +44,15 @@ print(f"its history: {len(hist)} epochs, {len(fcd_pts)} Frechet evaluations "
 
 ## 1. The real-data reference
 
-The Fréchet distance has no absolute scale, so the only way to read it is against what real
-data scores. Two reference points, both computed with the **same sample size the training
-loop used** — `cgan.sample(n_per_class=64)` returns 64 images per class, so 448, not 64:
+The Fréchet distance has no absolute scale, so it can only be read against what real data
+scores. There are two reference points. Both use the **same sample size as the training
+loop**. `cgan.sample(n_per_class=64)` returns 64 images per class, so 448 images, not 64.
 
 - **Real held-out sample.** 448 real training crops scored against the 455 validation
-  crops. This is the floor a perfect generator would reach: two disjoint samples of genuine
-  leaves, differing only by sampling noise.
+  crops. This is the best a perfect generator could reach. It compares two separate samples
+  of real leaves, which differ only by sampling noise.
 - **Perfect memorisation.** 448 crops drawn *from* the validation set itself. A generator
-  that had memorised its training data and reproduced it exactly would score near this.
+  that had memorised its training data and copied it exactly would score near this.
 
 ```{python}
 # 2
@@ -206,9 +205,9 @@ plt.show()
 
 ## 5. Is it copying its training data?
 
-For each generated crop, the closest real training crop in the CNN feature space, against
-how close real crops are to *each other*. A generator reproducing its training set would
-sit at or below the real-to-real distance.
+For each generated crop, the distance to the closest real training crop in the CNN's
+feature space, compared with how close real crops are to *each other*. A generator copying
+its training set would be at or below the distance between real crops.
 
 ```{python}
 # 6
@@ -242,8 +241,8 @@ plt.show()
 
 ## 6. Testing four specific complaints about the samples
 
-Looking at the grid above, four things stand out as wrong. Each is measurable, and two of
-them turn out not to be what is actually happening.
+Four things in the grid above look wrong. Each can be measured, and two of them turn out
+not to be what is really happening.
 
 ```{python}
 # 7
@@ -332,35 +331,35 @@ print(pd.DataFrame({
 ```
 
 **The background is missing, and this is the biggest single difference.** A bounding box
-drawn round a lesion near the edge of a leaf picks up near-black background, and 39.5% of
-real crops have more than 5% such pixels against 9.5% of generated ones. Above 10% the gap
-is 26.9% against 1.7%. The generator has essentially learned that crops are filled edge to
-edge with leaf.
+around a lesion near the edge of a leaf includes some near-black background. 39.5% of real
+crops have more than 5% of such pixels, against 9.5% of generated crops. Above 10%, the gap
+is 26.9% against 1.7%. The generator has in effect learned that crops are leaf from edge to
+edge.
 
-**They are not, however, near-identical centred blobs.** Lesion centroid offset from the
-crop centre is 0.114 of a half-width in real crops and 0.115 in generated ones, with
-spreads of 0.093 and 0.087; lesion area over leaf area is 0.500 against 0.498, spreads
-0.119 and 0.116. Position and size are as varied as the real data. The impression of
-sameness comes from the uniform background, not from the lesion.
+**But they are not near-identical blobs in the centre.** The lesion centre is 0.114 of a
+half-width from the crop centre in real crops and 0.115 in generated ones, with spreads of
+0.093 and 0.087. Lesion area divided by leaf area is 0.500 against 0.498, with spreads of
+0.119 and 0.116. Position and size vary as much as in the real data. The crops look alike
+because of the uniform background, not because of the lesion.
 
-**The vein-like marks are real texture in the wrong arrangement.** Edge energy is if
-anything slightly higher in generated crops (0.120 against 0.110), so this is not a lack of
-detail. What differs is connectivity: the largest connected ridge holds 11.1% of ridge
-pixels in real crops against 8.0% in generated ones, its elongation is 2.49 against 2.09,
-and the marks break into 144 pieces against 121. The generator produces vein-like contrast
-but not vein-like runs.
+**The vein-like marks are real texture in the wrong arrangement.** Edge energy is, if
+anything, slightly higher in generated crops (0.120 against 0.110), so detail is not
+missing. What differs is how the marks connect. The largest connected ridge holds 11.1% of
+ridge pixels in real crops and 8.0% in generated ones. Its elongation is 2.49 against 2.09,
+and the marks break into 144 pieces against 121. The generator makes contrast like veins,
+but not the long runs that veins form.
 
-**Pipette ring damage: this measurement cannot answer it.** A Hough circle transform finds
-0.42 circles per real crop and 0.65 per generated one, which is the wrong direction, almost
-certainly because a roughly circular lesion boundary is itself a circle and the generated
-lesions are rounder. Separating ring damage from lesion outline needs annotation this
-dataset does not have, so nothing here supports or refutes the observation.
+**Ring damage from the pipette cannot be measured here.** A Hough circle transform finds
+0.42 circles per real crop and 0.65 per generated crop, which is the wrong direction. The
+likely reason is that a roughly round lesion outline is itself a circle, and the generated
+lesions are rounder. Telling ring damage from a lesion outline needs annotation this
+dataset does not have. So nothing here supports or rules out the observation.
 
 ### 6.1 Is the range of appearances narrower than the real data?
 
-The complaint is not that any one generated crop is wrong but that they all look alike.
-That is a statement about variance, not about medians, so it needs measuring that way:
-match the class counts exactly, then compare how much the two sets spread out.
+The problem is not that any one generated crop is wrong, but that they all look alike.
+That is about variance, not medians, so it must be measured that way. The class counts are
+matched exactly, then the spread of the two sets is compared.
 
 ```{python}
 # 8
@@ -422,33 +421,34 @@ print(f"  nearest-neighbour dist   real {nnd(ZRm):.3f}  generated {nnd(ZGm):.3f}
       f"  ratio {nnd(ZGm) / nnd(ZRm):.2f}x")
 ```
 
-**The medians match and the variance is compressed.** Median circularity is 0.668 real
-against 0.695 generated and median elongation 1.208 against 1.200, so a typical generated
-lesion is the right shape. The spreads are where they part: elongation has a standard
-deviation of 0.460 in real crops and **0.156** in generated ones, a threefold compression,
-and circularity 0.169 against 0.135. The generator has learned what an average lesion looks
-like and produces variations around it that are far narrower than the real range.
+**The medians match, but the variance is squeezed.** Median circularity is 0.668 for real
+crops and 0.695 for generated ones. Median elongation is 1.208 against 1.200. So a typical
+generated lesion has the right shape. The spreads differ. The standard deviation of
+elongation is 0.460 in real crops and **0.156** in generated ones, three times smaller.
+For circularity it is 0.169 against 0.135. The generator has learned what an average lesion
+looks like, and its variations around it are far narrower than the real range.
 
-Overall diversity in the unfitted feature space is 0.86x the real value by within-class
-spread and 0.89x by nearest-neighbour distance. That is a real narrowing but a modest one,
-which is why the effect reads as sameness rather than as identical images: the eye is
-picking up the threefold compression in shape variety and the near-total absence of dark
-background, not a collapse to one output.
+In the untrained feature space, overall diversity is 0.86 times the real value by spread
+within a class, and 0.89 times by nearest-neighbour distance. That is a real narrowing, but
+a small one. So the crops look similar rather than identical. The eye notices the threefold
+loss in shape variety and the near absence of dark background, not a collapse to one
+output.
 
-**Within-lesion texture is not the problem.** Median within-lesion brightness standard
-deviation is 0.079 real against 0.087 generated, so generated lesions are, if anything,
-slightly less smooth than real ones.
+**The texture within lesions is not the problem.** The median standard deviation of
+brightness within a lesion is 0.079 for real crops and 0.087 for generated ones. So
+generated lesions are, if anything, slightly less smooth than real ones.
 
 ## 7. Frechet calibration against the ordinal scale
 
-A Frechet distance has no units, so the generator's 3.66 can only be read against distances
-measured the same way on real data. The calibration is the distance between REAL score
-classes: if two real classes one step apart sit at distance d, a generator whose crops sit
-at distance d from real crops of their own class is, in these terms, one score step wrong.
+A Fréchet distance has no units, so the generator's 3.66 can only be read against
+distances measured the same way on real data. The scale comes from the distance between
+REAL score classes. Say two real classes one score apart are at distance d. Then a generator
+whose crops are at distance d from real crops of their own class is, in these terms, one
+score wrong.
 
-Every comparison uses 131 crops per side. The Frechet distance is strongly biased by sample
-size -- the 64-crop version of the section 1 reference gave the opposite answer to the
-448-crop one -- so holding n fixed across every pair is what makes the ladder readable.
+Every comparison uses 131 crops on each side. Sample size strongly biases the Fréchet
+distance. The 64-crop version of the section 1 reference gave the opposite answer to the
+448-crop version. Keeping n the same for every pair is what makes the comparison readable.
 
 ```{python}
 #| fig-cap: "Frechet CDA distance between real score classes against their separation on the 0-6 scale, with the generator's distance from real crops of its own class marked."
@@ -501,44 +501,45 @@ print(f"  generated vs own class:  median {np.median(gen_d):6.2f}")
 
 ## 8. What this says
 
-**The generator is close to real data but not inside it.** Re-evaluated on 15 fresh latent
-draws the saved checkpoint scores 3.727-4.142, against 2.705-3.597 for a real held-out
-sample of the same size. The two ranges do not overlap, so the gap is real rather than
-sampling noise, but it is small -- roughly a quarter of the way from real data to nothing.
+**The generator is close to real data, but not within it.** Evaluated again on 15 new
+latent draws, the saved checkpoint scores 3.727 to 4.142. A real held-out sample of the same
+size scores 2.705 to 3.597. The two ranges do not overlap, so the gap is real and not
+sampling noise. But it is small, about a quarter of the way from real data to nothing.
 
-**The saved checkpoint is genuinely better than a typical epoch, not a lucky evaluation.**
-This mattered because `best_fcd` is a minimum over 100 noisy evaluations, and the plateau
-after epoch 3000 has a standard deviation of 1.21, so the minimum of 100 draws would sit
-well below the mean by chance alone. The check is the re-evaluation above: if the recorded
-3.659 had been luck, fresh draws would return to the plateau mean of 4.949. They return
-3.896, so the epoch-selection rule picked a real improvement.
+**The saved checkpoint really is better than a typical epoch, not a lucky evaluation.**
+This mattered because `best_fcd` is the minimum of 100 noisy evaluations. After epoch 3000
+the plateau has a standard deviation of 1.21, so the minimum of 100 draws would fall well
+below the mean by chance alone. The new evaluation above checks this. If the recorded 3.659
+had been luck, new draws would return to the plateau mean of 4.949. They give 3.896, so the
+rule for choosing the epoch found a real improvement.
 
-**The epoch cap did not bind: config 48 is flat from about epoch 2,000.** Measuring the
-trend from successively later start points gives -0.61, -0.57, -0.33, -0.06 and -0.18 per
-1,000 epochs from epochs 1,000, 1,500, 2,000, 2,500 and 3,000, against a point-to-point
-standard deviation of 1.1 to 1.6 throughout. From epoch 2,000 the fitted decline over the
-remaining 3,000 epochs is about 1.0, smaller than the noise between consecutive
-evaluations, so it is not distinguishable from flat. Of the top six configs only 42 has a
-trend clearly larger than its own noise. Training longer is not the lever.
+**The limit on epochs did not hold training back. Config 48 is flat from about epoch
+2,000.** Measured from later and later starting points, the trend is -0.61, -0.57, -0.33,
+-0.06 and -0.18 per 1,000 epochs, starting at epochs 1,000, 1,500, 2,000, 2,500 and 3,000.
+The standard deviation between consecutive points is 1.1 to 1.6 throughout. From epoch
+2,000, the fitted decline over the remaining 3,000 epochs is about 1.0. That is smaller than
+the noise between consecutive evaluations, so it cannot be told from flat. Of the top six
+configs, only 42 has a trend clearly larger than its own noise. Training for longer would
+not help.
 
-**Nothing is memorising.** Each generated crop's nearest real training crop sits at 4.630
-against 4.285 for real-to-real nearest neighbours, a ratio of 1.08. Generated crops are
+**No generator is memorising.** Each generated crop's nearest real training crop is at
+4.630, against 4.285 between nearest real neighbours, a ratio of 1.08. Generated crops are
 slightly further from real ones than real ones are from each other, which is the opposite
-of copying. The Fréchet distance cannot see this on its own -- perfect memorisation scores
-0.032 on it, thirty times *better* than the real-data reference -- so it had to be checked
+of copying. The Fréchet distance cannot show this on its own. Perfect memorisation scores
+0.032, thirty times *better* than the real-data reference. So it had to be checked
 separately.
 
-**What the samples get wrong is the range of appearances, not the average one.** The lesion
-grows and yellows correctly from score 0 to 6, so the conditioning works, and a typical
-generated lesion has the right position, size, circularity and internal texture. What has
-gone is the tail of the distribution: elongation varies threefold less than in real crops,
-and the dark off-leaf background that appears in 39.5% of real crops appears in 9.5% of
-generated ones. Section 6 measures each of these. A classifier trained on this data would
-never see a lesion running off the edge of a leaf, and never see a long thin one.
+**The samples get the range of appearances wrong, not the average one.** The lesion grows
+and turns yellow correctly from score 0 to 6, so the conditioning works. A typical generated
+lesion has the right position, size, circularity and internal texture. What is missing is
+the tail of the distribution. Elongation varies three times less than in real crops. The
+dark background beyond the leaf appears in 39.5% of real crops and 9.5% of generated ones.
+Section 6 measures each of these. A classifier trained on this data would never see a
+lesion running off the edge of a leaf, or a long thin one.
 
-**The one hyperparameter that separated.** All ten best configs used `lr_ratio_d = 4.0`,
-the discriminator running at four times the generator's learning rate. Mean Fréchet
-distance is 4.71 at that setting against 13.27 at 1.0. Nothing else -- beta_1, dropout,
-label smoothing, generator width -- separates as cleanly, which is worth reporting given
-that the original grid held this axis fixed at 1.0 and so could not have found it.
+**One hyperparameter clearly mattered.** All ten best configs used `lr_ratio_d = 4.0`,
+with the discriminator learning four times faster than the generator. The mean Fréchet
+distance is 4.71 at that setting, against 13.27 at 1.0. Nothing else separates as cleanly,
+including beta_1, dropout, label smoothing and generator width. This is worth reporting,
+because the original grid fixed this axis at 1.0 and so could not have found it.
 

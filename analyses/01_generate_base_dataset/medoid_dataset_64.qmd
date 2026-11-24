@@ -10,23 +10,25 @@ Date: 21/07/2026
 
 ## Goal
 
-Generate a 64-pixel dataset from the **IoU-medoid** cropped CDA images, the
-counterpart to `base_64` (which uses the centre-of-overlap crops). The medoid
-representative box is the most-agreed-with of the 2-3 scorer boxes (see
-`uv-agroinfiltration-dataset` `04_representative_bounding_box_and_score/median_and_IoU_medoid.qmd`);
-it differs from the centre-of-overlap box for ~81% of CDAs but the same CDAs and
-class sizes remain. Using seed 42 gives the **identical** train/val/ensemble/test
-split as `base_64`, so a CNN grid search on this set differs from the base run
-only in the crop pixels - a controlled comparison of the box-selection method.
+Make a 64 x 64 pixel dataset from the CDA images cropped with the **IoU-medoid**
+box. It is the counterpart of `base_64`, which uses the centre-of-overlap crops.
+The medoid box is the one of the two or three rater boxes that the others agree
+with most (see `uv-agroinfiltration-dataset`,
+`04_representative_bounding_box_and_score/median_and_IoU_medoid.qmd`). It differs
+from the centre-of-overlap box for about 81% of CDAs, but the CDAs and class
+sizes are the same. Seed 42 gives **exactly the same** training, validation,
+ensemble and test split as `base_64`. So a CNN grid search on this dataset
+differs from the base run only in the cropped pixels. This makes it a controlled
+comparison of the two ways of choosing a box.
 
 ## Experimental Plan
-1. Load raw medoid-cropped CDA images.
-2. Resize loaded CDA images to 64x64 pixels.
-3. Split dataset into training, validation, ensemble, and test sets using stratified sampling.
-4. Balance class sizes by downsampling with a fixed seed.
-5. Normalise images to float range (0-1) and convert to Tensor. One-hot encode labels and convert to Tensor.
-6. Save processed dataset to .npy file, and filenames to .csv.
-7. Load saved medoid_64 dataset and check integrity
+1. Load the raw medoid-cropped CDA images.
+2. Resize them to 64 x 64 pixels.
+3. Split them into training, validation, ensemble and test sets by stratified sampling.
+4. Balance the class sizes by downsampling with a fixed seed.
+5. Scale the images to the range 0 to 1 and convert them to tensors. One-hot encode the labels and convert them to tensors.
+6. Save the dataset to a .npy file and the filenames to a .csv file.
+7. Load the saved medoid_64 dataset and check it.
 
 ### Required Libraries
 ```{python}

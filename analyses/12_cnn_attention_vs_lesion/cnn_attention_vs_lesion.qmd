@@ -13,58 +13,61 @@ Date: 09/09/2026
 
 **Goal:**
 
-Take the chapter's selected best CNN from the geometric-augmentation grid search (the top model by `avg_vaf_orig`) and ask *where in the image it is looking* when it assigns a severity
-score. Produce two independent attribution maps — **Grad-CAM** and **SHAP** — and
-measure how much of each falls inside the **Otsu-segmented cell death area**, using the
-segmentation from the sibling dataset repo. Show examples where attention lands on the
-lesion and examples where it does not, quantify the overlap with metrics borrowed from
-the segmentation and saliency-evaluation literature, and identify images where the two
-methods disagree.
+Take the chapter's chosen best CNN from the geometric-augmentation grid search, the top
+model by `avg_vaf_orig`. Ask *where in the image it looks* when it gives a severity
+score. Make two independent attribution maps, **Grad-CAM** and **SHAP**. Measure how much
+of each falls inside the **cell death area segmented by Otsu's method**, using the
+segmentation from the dataset repository. Show examples where attention falls on the
+lesion and examples where it does not. Measure the overlap with metrics from the
+literature on segmentation and saliency, and find images where the two methods
+disagree.
 
 **Hypotheses:**
 
-1. Attention concentrates on the lesion more than chance. The label is a property of
-   the cell death area, so a model that has learned the task should weight those pixels
-   above the surrounding healthy leaf.
-2. The margin over chance will be modest. The crop *is* the scorer's bounding box drawn
-   around the lesion, so the lesion already occupies about half of every crop
-   (measured below: mean 0.51). A map that simply spread attention evenly would score
-   ~0.51 by construction, so only the *lift* above that is evidence of anything.
-3. Grad-CAM and SHAP will agree on the coarse location but not in detail. They measure
-   different things — Grad-CAM pools gradients over the last convolutional feature map,
-   SHAP attributes to individual input pixels — and this network's last conv layer is
-   only 4x4, so Grad-CAM cannot resolve anything finer than a ~16 px block.
-4. Where attention sits off-lesion, it will tend to sit on leaf tissue immediately
-   around it rather than on the black background, since the background carries no
-   colour information the model could use.
+1. Attention concentrates on the lesion more than chance would. The label describes the
+   cell death area, so a model that has learned the task should weight those pixels above
+   the healthy leaf around them.
+2. The margin over chance will be small. The crop *is* the rater's bounding box around the
+   lesion, so the lesion already fills about half of every crop (a mean of 0.51, measured
+   below). A map that spread attention evenly would score about 0.51 by design. Only the
+   *lift* above that is evidence of anything.
+3. Grad-CAM and SHAP will agree on the rough location but not in detail. They measure
+   different things. Grad-CAM pools gradients over the last convolutional feature map,
+   and SHAP scores individual input pixels. This network's last convolutional layer is
+   only 4x4, so Grad-CAM cannot resolve anything finer than a block of about 16 px.
+4. Where attention falls outside the lesion, it will tend to fall on the leaf just around
+   it rather than on the black background. The background carries no colour information
+   the model could use.
 
 **Rationale:**
 
-`analyses/08` established that 17 settings are tied within one standard error of the best,
-and 88 are not significantly worse than it at 5%, so *which* model is "best" is arbitrary. That makes the question "is this model right for the right
-reasons?" more useful than "which model wins". A model that scores lesion severity by
-looking at the lesion is one you can defend; one that scores well while looking at the
-background is exploiting something about the crop, not the biology.
+`analyses/08` found that 17 settings are tied within one standard error of the best, and
+88 are not significantly worse than it at 5%. So *which* model is "best" is arbitrary.
+That makes "is this model right for the right reasons?" a more useful question than
+"which model wins?". A model that scores severity by looking at the lesion can be
+defended. One that scores well while looking at the background is using something about
+the crop, not the biology.
 
-Using two independent attribution methods guards against reading artefacts of a single
-method as findings, and the Otsu mask gives an objective, pre-existing definition of
-"the lesion" that was not built for this purpose.
+Using two independent attribution methods avoids mistaking one method's artefacts for
+findings. The Otsu mask gives an objective definition of "the lesion" that already
+existed and was not made for this purpose.
 
 **Experimental plan:**
 
-1. Load the top CNN and verify it reproduces the test accuracy the grid search recorded.
-2. Compute Grad-CAM and SHAP for every held-out test crop with score >= 1.
-3. Load the Otsu masks (regenerated by `export_otsu_masks.R` on the same crops).
-4. Score overlap with the energy-based pointing game, the pointing game, and
-   IoU / Dice under matched-area binarisation.
-5. Compare against the uniform-attention baseline that the crop geometry forces.
-6. Show best and worst examples, boxplots by severity score, and the images where
+1. Load the top CNN and check that it reproduces the test accuracy the grid search
+   recorded.
+2. Compute Grad-CAM and SHAP for every held-out test crop with a score of 1 or more.
+3. Load the Otsu masks, made again by `export_otsu_masks.R` on the same crops.
+4. Score the overlap with the energy-based pointing game, the pointing game, and IoU and
+   Dice with matched-area binarisation.
+5. Compare with the baseline of even attention that the crop's shape sets.
+6. Show the best and worst examples, boxplots by severity score, and the images where
    Grad-CAM and SHAP disagree most.
 
-**Why score 0 is excluded:** a score of 0 means no cell death, so there is no lesion for
-a saliency map to agree with. `export_otsu_masks.R` still segments *something* on those
-crops (Otsu always returns a threshold), but it would be an arbitrary region, and every
-model would score as "off-lesion" by construction. The 44 score-0 test crops are
+**Why score 0 is left out.** A score of 0 means no cell death, so there is no lesion for a
+saliency map to match. `export_otsu_masks.R` still segments *something* in those crops,
+because Otsu always returns a threshold. But it would be an arbitrary region, and every
+model would score as "off the lesion" by design. The 44 test crops with score 0 are
 dropped, leaving 264.
 
 ---
@@ -117,8 +120,9 @@ def to_rgb(img):
 
 ### 1.2 The model under study
 
-The top model by `avg_vaf_orig` in the geometric-augmentation grid. `analyses/08` showed the ranking within
-the top cluster is noise, so this is "a representative best model", not "the best model".
+The top model by `avg_vaf_orig` in the geometric-augmentation grid. `analyses/08` showed
+that the ranking within the top cluster is noise. So this is "a typical best model", not
+"the best model".
 
 ```{python}
 # 1.2
@@ -159,14 +163,14 @@ print("\nconv feature-map sizes:", [(l.name, tuple(l.output.shape[1:])) for l in
 ```
 
 The last convolutional layer is **4x4**. Grad-CAM is computed there by definition, so its
-maps are 4x4 upsampled to 64x64 — each cell covers a 16x16 px block. That is a hard
-resolution limit of this architecture, not of the method, and it is why SHAP (which
-attributes per input pixel) is computed alongside rather than as a cross-check.
+maps are 4x4, enlarged to 64x64. Each cell covers a block of 16x16 px. That is a fixed
+limit of this architecture, not of the method. It is why SHAP, which scores each input
+pixel, is computed alongside it, not just as a check.
 
 ### 1.3 Data, and a validation of the loaded model
 
-Before any attribution, confirm this model reproduces the number the grid search wrote
-for it. If it does not, everything downstream is describing a different model.
+Before any attribution, confirm that this model reproduces the number the grid search
+saved for it. If it does not, everything after describes a different model.
 
 ```{python}
 # 1.3
@@ -193,14 +197,14 @@ print(f"\ntest crops: {len(y_test)} total, {keep.sum()} with score >= 1 (score 0
 
 ### 2.1 Grad-CAM
 
-Grad-CAM weights each channel of a convolutional feature map by the average gradient of
-the target class score with respect to that channel, sums the channels, and keeps the
-positive part. The result highlights regions whose activation *increases* the score for
-the predicted class.
+Grad-CAM weights each channel of a convolutional feature map by the mean gradient of the
+target class's score with respect to that channel. It sums the channels and keeps the
+positive part. The result highlights regions whose activation *raises* the score of the
+predicted class.
 
-A loaded `Sequential` does not expose its intermediate activations as graph nodes under
-Keras 3, so the layer stack is re-run on a fresh `Input` to tap the convolution. The
-rebuilt model is checked to give identical predictions.
+In Keras 3, a loaded `Sequential` model does not expose its intermediate activations.
+So the layers are run again on a new `Input` to reach the convolution. The rebuilt model
+is checked to give identical predictions.
 
 ```{python}
 # 2.1
@@ -242,14 +246,13 @@ print("tapped model reproduces the original's predictions")
 
 ### 2.2 SHAP
 
-`shap.DeepExplainer` implements DeepLIFT-style Shapley approximation for deep models and
-is the explainer the SHAP documentation uses for Keras CNNs. It returns a value per
-**input pixel per channel per class**, so unlike Grad-CAM it is not limited by the
+`shap.DeepExplainer` approximates Shapley values for deep models in the style of
+DeepLIFT. The SHAP documentation uses it for Keras CNNs. It returns a value for **each
+input pixel, channel and class**. So unlike Grad-CAM, it is not limited by the
 convolutional grid.
 
-The background distribution is drawn from the *training* split, never from test, so the
-reference the attributions are measured against is not built from the images being
-explained.
+The background distribution comes from the *training* split, never from test. So the
+reference for the attributions is not built from the images being explained.
 
 ```{python}
 # 2.2
@@ -284,14 +287,14 @@ print("Grad-CAM:", cam_all.shape, " SHAP:", shap_all.shape)
 
 ### 2.3 Reducing both to a comparable saliency map
 
-Grad-CAM is already a single non-negative map per image. SHAP is signed and per-channel.
-To compare like with like, SHAP is summed over the three colour channels (giving each
-pixel's total contribution) and the **positive part** is kept, so both maps answer the
-same question: *which pixels push the predicted score up?*
+Grad-CAM is already one non-negative map per image. SHAP has a sign and one value per
+channel. To compare like with like, SHAP is summed over the three colour channels, giving
+each pixel's total contribution, and the **positive part** is kept. Both maps then answer
+the same question: *which pixels push the predicted score up?*
 
-Negative SHAP is discarded rather than absolute-valued deliberately. Evidence *against*
-the predicted class is a different quantity from evidence *for* it, and mixing the two
-would let a pixel that argues against the prediction count as "attention".
+Negative SHAP values are deliberately dropped, not made positive. Evidence *against*
+the predicted class is different from evidence *for* it. Mixing them would let a pixel
+that argues against the prediction count as "attention".
 
 ```{python}
 # 2.3
@@ -318,12 +321,12 @@ print(f"images with an all-zero map: Grad-CAM {dead_cam}, SHAP {dead_shap}")
 
 ## 3. The Otsu lesion masks
 
-Regenerated by `export_otsu_masks.R`, which copies `segment_cda` verbatim from the
-dataset repo (`10_segmentation_and_feature_extraction`, chunk 1.3) and applies it to
-`data/cropped_images_medoid` — the same medoid crops `medoid_64` is built from, and so
-the same images the model sees. The dataset repo itself segments the *medoid* crops;
-using those here would compare a saliency map on one crop against a mask on a different
-crop of the same lesion.
+Made again by `export_otsu_masks.R`. It copies `segment_cda` exactly from the dataset
+repository (`10_segmentation_and_feature_extraction`, chunk 1.3). It applies it to
+`data/cropped_images_medoid`, the same medoid crops that `medoid_64` is built from, and so
+the same images the model sees. The dataset repository itself segments the *medoid*
+crops. Using those here would compare a saliency map on one crop with a mask on a
+different crop of the same lesion.
 
 ```{python}
 # 3.1
@@ -349,15 +352,15 @@ print(f"\nlesion area as a fraction of the crop: mean {area[sel].mean():.3f}, "
 
 ### 3.2 Orientation check
 
-The masks travel from R to Python through a PNG, and R's `readTIFF`/`writePNG` index
-`[row, col]` while EBImage works in `[x, y]`. A single stray transpose would put every
-mask on its own diagonal reflection, which for an off-centre lesion looks like a double
-flip and would quietly corrupt every overlap number below while leaving the mask *areas*
-untouched — so it would not show up in any of the summaries.
+The masks pass from R to Python as PNGs. R's `readTIFF` and `writePNG` index
+`[row, col]`, while EBImage uses `[x, y]`. One stray transpose would reflect every mask
+across its diagonal. For a lesion away from the centre, that looks like a double flip. It
+would silently corrupt every overlap number below but leave the mask *areas* unchanged. So
+none of the summaries would show it.
 
 The check uses the segmentation's own criterion. `segment_cda` thresholds greenness
-(`G - R`) and keeps the high side, so on a correctly oriented mask the mean greenness
-inside must exceed that outside by more than for any other orientation of the same mask.
+(`G - R`) and keeps the high side. So for a correctly oriented mask, mean greenness inside
+must exceed mean greenness outside by more than for any other orientation of that mask.
 
 ```{python}
 # 3.2
@@ -392,7 +395,7 @@ assert best == "as loaded", (
 )
 ```
 
-The lesion fills about half of every crop, and that fraction barely varies with severity:
+The lesion fills about half of every crop, and this hardly changes with severity.
 
 ```{python}
 # 3.3
@@ -405,17 +408,17 @@ tab = (
 print(tab.to_string())
 ```
 
-This is a property of how the data was built, not a defect. Each crop is the scorer's
-bounding box drawn *around* the lesion, so the lesion occupies a similar share of its own
-box whatever its severity. It matters here for one reason: **a saliency map that spread
-attention uniformly would already put ~51% of its energy inside the mask.** Every
-overlap number below has to be read against that floor.
+This comes from how the data was built, and is not a defect. Each crop is the rater's
+bounding box drawn *around* the lesion. So the lesion fills a similar share of its box
+whatever its severity. It matters here for one reason. **A saliency map that spread
+attention evenly would already put about 51% of its energy inside the mask.** Every
+overlap number below must be read against that baseline.
 
 ---
 
 ## 4. Overlap metrics
 
-Three complementary measures, all computed per image.
+Three complementary measures, each computed for every image.
 
 **Energy-based pointing game (EBPG).** The share of the map's total attention that falls
 inside the lesion. Defined in Score-CAM (Wang et al., CVPRW 2020, arXiv:1910.01279):
@@ -424,17 +427,17 @@ box... We denote this metric as Proportion = ΣL^c_(i,j)∈bbox / (ΣL^c_∈bbox
 ΣL^c_∉bbox), and call this metric an energy-based pointing game."* Their ground truth is
 a bounding box; the Otsu mask used here is a segmentation, which is a tighter target.
 
-**Pointing game.** Whether the single highest-attention pixel lies inside the lesion. The
-older, coarser criterion the EBPG generalises.
+**Pointing game.** Whether the single pixel with the most attention lies inside the
+lesion. This is the older, coarser measure that EBPG extends.
 
-**IoU and Dice.** The standard segmentation-overlap measures, which need a *binary*
-prediction. Binarising a continuous map requires a threshold, and any fixed threshold
-would favour whichever method happens to produce peakier maps. Instead each map is
-thresholded at its own top-`a` quantile, where `a` is that image's lesion area fraction —
+**IoU and Dice.** The standard measures of segmentation overlap, which need a *binary*
+prediction. Turning a continuous map into a binary one needs a threshold. Any fixed
+threshold would favour whichever method makes more peaked maps. Instead, each map is cut at
+its own top-`a` quantile, where `a` is that image's lesion area fraction. This is
 **matched-area binarisation**, so the predicted region is always the same size as the
-lesion. This makes IoU comparable across images and methods, and removes the free
-parameter. Under matched areas IoU and Dice are monotone transforms of each other, so
-both are reported but they rank identically.
+lesion. It makes IoU comparable across images and methods, and removes the free setting.
+With matched areas, IoU and Dice always rank images in the same order. Both are reported,
+but they rank identically.
 
 ```{python}
 # 4.1
@@ -524,8 +527,8 @@ summary = pd.DataFrame(
 print(summary.to_string())
 ```
 
-A one-sided sign test asks whether the lift is positive more often than chance, without
-assuming the lift is normally distributed.
+A one-sided sign test asks whether the lift is positive more often than chance would
+give, without assuming that the lift is normally distributed.
 
 ```{python}
 # 4.3
@@ -545,11 +548,11 @@ for name, col in [("Grad-CAM", "cam_lift"), ("SHAP", "shap_lift")]:
 
 ### 4.4 Is the weak Grad-CAM result a property of the model or of the layer?
 
-Grad-CAM barely clears the baseline, and its pointing game falls *below* it. Before
-concluding anything about the model, that has to be separated from the 4x4 resolution
-of the layer Grad-CAM is defined on. If the cause is resolution, computing the same
-Grad-CAM at shallower convolutions — which have finer grids but represent less abstract
-features — should recover the overlap.
+Grad-CAM only just beats the baseline, and its pointing game falls *below* it. Before
+concluding anything about the model, this must be separated from the 4x4 resolution of
+the layer Grad-CAM uses. If resolution is the cause, computing the same Grad-CAM at
+earlier convolutions should recover the overlap. Those have finer grids but less abstract
+features.
 
 ```{python}
 # 4.4
@@ -578,12 +581,12 @@ print(f"\nuniform baseline: {area[sel].mean():.4f}")
 
 ### 4.5 Two stronger nulls
 
-The uniform baseline asks "could this be achieved by spreading attention evenly?". That
-is too weak a question here, because the crop is the scorer's box drawn around the
-lesion, so the lesion is not just large but reliably **central**. Any map biased towards
-the middle of the frame scores well without using the image at all.
+The even baseline asks "could even attention achieve this?". That question is too weak
+here. The crop is the rater's box around the lesion, so the lesion is not just large but
+reliably **central**. Any map that favours the middle of the frame scores well without
+using the image at all.
 
-**Null 1 — a centred Gaussian.** A fixed blob at the image centre, identical for every
+**Null 1, a centred Gaussian.** A fixed blob at the image centre, the same for every
 image, with no access to the pixels.
 
 ```{python}
@@ -600,11 +603,11 @@ null_rows.append({"map": "SHAP", "EBPG": float(metrics.shap_ebpg.mean())})
 print(pd.DataFrame(null_rows).round(4).to_string(index=False))
 ```
 
-**Null 2 — the same map against someone else's lesion.** For each image, EBPG is
-recomputed against a mask taken from a *different, randomly chosen* crop. Shuffled masks
-are just as central and just as large as the real ones, so this null holds the geometry
-fixed and removes only the image-specific correspondence. The gap between own and
-shuffled is the part of the overlap that genuinely tracks *this* lesion.
+**Null 2, the same map against another crop's lesion.** For each image, EBPG is computed
+again against the mask of a *different, randomly chosen* crop. Shuffled masks are just as
+central and as large as the real ones. So this null keeps the geometry the same and only
+removes the match to each image. The gap between the own and shuffled masks is the part
+of the overlap that really follows *this* lesion.
 
 ```{python}
 # 4.5b
@@ -692,8 +695,8 @@ plt.show()
 
 ### 5.2 On-lesion and off-lesion examples
 
-Chosen by SHAP lift, so "good" and "bad" are defined by a measurement rather than by
-eye. Each row shows the crop, the Otsu lesion outline, Grad-CAM, and SHAP.
+Chosen by SHAP lift, so "good" and "bad" come from a measurement, not from looking.
+Each row shows the crop, the Otsu outline of the lesion, Grad-CAM and SHAP.
 
 ```{python}
 # 5.2
@@ -743,9 +746,9 @@ show_examples(
 
 ### 5.3 Where does off-lesion attention go?
 
-Hypothesis 4 said off-lesion attention should land on surrounding leaf rather than the
-black background. The leaf mask from the segmentation (mean RGB >= 0.15) splits the
-non-lesion pixels into leaf and background.
+Hypothesis 4 said that attention outside the lesion should fall on the leaf around it,
+not on the black background. The segmentation's leaf mask (mean RGB >= 0.15) splits the
+pixels outside the lesion into leaf and background.
 
 ```{python}
 # 5.3
@@ -779,8 +782,8 @@ print(pd.Series({
 
 ## 6. Do Grad-CAM and SHAP agree?
 
-Two maps can have the same EBPG while highlighting different pixels, so agreement is
-measured directly: the correlation between the two maps over pixels, per image.
+Two maps can have the same EBPG while highlighting different pixels. So agreement is
+measured directly, as the correlation between the two maps over pixels, for each image.
 
 ```{python}
 # 6.1
@@ -860,89 +863,88 @@ for name, col in [("Grad-CAM", "cam_lift"), ("SHAP", "shap_lift")]:
 
 ## 7. Interpretation and Discussion
 
-- **The headline overlap number is largely geometry, not perception.** SHAP puts 79% of
-  its attention inside the lesion against a 45% uniform baseline, which reads as a large
-  effect until the null is made honest. A centred Gaussian with sigma=12px, a fixed blob
-  that never sees the image, scores 82% — still higher than the model. The crop is the
-  scorer's bounding box drawn around the lesion, so the target is reliably central, and
-  centre-bias alone buys most of the apparent agreement.
+- **The main overlap number mostly reflects the crops' geometry, not what the model sees.**
+  SHAP puts 79% of its attention inside the lesion, against a baseline of 45% for even
+  attention. That looks like a large effect until the comparison is made fair. A centred
+  Gaussian with sigma=12px, a fixed blob that never sees the image, scores 82%, which is
+  higher than the model. The crop is the rater's bounding box around the lesion, so the
+  target is reliably central. Favouring the centre alone gives most of the apparent
+  agreement.
 
-- **What survives a matched null is small but real, and larger on the medoid crop than
-  on the centre-of-overlap one.** Scoring each map against a *different* crop's lesion
-  holds size and centrality fixed and removes only the image-specific correspondence.
-  SHAP beats that null by 0.0218 EBPG (p = 4e-6, 170/264 images) and Grad-CAM by 0.0208
-  (p = 0.003). Run on the centre-of-overlap crops the same test gave SHAP only 0.0046, so
-  switching to the medoid box multiplied the image-specific component roughly fourfold.
-  The mechanism is geometric: the medoid box is the most-agreed-with of the three
-  scorers' boxes, and the lesion fills 45% of it against 51% of the centre-of-overlap
-  crop, leaving more non-lesion leaf that a centre-biased map cannot claim credit for.
-  Hypothesis 1 is upheld in this form, and hypothesis 2 understated the problem: the
-  issue is not that the margin is modest but that the obvious baseline is the wrong one.
+- **What survives a matched null is small but real, and larger with the medoid crop than
+  with the centre-of-overlap crop.** Scoring each map against a *different* crop's lesion
+  keeps size and centrality the same, and removes only the match to each image. SHAP beats
+  that null by 0.0218 EBPG (p = 4e-6, 170 of 264 images), and Grad-CAM by 0.0208
+  (p = 0.003). On the centre-of-overlap crops, the same test gave SHAP only 0.0046. So
+  switching to the medoid box made the image-specific part about four times larger. The
+  reason is geometric. The medoid box is the one the other raters' boxes agree with most.
+  The lesion fills 45% of it, against 51% of the centre-of-overlap crop. That leaves more
+  leaf outside the lesion, which a map that favours the centre cannot take credit for.
+  Hypothesis 1 holds in this form. Hypothesis 2 understated the problem. The issue is not
+  that the margin is small, but that the obvious baseline is the wrong one.
 
-- **Grad-CAM's failure here is the architecture, not the method or the model.** At the
-  last convolution its lift is +0.044 and its pointing game 0.341, below the 0.452 area
-  baseline. Section 4.4 locates the cause: the same computation at the 29x29 convolution
-  gives lift +0.182. The last layer is 4x4, so the map has 16 values and
-  its argmax can only sit at one of 16 lattice points, most of them peripheral, while the
-  baseline counts pixel area. Those two quantities are not comparable at that resolution,
-  which is why the pointing game can fall below "chance" without the model doing anything
-  strange. Any Grad-CAM result on a network this small should be reported with the
-  feature-map size attached.
+- **Grad-CAM fails here because of the architecture, not the method or the model.** At
+  the last convolution, its lift is +0.044 and its pointing game 0.341, below the area
+  baseline of 0.452. Section 4.4 finds the cause. The same computation at the 29x29
+  convolution gives a lift of +0.182. The last layer is 4x4, so the map has 16 values. Its
+  maximum can only be at one of 16 grid points, most of them near the edge, while the
+  baseline counts pixel area. These cannot be compared at that resolution. That is why the
+  pointing game can fall below "chance" without the model doing anything odd. Any Grad-CAM
+  result on a network this small should give the size of the feature map.
 
-- **The two methods disagree far more than expected.** 115 of 262 images are
-  *negatively* correlated pixelwise. Hypothesis 3 predicted
-  agreement on coarse location with divergence in detail; at 4x4 Grad-CAM does not really
-  have a coarse location to agree about. The disagreement is therefore mostly uninformative
-  about the model — it is dominated by the resolution gap between a 16-cell map and a
-  4,096-pixel one. The practical consequence is that on this architecture SHAP is the
-  method to trust, and using Grad-CAM alone would have given a materially wrong answer.
+- **The two methods disagree far more than expected.** For 115 of 262 images, the maps are
+  *negatively* correlated pixel by pixel. Hypothesis 3 predicted agreement on the rough
+  location and differences in detail. At 4x4, Grad-CAM does not really have a rough
+  location to agree on. So the disagreement says little about the model. It is dominated
+  by the gap in resolution between a 16-cell map and a 4,096-pixel one. In practice, SHAP
+  is the method to trust on this architecture. Using Grad-CAM alone would have given a
+  clearly wrong answer.
 
-- **Attention avoids the background, which is the one clean positive.** SHAP places 3.5%
-  of its energy on dark background occupying 6.1% of the pixels, and 17.9% on non-lesion
-  leaf occupying 48.8%. Both are under-weighted relative to area, so hypothesis 4 holds:
-  what little attention falls outside the lesion lands on leaf tissue rather than on the
-  black surround. The model is not keying on the crop border or the padding.
+- **Attention avoids the background, which is the one clear positive result.** SHAP puts
+  3.5% of its energy on dark background, which is 6.1% of the pixels. It puts 17.9% on leaf
+  outside the lesion, which is 48.8% of the pixels. Both get less than their share of the
+  area, so hypothesis 4 holds. The little attention outside the lesion falls on leaf, not
+  on the black surround. The model is not using the crop border or the padding.
 
-- **Looking at the lesion is NOT associated with being right on this crop set.** SHAP
-  lift is nominally higher on correctly scored crops than on errors (median +0.368 vs
-  +0.345) at Mann-Whitney p = 0.048, and Grad-CAM p = 0.414. On the EBPG itself rather than
-  the lift the same comparison gives SHAP p = 0.068 and Grad-CAM p = 0.987. On the centre-of-overlap
-  crops the SHAP comparison did reach p = 0.004, so this association does not survive the
-  change of crop and should not be relied on. Errors are not explained by the model
-  looking in the wrong place.
+- **Looking at the lesion is NOT linked to being right on these crops.** SHAP lift is
+  slightly higher on correctly scored crops than on errors (median +0.368 against +0.345),
+  with Mann-Whitney p = 0.048. For Grad-CAM, p = 0.414. On EBPG itself, rather than the
+  lift, the same comparison gives p = 0.068 for SHAP and 0.987 for Grad-CAM. On the
+  centre-of-overlap crops, the SHAP comparison did reach p = 0.004. So the link does not
+  survive the change of crop and should not be relied on. The model's errors do not come
+  from looking in the wrong place.
 
-- **A methodological caution for reuse.** The masks cross an R-to-Python boundary where
-  the two languages disagree about index order, and an early version of
-  `export_otsu_masks.R` transposed every mask. That corrupted every overlap metric while
-  leaving mask *areas*, lesion fractions and the uniform baseline completely unchanged,
-  so nothing in the summary tables looked wrong. It was caught by checking mean greenness
-  inside versus outside the mask, the quantity Otsu itself thresholds. Section 3.2 now
-  runs that check on every render and fails the build if any other orientation separates
-  greenness better.
+- **A warning for anyone reusing this.** The masks pass from R to Python, and the two
+  languages order indices differently. An early version of `export_otsu_masks.R`
+  transposed every mask. That corrupted every overlap metric, but left the mask *areas*,
+  lesion fractions and even baseline completely unchanged. So nothing in the summary
+  tables looked wrong. It was caught by comparing mean greenness inside and outside the
+  mask, the quantity Otsu itself thresholds. Section 3.2 now runs that check on every
+  render, and stops the render if any other orientation separates greenness better.
 
-- **Scope.** This is one model. `analyses/08` showed 17 settings tied within one standard
-  error of the best, so this model is a representative member of that cluster rather than a
-  uniquely best model, and nothing here establishes that the other 16 attend the same
-  way. Extending sections 4.4 and 4.5 across the kept top-100 would say whether
-  centre-bias is a property of this network or of the task as posed.
+- **Scope.** This is one model. `analyses/08` showed that 17 settings are tied within one
+  standard error of the best. So this model is a typical member of that cluster, not a
+  uniquely best model. Nothing here shows that the other 16 look at the same places.
+  Repeating sections 4.4 and 4.5 for the kept top 100 would show whether favouring the
+  centre belongs to this network or to the task as set up.
 
-- **What would sharpen this.** The centrality confound is baked into the crops, so the
-  informative experiment is off-centre: re-crop each CDA with the lesion deliberately
-  displaced from the frame centre, and re-measure. If the attention follows the lesion,
-  the own-versus-shuffled gap should widen sharply; if it stays at the frame centre, the
-  model is using position rather than appearance.
+- **What would make this sharper.** The crops build in the confound with central
+  position. So the informative experiment moves the lesion off centre. Crop each CDA again
+  with the lesion deliberately away from the centre, and measure again. If attention
+  follows the lesion, the gap between own and shuffled masks should widen sharply. If it
+  stays at the centre, the model is using position rather than appearance.
 
 ## Thesis figure: example attributions
 
-SHAP only. Grad-CAM is excluded from the thesis figure because this network's last
-convolution is 4x4, so its map holds 16 values over a 64x64 CDA image and section 4.4
-shows the same computation at 12x12 recovers most of the overlap: the panel would report
-the feature-map size, not the model.
+SHAP only. Grad-CAM is left out of the thesis figure because this network's last
+convolution is 4x4. Its map holds 16 values over a 64x64 CDA image. Section 4.4 shows that
+the same computation at 12x12 recovers most of the overlap. So the panel would show the
+size of the feature map, not the model.
 
-Four columns, and each CDA image sits directly above its own attribution map. The top two
-rows are the four highest inside/outside ratios in the test split, left to right, and the
-bottom two rows the four lowest. Ranking on that ratio picks the examples by the measure
-the panels below use rather than by eye.
+Four columns, with each CDA image directly above its own attribution map. The top two
+rows are the four highest ratios of inside to outside attention in the test split, left to
+right. The bottom two rows are the four lowest. Ranking on that ratio picks the examples by
+the measure the panels below use, not by eye.
 
 ```{python}
 #| fig-cap: "SHAP attribution for the selected CNN on four test CDA images, each shown as the image with its Otsu lesion outline in cyan and then with SHAP overlaid. The top row is the highest inside/outside ratio in the test split and the bottom row the lowest."
@@ -1003,20 +1005,20 @@ print("bottom row ratios: " + ", ".join(f"{_ratio[r]:.1f}x" for r in _bot))
 
 ## Thesis figure 2: inside the lesion, but not the shape of it
 
-Two panels, each one measure split by whether the model scored the CDA image correctly,
-and each written out on its own so the thesis assembler can place them.
+Two panels, each showing one measure split by whether the model scored the CDA image
+correctly. Each is saved on its own, so it can be placed in the thesis figure.
 
-**A, matched-area IoU.** Threshold the map to the lesion's own pixel count, then overlap.
-This scores outline and placement together and leaves no free threshold. The centred disc
-is the reference: matched-area binarisation of any radially decreasing map selects the same
-n most-central pixels, so every Gaussian width collapses to one disc and the bar carries no
-free parameter.
+**A, matched-area IoU.** Threshold the map to the lesion's own pixel count, then measure
+the overlap. This scores outline and placement together and leaves no free threshold. The
+centred disc is the reference. Matched-area binarisation of any map that falls away from
+the centre selects the same n most central pixels. So every Gaussian width gives the same
+disc, and the bar has no free setting.
 
-**B, inside/outside ratio.** Mean attribution on a lesion pixel divided by the mean on a
-pixel outside. Dividing by the pixel count in each region removes the lesion's size, and
-the ratio barely moves when the Otsu boundary is slightly wrong. No disc here: without
-binarisation its ratio runs from 44.5x at sigma=8 to 1.7x at sigma=24, so any bar drawn
-would be a choice of sigma rather than a null.
+**B, ratio of inside to outside.** The mean attribution on a lesion pixel, divided by the
+mean on a pixel outside. Dividing by each region's pixel count removes the lesion's size.
+The ratio hardly moves when the Otsu boundary is slightly wrong. There is no disc here.
+Without binarisation, the disc's ratio runs from 44.5x at sigma=8 to 1.7x at sigma=24. So
+any bar drawn would reflect a choice of sigma, not a null.
 
 ```{python}
 #| fig-cap: "SHAP attribution against the Otsu lesion for the selected CNN on the 264 test CDA images with a lesion. (A) matched-area IoU, with a centred disc of the same area for reference. (B) attribution per lesion pixel relative to per pixel outside, where 1 means no concentration."
@@ -1106,11 +1108,11 @@ print(f"connected components in the top-n region: SHAP median {np.median(_frag):
 
 ## Is the low tail a bad Otsu mask?
 
-The inside/outside ratio has a low tail, and a mask that is not the lesion would produce
-exactly that: attribution on the real lesion would be counted as "outside". Circularity,
-`4*pi*area / perimeter^2`, is 1 for a disc and falls as the boundary becomes ragged, so a
-speckled or multi-part Otsu mask scores low on it. If the low-ratio images are segmentation
-failures they should sit at low circularity.
+The ratio of inside to outside has a low tail. A mask that is not the lesion would give
+exactly that, because attribution on the real lesion would count as "outside".
+Circularity, `4*pi*area / perimeter^2`, is 1 for a disc and falls as the boundary becomes
+ragged. So a speckled or broken Otsu mask scores low on it. If the images with low ratios
+are segmentation failures, they should have low circularity.
 
 ```{python}
 #| fig-cap: "Otsu mask circularity against SHAP attribution inside the lesion relative to outside, one point per test CDA image. Circularity is 1 for a disc; the dashed line is no concentration."
